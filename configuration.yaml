@@ -1,0 +1,27 @@
+# CONFIGURATION FILE 
+# All paths are to be given without final slash.
+
+# Path 
+pathFlow: '/Users/joaoisler/Google Drive/My Drive/bsc/scramjet/afrl/2d/cases/rans/case'
+pathRes: '/Users/joaoisler/Google Drive/My Drive/bsc/pinns/sampling/results' 
+
+# Files
+flowfield: 'flow.vtu' 
+
+# Routines
+routine:
+  sampling: True
+  pinns: False
+  gnn: False
+
+# Sampling parameters
+sampling:
+  nspoin: 5000
+  Type: 'lhs' # random, lhs
+  graphfilename: 'sampling_graph'
+  datafilename: 'sampling_data'
+
+# General parameters
+dims: 3
+
+
