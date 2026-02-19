@@ -3,14 +3,16 @@
 
 # Path 
 pathFlow: '/Users/joaoisler/Google Drive/My Drive/bsc/scramjet/afrl/2d/cases/rans/case'
-pathRes: '/Users/joaoisler/Google Drive/My Drive/bsc/pinns/sampling/results' 
-
-# Files
+pathRes: '/Users/joaoisler/Google Drive/My Drive/bsc/pinns/PINNs/results' 
+pathData: '/Users/joaoisler/Google Drive/My Drive/bsc/pinns/PINNs/data' 
+ 
+# Flow field file
 flowfield: 'flow.vtu' 
 
 # Routines
 routine:
   sampling: True
+  training: False
   pinns: False
   gnn: False
 
@@ -21,7 +23,21 @@ sampling:
   graphfilename: 'sampling_graph'
   datafilename: 'sampling_data'
 
+# PINNs steup
+N_train: 5000
+layers: [3, 20, 20, 20, 20, 20, 20, 20, 20, 2]
+
 # General parameters
 dims: 3
 
-
+# Reference quatities
+H: 0.0508
+Lref: 0.0254 # m
+# Freestream condition
+U_0: 727.0 # m/s
+T: 327.0   # K
+p: 61700   # Pa
+rho: 0.657 # kg/m^3
+# Turbulence modeling
+k: 7884.91         # m^2/s^2
+omega: 2.62957e+07 # 1/s
