@@ -34,12 +34,13 @@ class SamplingData:
                 sampler = qmc.LatinHypercube(d=3)   # use d=2 for 2D
                 u01 = sampler.random(n=N)           # (N,3) in [0,1)
             except ImportError:
-                # fallback: "stratified" sampling (still better than pure random)
+                # "stratified" sampling (still better than pure random)
                 d = 3
                 u01 = np.empty((N, d))
                 for j in range(d):
                     perm = np.random.permutation(N)
-                    u01[:, j] = (perm + np.random.rand(N)) / N  # one stratum per point
+                    # one stratum per point
+                    u01[:, j] = (perm + np.random.rand(N)) / N  
 
             # Map to physical domain bounds
             pts = np.empty_like(u01)
@@ -57,8 +58,8 @@ class SamplingData:
 
         # Extract arrays
         # Note that the arrays are normalised
-        X = sampled.points        # (N,3)
-        U = sampled["Velocity"]   # (N,3) if vector
+        X = sampled.points        # (N,3) or (N,2)
+        U = sampled["Velocity"]   # (N,3) or (N,2) if vector
         rho = sampled["Density"]  # (N,) 
         p = sampled["Pressure"]   # (N,) if scalar
 
@@ -70,11 +71,16 @@ class SamplingData:
 
         # Remove invalid points and normalised it
         self.Xstar = X[mask] / params['Lref']
+        self.rhostar = rho[mask] / params['rho']
         self.Ustar = U[mask] / params['U_0']
-        self.pstar = p[mask] / (rho[mask] * params['U_0'] * params['U_0']) 
+        self.pstar = p[mask] / (params['rho'] 
+            * params['U_0'] * params['U_0']) 
 
     def GetXstar(self):       
         return self.Xstar
+
+    def GetRHOstar(self):
+        return self.pstar
 
     def GetUstar(self):       
         return self.Ustar
@@ -83,12 +89,12 @@ class SamplingData:
         return self.pstar
 
     def WriteDataToCSV(self, params):
-        out = np.column_stack([self.Xstar, self.Ustar[:,0], self.Ustar[:,1], 
-            self.Ustar[:,2], self.pstar])
+        out = np.column_stack([self.Xstar, self.rhostar, self.Ustar[:,0], 
+            self.Ustar[:,1], self.Ustar[:,2], self.pstar])
         np.savetxt(
             params['pathData']+'/'+params['sampling']['datafilename']+'.csv', 
             out, delimiter=",", 
-            header="xstar,ystar,zstar,ustar,vstar,wstar,pstar", 
+            header="xstar,ystar,zstar,rhostar,ustar,vstar,wstar,pstar", 
             comments="")
         
     def PlotSamplingPointsToPDF(self, params):
