@@ -21,15 +21,17 @@ sampling:
   nspoin: 5000
   Type: 'lhs' # random, lhs
   graphfilename: 'sampling_graph'
-  datafilename: 'sampling_data'
+  datafilename: 'sacmpling_data'
 
 # PINNs steup
-N_train: 5000
-layers: [3, 20, 20, 20, 20, 20, 20, 20, 20, 2]
+N_train: 500
+layers: [2, 20, 20, 20, 4]
 
 # General parameters
 dims: 3
 
+# Heat capacity ratio 
+gamma: 1.4
 # Reference quatities
 H: 0.0508
 Lref: 0.0254 # m
