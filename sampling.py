@@ -80,7 +80,7 @@ class SamplingData:
         return self.Xstar
 
     def GetRHOstar(self):
-        return self.pstar
+        return self.rhostar
 
     def GetUstar(self):       
         return self.Ustar
