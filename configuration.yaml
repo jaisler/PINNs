@@ -2,7 +2,7 @@
 # All paths are to be given without final slash.
 
 # Path 
-pathFlow: '/Users/joaoisler/Google Drive/My Drive/bsc/scramjet/afrl/2d/cases/rans/case'
+pathFlow: '/Users/joaoisler/Google Drive/My Drive/bsc/scramjet/afrl/2d/cases/euler/case'
 pathRes: '/Users/joaoisler/Google Drive/My Drive/bsc/pinns/PINNs/results' 
 pathData: '/Users/joaoisler/Google Drive/My Drive/bsc/pinns/PINNs/data' 
  
@@ -12,23 +12,30 @@ flowfield: 'flow.vtu'
 # Routines
 routine:
   sampling: True
+  inference: False
+  identification: False
   training: False
   pinns: False
   gnn: False
 
 # Sampling parameters
 sampling:
-  nspoin: 5000
+  nspoin: 6000
+  nspoin_extra: 2000 # grad
   Type: 'lhs' # random, lhs
+  GradTypeVar: 'Density'
+  pool_factor: 8
+  alpha_grad_rho: 1.5
+  seed: 1234
   graphfilename: 'sampling_graph'
-  datafilename: 'sacmpling_data'
+  datafilename: 'sampling_data'
 
 # PINNs steup
-N_train: 500
-layers: [2, 20, 20, 20, 4]
+N_train: 600
+layers: [2, 64, 64, 64, 64, 64, 4]
 
 # General parameters
-dims: 3
+dims: 2
 
 # Heat capacity ratio 
 gamma: 1.4
