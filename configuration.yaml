@@ -3,11 +3,13 @@
 
 # Path 
 pathFlow: '/Users/joaoisler/Google Drive/My Drive/bsc/scramjet/afrl/2d/cases/euler/case'
+pathMesh: '/Users/joaoisler/Google Drive/My Drive/bsc/scramjet/afrl/2d/meshes/mesh2'
 pathRes: '/Users/joaoisler/Google Drive/My Drive/bsc/pinns/PINNs/results' 
 pathData: '/Users/joaoisler/Google Drive/My Drive/bsc/pinns/PINNs/data' 
  
 # Flow field file
 flowfield: 'flow.vtu' 
+mesh: 'afrl2d.geo'
 
 # Routines
 routine:
@@ -20,18 +22,21 @@ routine:
 
 # Sampling parameters
 sampling:
-  nspoin: 6000
-  nspoin_extra: 2000 # grad
-  Type: 'lhs' # random, lhs
-  GradTypeVar: 'Density'
+  nspoin: 3000
+  nspoin_grad: 3000 # grad
+  nspoin_bc: 50 # boundary condition
+  type: 'lhs' # random, lhs
+  grad_type_var: 'Density'
+  bc: ['inlet','outlet','top','bottom']
   pool_factor: 8
-  alpha_grad_rho: 1.5
+  alpha_grad_rho: 1.4
   seed: 1234
-  graphfilename: 'sampling_graph'
-  datafilename: 'sampling_data'
+  graph_filename: 'sampling_graph'
+  data_filename: 'sampling_data'
 
 # PINNs steup
 N_train: 600
+N_AdamIter: 400
 layers: [2, 64, 64, 64, 64, 64, 4]
 
 # General parameters

@@ -1,6 +1,10 @@
 import numpy as np
 import pyvista as pv
+import gmsh
+import re
+from pathlib import Path
 import plot as pl
+
 
 class SamplingData:
     # Initialize the class
@@ -8,10 +12,6 @@ class SamplingData:
 
         # Dimension
         self.dims = params['dims']
-        # N points
-        # --------- this should not be a member of the class -----------
-        # --------- because I also have N_pool -------------
-        self.N = params['sampling']['nspoin']
 
         # Load your solution
         # .vtk, .pvtu, .vtm, ...
@@ -23,30 +23,34 @@ class SamplingData:
         # Sample points
         xmin, xmax, ymin, ymax, zmin, zmax = mesh.bounds
         # Get base sampler function 
-        base_sampler = self.GetBaseSampler(params['sampling']['Type'])
-        # Call chosen sampler 
-        pts = base_sampler(xmin, xmax, ymin, ymax)  
-        # The flow is 2D but VTK expects 3D points, lift to z=zmin (or 0)
-        if self.dims == 2:
-            pts = np.column_stack([pts, np.full((pts.shape[0],), zmin)])
+        base_sampler = self.GetBaseSampler(params['sampling']['type'])
+
+        if params['sampling']['nspoin'] > 0:
+            # Call chosen sampler 
+            pts = base_sampler(params['sampling']['nspoin'], xmin, xmax, ymin, ymax)  
+            # The flow is 2D but VTK expects 3D points, lift to z=zmin (or 0)
+            if self.dims == 2:
+                pts = np.column_stack([pts, np.full((pts.shape[0],), zmin)])
+        else:
+            raise ValueError("Number of sample points must be provided ")
 
         # Add extra points in regions detected by a sensor
         # Extra points based on gradient |grad(rho)|
-        N_extra = params['sampling'].get('nspoin_extra', 0)
-        if N_extra > 0:
-            extra_pts = self.SampleBasedOnGrad(
-                mesh=mesh,
-                N_extra=N_extra,
+        if params['sampling']['nspoin_grad'] > 0:
+            pts_grad = self.SampleBasedOnGrad(
+                mesh=mesh, npoin_grad=params['sampling']['nspoin_grad'],
                 xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, zmin=zmin, zmax=zmax,
                 base_sampler=base_sampler,
-                var_name=params['sampling'].get('GradTypeVar', 'Density'),
+                var_name=params['sampling'].get('grad_type_var', 'Density'),
                 pool_factor=params['sampling'].get('pool_factor', 8),
                 alpha=params['sampling'].get('alpha_grad_rho', 1.5),
                 seed=params['sampling'].get('seed', 1234))
-            #pts = np.vstack([pts, extra_pts])
-        
-        # Extra points on the boundary condition
-        self.SampleBoundaryCondition
+            pts = np.vstack([pts, pts_grad])
+
+        # Points on the boundary condition
+        for phys_name in params['sampling']['bc']:
+            pts_bc = self.SampleBoundaryCondition(phys_name, params)
+            #pts = np.vstack([pts, pts_bc])
 
         # Interpolate solution at points
         point_cloud = pv.PolyData(pts)
@@ -82,26 +86,26 @@ class SamplingData:
         elif sampling_type == "lhs":
             return self.SampleLatinHypercube
         else:
-            raise ValueError("sampling Type must be 'random' or 'lhs'")
+            raise ValueError("sampling type must be 'random' or 'lhs'")
 
-    def SampleRandomPoints(self, xmin, xmax, ymin, ymax):
+    def SampleRandomPoints(self, npoin, xmin, xmax, ymin, ymax):
         pts = np.column_stack([
-            np.random.uniform(xmin, xmax, self.N),
-            np.random.uniform(ymin, ymax, self.N),
+            np.random.uniform(xmin, xmax, npoin),
+            np.random.uniform(ymin, ymax, npoin),
             ])
         return pts 
     
-    def SampleLatinHypercube(self, xmin, xmax, ymin, ymax):
+    def SampleLatinHypercube(self, npoin, xmin, xmax, ymin, ymax):
         try:
             from scipy.stats import qmc
             sampler = qmc.LatinHypercube(d=self.dims)   # use d=2 for 2D
-            u01 = sampler.random(n=self.N)              # (N,2) in [0,1)
+            u01 = sampler.random(n=npoin)              # (N,2) in [0,1)
         except ImportError:
-            u01 = np.empty((self.N, self.dims))
+            u01 = np.empty((npoin, self.dims))
             for j in range(self.dims):
-                perm = np.random.permutation(self.N)
+                perm = np.random.permutation(npoin)
                 # one stratum per point
-                u01[:,j] = (perm + np.random.rand(self.N)) / self.N  
+                u01[:,j] = (perm + np.random.rand(npoin)) / npoin  
 
         # Map to physical domain bounds
         pts = np.empty_like(u01)
@@ -110,11 +114,39 @@ class SamplingData:
         
         return pts
     
-    def SampleBoundaryCondition():
+    def SampleBoundaryCondition(self, phys_name, params):
+        """
+        Sample boundary points from a Physical Group in a .geo file.
+        phys_name: physical group name in the .geo, e.g. "inlet", "outlet", 
+        "wall"
+        Returns: 
+        """
+        rng = np.random.default_rng(params['sampling']['seed'])
 
-        return 0
-    
-    def SampleBasedOnGrad(self, mesh, N_extra,
+        gmsh.initialize()
+        gmsh.option.setNumber("General.Terminal", 0)
+        try:
+            gmsh.open(params['pathMesh']+'/'+params['mesh'])
+            gmsh.model.geo.synchronize()
+            gmsh.model.mesh.generate(self.dims)
+
+            # Find physical group tag by name
+            # Gmsh stores physical groups by (dim, tag)
+            phys_groups = gmsh.model.getPhysicalGroups()
+            matches = []
+
+            for d, tag in phys_groups:
+                name = gmsh.model.getPhysicalName(d, tag)
+                if name == phys_name:
+                    matches.append((d, tag))
+        
+            if not matches:
+                raise ValueError(f"Physical group '{phys_name}' not found.")
+
+        finally:
+            gmsh.finalize()                
+
+    def SampleBasedOnGrad(self, mesh, npoin_grad,
         xmin, xmax, ymin, ymax, zmin, zmax, base_sampler,
         var_name="Density",
         pool_factor=8,
@@ -138,10 +170,52 @@ class SamplingData:
         # Calculate the norm
         mesh_g.point_data["grad_rho_mag"] = np.linalg.norm(grad_vec, axis=1)
 
-        # Try to think about this code yourself.
+        # Candidate pool
+        npoin_pool = int(pool_factor * npoin_grad)
+        cand = base_sampler(npoin_pool, xmin, xmax, ymin, ymax)   
 
+        if self.dims == 2:
+            cand = np.column_stack([cand, np.full((cand.shape[0],), zmin)])
 
-        return mesh_g
+        # keep only candidates that lie in some cell
+        cell_ids = mesh_g.find_containing_cell(cand)
+        cand = cand[cell_ids >= 0]
+        if cand.shape[0] == 0:
+            return np.empty((0, 3))
+
+        # Evaluate grad magnitude at candidates 
+        sampled = pv.PolyData(cand).sample(mesh_g)
+
+        if "vtkValidPointMask" in sampled.point_data:
+            mask = sampled["vtkValidPointMask"].astype(bool)
+            pts_in = sampled.points[mask]
+            grad = sampled["grad_rho_mag"][mask]
+        else:
+            pts_in = sampled.points
+            grad = sampled["grad_rho_mag"]
+
+        if pts_in.shape[0] == 0:
+            return np.empty((0, 3))
+
+        # accept–reject with p ∝ (g+eps)^alpha (if density)
+        w = (grad + eps) ** alpha
+        wmax = np.max(w)
+        if (not np.isfinite(wmax)) or wmax <= 0:
+            return np.empty((0, 3))
+
+        p = w / wmax
+        keep = rng.random(p.shape[0]) < p
+        pts_grad = pts_in[keep]
+
+        # Ensure exactly N_extra points (top-up by highest weights)
+        if pts_grad.shape[0] < npoin_grad:
+            order = np.argsort(w)[::-1]
+            need = npoin_grad - pts_grad.shape[0]
+            pts_grad = np.vstack([pts_grad, pts_in[order[:need]]])
+        else:
+            pts_grad = pts_grad[:npoin_grad]
+
+        return pts_grad
     
     def GetXstar(self):       
         return self.Xstar
@@ -159,11 +233,11 @@ class SamplingData:
         out = np.column_stack([self.Xstar, self.rhostar, self.Ustar[:,0], 
             self.Ustar[:,1], self.Ustar[:,2], self.pstar])
         np.savetxt(
-            params['pathData']+'/'+params['sampling']['datafilename']+'.csv', 
+            params['pathData']+'/'+params['sampling']['data_filename']+'.csv', 
             out, delimiter=",", 
             header="xstar,ystar,zstar,rhostar,ustar,vstar,wstar,pstar", 
             comments="")
-        
+
     def PlotSamplingPointsToPDF(self, params):
-        pl.plot_sampling_points(self.Xstar, params)
+        pl.PlotSamplingPoints(self.Xstar, params)
 

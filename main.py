@@ -4,6 +4,9 @@ import sampling as smp
 import pandas as pd
 import numpy as np
 import pinns
+import time
+import plot as pl
+from scipy.interpolate import griddata
 
 def main():
 
@@ -36,38 +39,67 @@ def main():
 
     else:
         # Read data set
-        df = []
-        df.append(pd.read_csv(params['pathData'] + '/' 
-            + params['datafilename'] + '.csv', delimiter=','))
-        Xstar = df[['xstar', 'ystar', 'zstar']] # N x 3
-        Ustar = df[['ustar', 'vstar', 'wstar']] # N x 3
-        rhostar = df['rhostar']                 # N
-        pstar = df['pstar']                     # N
+        df = pd.read_csv(os.path.join(params['pathData'], 
+            params['sampling']['datafilename'] + '.csv'))
+        Xstar = df[['xstar', 'ystar', 'zstar']].to_numpy(dtype=float)
+        Ustar = df[['ustar', 'vstar', 'wstar']].to_numpy(dtype=float)
+        rhostar = df['rhostar'].to_numpy(dtype=float)
+        pstar = df['pstar'].to_numpy(dtype=float)
 
-    # Number of points inside the geometry. This is not the same
-    # number of the points provided in the configureation file.
-    N = Xstar.shape[0]
+    if(params['routine']['inference']):
+        # Number of points inside the geometry. This is not the same
+        # number of the points provided in the configureation file.
+        N = Xstar.shape[0]
 
-    # Rearrange Data 
-    x = Xstar[:,0]   # N 
-    y = Xstar[:,1]   # N
-    rho = rhostar[:] # N
-    u = Ustar[:,0]   # N
-    v = Ustar[:,1]   # N
-    p = pstar[:]     # N
-     
-    # Training Data - noiseless data    
-    idx = np.random.choice(N, params['N_train'], replace=False)
-    xtrain = x[idx, None]
-    ytrain = y[idx, None]
-    rhotrain = rho[idx, None]
-    utrain = u[idx, None]
-    vtrain = v[idx, None]
-    ptrain = p[idx, None]
+        # Rearrange Data 
+        x = Xstar[:,0]   # N 
+        y = Xstar[:,1]   # N
+        rho = rhostar[:] # N
+        u = Ustar[:,0]   # N
+        v = Ustar[:,1]   # N
+        p = pstar[:]     # N
+        
+        # Training Data - noiseless data
+        N_train = min(params['N_train'], N)    
+        idx = np.random.choice(N, N_train, replace=False)
+        xtrain = x[idx,None]
+        ytrain = y[idx,None]
+        rhotrain = rho[idx,None]
+        utrain = u[idx,None]
+        vtrain = v[idx,None]
+        ptrain = p[idx,None]
 
-    # Training - note that model is a object of the class
-    model = pinns.PhysicsInformedNN(xtrain, ytrain, rhotrain, utrain, vtrain, 
-        ptrain, params) 
+        # Training - note that model is a object of the class
+        # Note that model is a object of the class
+        model = pinns.PhysicsInformedNN(xtrain, ytrain, rhotrain, utrain, 
+            vtrain, ptrain, params) 
+        # Train
+        start_time = time.time()                
+        model.train(params['N_AdamIter'])
+        elapsed = time.time() - start_time                
+        print('Training time: %.4f' % (elapsed))
+        # Prediction
+        rho_pred, u_pred, v_pred, p_pred  = model.predict(x, y) 
+
+        # Post-processing      
+        pl.PlotPredictedFlow(x,y,rho_pred,params)
+
+        # compute relative L2 errors if you have ground truth at these points
+        def rel_l2(pred, true):
+            pred = np.asarray(pred).reshape(-1)
+            true = np.asarray(true).reshape(-1)
+            return np.linalg.norm(pred - true) / (np.linalg.norm(true) + 1e-12)
+
+        err_rho = rel_l2(rho_pred, rho)
+        err_u = rel_l2(u_pred, u)
+        err_v = rel_l2(v_pred, v)
+        err_p = rel_l2(p_pred, p)
+
+        print("Relative L2 errors:")
+        print(f"  rho: {err_rho:.3e}")
+        print(f"  u  : {err_u:.3e}")
+        print(f"  v  : {err_v:.3e}")
+        print(f"  p  : {err_p:.3e}")
 
 if __name__ == "__main__":
     main()
