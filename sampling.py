@@ -124,6 +124,7 @@ class SamplingData:
         rng = np.random.default_rng(params['sampling']['seed'])
 
         gmsh.initialize()
+        # Turn off terminal output from Gmsh
         gmsh.option.setNumber("General.Terminal", 0)
         try:
             gmsh.open(params['pathMesh']+'/'+params['mesh'])
@@ -168,7 +169,7 @@ class SamplingData:
         # Get the gradient vector 
         grad_vec = mesh_g.point_data["gradient"]
         # Calculate the norm
-        mesh_g.point_data["grad_rho_mag"] = np.linalg.norm(grad_vec, axis=1)
+        mesh_g.point_data["grad_mag"] = np.linalg.norm(grad_vec, axis=1)
 
         # Candidate pool
         npoin_pool = int(pool_factor * npoin_grad)
@@ -177,7 +178,7 @@ class SamplingData:
         if self.dims == 2:
             cand = np.column_stack([cand, np.full((cand.shape[0],), zmin)])
 
-        # keep only candidates that lie in some cell
+        # Keep only candidates that lie in some cell
         cell_ids = mesh_g.find_containing_cell(cand)
         cand = cand[cell_ids >= 0]
         if cand.shape[0] == 0:
@@ -189,31 +190,38 @@ class SamplingData:
         if "vtkValidPointMask" in sampled.point_data:
             mask = sampled["vtkValidPointMask"].astype(bool)
             pts_in = sampled.points[mask]
-            grad = sampled["grad_rho_mag"][mask]
+            grad_mag = sampled["grad_mag"][mask]
         else:
             pts_in = sampled.points
-            grad = sampled["grad_rho_mag"]
-
+            grad_mag = sampled["grad_mag"]
+        # Check if pts_in is zero, so no point was interpolated, all points
+        # were outside of the geometry.
         if pts_in.shape[0] == 0:
             return np.empty((0, 3))
 
-        # accept–reject with p ∝ (g+eps)^alpha (if density)
-        w = (grad + eps) ** alpha
-        wmax = np.max(w)
+        # accept–reject with p = (g+eps)^alpha
+        w = (grad_mag + eps) ** alpha
+        wmax = np.max(w) 
+        # Check for Nan/inf or negativa values
         if (not np.isfinite(wmax)) or wmax <= 0:
             return np.empty((0, 3))
 
-        p = w / wmax
+        # Convert weights to acceptance probabilities in [0,1]
+        p = w / wmax # probability
+        # Note that if q < p, we keep the points because p
+        # has a high probability value.
         keep = rng.random(p.shape[0]) < p
         pts_grad = pts_in[keep]
 
-        # Ensure exactly N_extra points (top-up by highest weights)
+        # Ensure exactly npoin_grad points (top-up by highest weights)
         if pts_grad.shape[0] < npoin_grad:
             order = np.argsort(w)[::-1]
             need = npoin_grad - pts_grad.shape[0]
             pts_grad = np.vstack([pts_grad, pts_in[order[:need]]])
         else:
             pts_grad = pts_grad[:npoin_grad]
+
+        print(pts_grad)
 
         return pts_grad
     
