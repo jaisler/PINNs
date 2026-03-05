@@ -2,10 +2,10 @@
 # All paths are to be given without final slash.
 
 # Path 
-pathFlow: '/Users/joaoisler/Google Drive/My Drive/bsc/scramjet/afrl/2d/cases/euler/case'
-pathMesh: '/Users/joaoisler/Google Drive/My Drive/bsc/scramjet/afrl/2d/meshes/mesh2'
-pathRes: '/Users/joaoisler/Google Drive/My Drive/bsc/pinns/PINNs/results' 
-pathData: '/Users/joaoisler/Google Drive/My Drive/bsc/pinns/PINNs/data' 
+pathFlow: '/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/scramjet/afrl/2d/cases/euler/case'
+pathMesh: '/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/scramjet/afrl/2d/meshes/mesh2'
+pathRes: '/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/results' 
+pathData: '/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/data' 
  
 # Flow field file
 flowfield: 'flow.vtu' 
@@ -13,31 +13,38 @@ mesh: 'afrl2d.geo'
 
 # Routines
 routine:
-  sampling: True
+  plotflow: True
+  sampling: False
   inference: False
   identification: False
-  training: False
-  pinns: False
-  gnn: False
+
+plotflow:
+  fields: ["Density", "Pressure", "Velocity", "Velocity"]
+  latex: ['$\rho$', '$p$', '$u$', '$v$']
+  comp: [0, 0, 0, 1]
+  cmap: ['bwr', 'bwr', 'bwr', 'bwr']
+  scale: [[0,1.3],[1.3e4,1.67e5],[-750, 950],[-315,315]]
 
 # Sampling parameters
 sampling:
-  nspoin: 3000
-  nspoin_grad: 3000 # grad
-  nspoin_bc: 50 # boundary condition
+  nspoin: 2100
+  nspoin_grad: 2300 # grad
   type: 'lhs' # random, lhs
   grad_type_var: 'Density'
-  bc: ['inlet','outlet','top','bottom']
+  bc: ['inlet','bottom','outlet','top']
+  nspoin_bc: [50, 300, 50, 200]
   pool_factor: 8
   alpha_grad_rho: 1.4
   seed: 1234
-  graph_filename: 'sampling_graph'
-  data_filename: 'sampling_data'
+  fpoints: 'all_points'
+  ftargets: 'target_points'
+  fdata: 'sampling_data'
+
 
 # PINNs steup
-N_train: 600
-N_AdamIter: 400
-layers: [2, 64, 64, 64, 64, 64, 4]
+N_train: 500
+N_AdamIter: 50000
+layers: [2, 64, 64, 64, 64, 4]
 
 # General parameters
 dims: 2

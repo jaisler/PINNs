@@ -1,12 +1,15 @@
 import os
 import yaml
-import sampling as smp
 import pandas as pd
 import numpy as np
-import pinns
 import time
-import plot as pl
+import pyvista as pv
 from scipy.interpolate import griddata
+
+import pinns
+import sampling as smp
+import plot as pl
+
 
 def main():
 
@@ -24,6 +27,10 @@ def main():
     if not os.path.isdir(params['pathData']):
         os.makedirs(params['pathData'], exist_ok=True)
 
+    # Plot flow fields to be analysed
+    flowfield = pv.read(os.path.join(params['pathFlow'], params['flowfield']))
+    pl.PlotFlowField(flowfield, params)
+
     # Sampling points
     if (params['routine']['sampling']):
         # Create data set
@@ -40,7 +47,7 @@ def main():
     else:
         # Read data set
         df = pd.read_csv(os.path.join(params['pathData'], 
-            params['sampling']['datafilename'] + '.csv'))
+            params['sampling']['fdata'] + '.csv'))
         Xstar = df[['xstar', 'ystar', 'zstar']].to_numpy(dtype=float)
         Ustar = df[['ustar', 'vstar', 'wstar']].to_numpy(dtype=float)
         rhostar = df['rhostar'].to_numpy(dtype=float)
@@ -69,6 +76,9 @@ def main():
         vtrain = v[idx,None]
         ptrain = p[idx,None]
 
+        # Plot target points
+        pl.PlotTargetPoints(xtrain, ytrain, params)
+
         # Training - note that model is a object of the class
         # Note that model is a object of the class
         model = pinns.PhysicsInformedNN(xtrain, ytrain, rhotrain, utrain, 
@@ -81,8 +91,13 @@ def main():
         # Prediction
         rho_pred, u_pred, v_pred, p_pred  = model.predict(x, y) 
 
-        # Post-processing      
-        pl.PlotPredictedFlow(x,y,rho_pred,params)
+        # Dimensional values
+        xd = x * params['Lref']
+        yd = y * params['Lref']
+        rhod = rho_pred * params['rho']
+
+        # Plotting - postprocessing      
+        pl.PlotPredictedFlow(xd, yd, rhod, params)
 
         # compute relative L2 errors if you have ground truth at these points
         def rel_l2(pred, true):
