@@ -1,6 +1,7 @@
 import os
 import pyvista as pv
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
 import matplotlib.tri as mtri
 from matplotlib import rc, cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -22,13 +23,14 @@ def PlotSamplingPoints(pall, pin, pbc, pgrad, params):
     #ax.set_xlim(0.0, 0.0)
     #ax.set_ylim(0.0, 0.0)
     ax.tick_params(labelsize=18)
-    ax.set_xlabel(r'$x (mm)$', fontsize=18)
-    ax.set_ylabel(r'$y (mm)$', fontsize=18)
+    ax.set_xlabel(r'$x$ $[m]$', fontsize=18)
+    ax.set_ylabel(r'$y$ $[m]$', fontsize=18)
 
     ax.legend([p0,p1,p2], [r'Inner',
                            r'Boundary',
                            r'$\left|\nabla \rho\right|^{\alpha}$'], loc='best')
-
+    
+    ax.set_aspect("equal", adjustable="box")
     fig.subplots_adjust(left=0.08, right=0.99, bottom=0.15, top=0.97)
     fig.savefig(params['pathRes']+'/'+params['sampling']['fpoints']+'.pdf')
     plt.show()
@@ -46,11 +48,11 @@ def PlotTargetPoints(x, y, params):
     #ax.set_xlim(0.0, 0.0)
     #ax.set_ylim(0.0, 0.0)
     ax.tick_params(labelsize=18)
-    ax.set_xlabel(r'$x (mm)$', fontsize=18)
-    ax.set_ylabel(r'$y (mm)$', fontsize=18)
+    ax.set_xlabel(r'$x$ $[m]$', fontsize=18)
+    ax.set_ylabel(r'$y$ $[m]$', fontsize=18)
 
     ax.legend([p0], [r'Training points'], loc='best')
-
+    ax.set_aspect("equal", adjustable="box")
     fig.subplots_adjust(left=0.08, right=0.99, bottom=0.15, top=0.97)
     fig.savefig(params['pathRes']+'/'+params['sampling']['ftargets']+'.pdf')
     plt.show()
@@ -74,54 +76,33 @@ def PlotPredictedFlow(x, y, u_pred, params, perc=90, mult=1.5, debug=True):
     tri.set_mask(emax > thr)
 
     fig, ax = plt.subplots(1, 1, num=2, figsize=(12, 4), sharey=True)
-    cs = ax.tricontourf(tri, u_pred.ravel(), levels=50, cmap="coolwarm")
+    
+    # Scale
+    vmin, vmax = 0.0, 1.3
+    levels = np.linspace(vmin, vmax, 51) 
+    cs = ax.tricontourf(tri, u_pred.ravel(), cmap="bwr",
+                        levels=levels, vmin=vmin, vmax=vmax, extend="both")
 
     cbar = fig.colorbar(
         cs, ax=ax,
-        shrink=1.0,       # length of the bar (0-1)
-        fraction=0.05,    # thickness (relative to axes)
+        shrink=0.42,       # length of the bar (0-1)
+        fraction=0.1,    # thickness (relative to axes)
         pad=0.02,         # gap between plot and colorbar
-        aspect=30         # also affects thickness vs length
+        aspect=10,         # also affects thickness vs length
+        ticks=[0.0, 0.5, 1.0, 1.3]
     )
-    cbar.set_label(r"$\rho$ $kg/m^{3}$", fontsize=18)
+    cbar.set_label(r"$\rho$ $[kg/m^{3}]$", fontsize=18)
     cbar.ax.tick_params(labelsize=16)
 
     ax.tick_params(labelsize=18)
-    ax.set_xlabel(r'$x (mm)$', fontsize=18)
-    ax.set_ylabel(r'$y (mm)$', fontsize=18)
+    ax.set_xlabel(r'$x$ $[m]$', fontsize=18)
+    ax.set_ylabel(r'$y$ $[m]$', fontsize=18)
+    ax.set_aspect("equal", adjustable="box")
 
-    #ax.set_aspect("equal", adjustable="box")
-    ax.set_title(r"$\rho$ (triangulation with masked long-edge triangles)")
     fig.tight_layout()
-
     fig.savefig(params['pathRes'] + '/predict_flow.pdf')
     plt.show()
     plt.close(fig)
-
-#def PlotFlowField(flowfield, params):
-      
-#    pl = flowfield.plot(scalars=params["plotflow"]["fields"][0], cmap="turbo", 
-#                        cpos="xy", component=0)
-
-#    zoom = params["plotflow"].get("zoom", 2.0)   # closeup factor
-#    cmap = params["plotflow"].get("cmap", "turbo")
-
-     # Vertical scalar bar (colormap)
-#    pl.remove_scalar_bar()
-#    pl.add_scalar_bar(
-#        title=r'$\rho$',
-#        vertical=True,
-#        position_x=0.88,   # tweak as you like
-#        position_y=0.10,
-#        height=0.80,
-#        width=0.08)
-
-
-#    pdf_out = os.path.join(params['pathRes'], 
-#                           params["plotflow"]["fields"][0]+".pdf")
-    
-#    pl.save_graphic(pdf_out)
-#    pl.close()
 
 def PlotFlowField(flowfield, params):
     fields = params["plotflow"]["fields"]
@@ -143,9 +124,13 @@ def PlotFlowField(flowfield, params):
     zoom = params["plotflow"].get("zoom", 1.02)
 
     for f, l, c, k, clim in zip(fields, latex, cmap, comp, scale):
+        # normalize / safe order
+        vmin, vmax = float(clim[0]), float(clim[1])
+        clim = (min(vmin, vmax), max(vmin, vmax))
+
         pl = pv.Plotter(off_screen=True)
         pl.add_mesh(flowfield, scalars=f, cmap=c, component=k, 
-                    show_scalar_bar=False)
+                    clim=clim, show_scalar_bar=False)
         pl.view_xy()
         pl.camera.zoom(zoom)
         pl.add_scalar_bar(title = f"{l}",

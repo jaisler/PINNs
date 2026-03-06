@@ -76,8 +76,11 @@ def main():
         vtrain = v[idx,None]
         ptrain = p[idx,None]
 
+        # Dimensional values
+        xtd = xtrain * params['Lref']
+        ytd = ytrain * params['Lref']
         # Plot target points
-        pl.PlotTargetPoints(xtrain, ytrain, params)
+        pl.PlotTargetPoints(xtd, ytd, params)
 
         # Training - note that model is a object of the class
         # Note that model is a object of the class
@@ -95,7 +98,6 @@ def main():
         xd = x * params['Lref']
         yd = y * params['Lref']
         rhod = rho_pred * params['rho']
-
         # Plotting - postprocessing      
         pl.PlotPredictedFlow(xd, yd, rhod, params)
 
