@@ -44,7 +44,7 @@ sampling:
 # PINNs steup
 N_train: 600
 N_AdamIter: 50000
-layers: [2, 64, 64, 64, 64, 4]
+layers: [2, 20, 20, 50, 50, 100, 100, 200, 200, 4]
 
 # General parameters
 dims: 2
