@@ -246,7 +246,13 @@ class PhysicsInformedNN:
         Gv3 = tauyy
         Gv4 = u * tauxy + v * tauyy - qy
 
-        return x
+        # Residual
+        f1 = self.grad(Fc1, x) + self.grad(Gc1, y)
+        f2 = self.grad(Fc2 - Fv2, x) + self.grad(Gc2 - Gv2, y)
+        f3 = self.grad(Fc3 - Fv3, x) + self.grad(Gc3 - Gv3, x)
+        f4 = self.grad(Fc4 - Fv4, x) + self.grad(Gc4 - Gv4, x)
+
+        return rho, u, v, p, f1, f2, f3, f4
 
     def loss_fn(self, x, y, rho_t, u_t, v_t, p_t):
         """
