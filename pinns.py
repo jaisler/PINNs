@@ -164,6 +164,59 @@ class PhysicsInformedNN:
 
         return rho, u, v, p, f1, f2, f3, f4
 
+    def net_steady_rans(self, x, y):
+        a = []
+
+        # Need gradients wrt x,y
+        x = x.clone().detach().requires_grad_(True)
+        y = y.clone().detach().requires_grad_(True)
+
+        # Get forward pass
+        rho, u, v, p = self.net_fields(x, y)
+
+        # Heat capacity ratio
+        gamma = self.gamma
+        # Internal energy
+        e = p / ((gamma - 1.0) * rho)
+        # Total Energy
+        E = e + 0.5 * (u**2 + v**2)
+        # Enthalpy
+        H = rho * E + p
+
+        # Derivatives
+
+
+
+        # Convective fluxes 
+        # Derivative wrt x
+        Fc1 = rho * u 
+        Fc2 = rho * u**2 + p 
+        Fc3 = rho * u * v 
+        Fc4 = u * H
+        # Derivative wrt y
+        Gc1 = rho * v
+        Gc2 = rho * u * v
+        Gc3 = rho * v**2 + p
+        Gc4 = v * H
+
+        # Viscous fluxes 
+        # Derivative wrt x
+        #Fv1 = 
+        #Fv2 =  
+        #Fv3 =  
+        #Fv4 = 
+        # Derivative wrt y
+        #Gv1 = 
+        #Gv2 = 
+        #Gv3 = 
+        #Gv4 = 
+
+
+
+
+
+        return a
+
     def loss_fn(self, x, y, rho_t, u_t, v_t, p_t):
         """
         Loss function for PINNs regarding the steady euler equation
