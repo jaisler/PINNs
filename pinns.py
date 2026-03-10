@@ -7,7 +7,7 @@ np.random.seed(1234)
 
 class PhysicsInformedNN:
     # Initialize the class
-    def __init__(self, x, y, rho, u, v, p, params):
+    def __init__(self, x, y, rho, u, v, p, params, mut=None):
 
         device = torch.device(params.get("device", "cpu"))
         self.device = device
@@ -36,11 +36,14 @@ class PhysicsInformedNN:
         # Universal gas constant
         self.R = float(params["R"])
         # Prandtl number
-        self.Pr = float(params["Pr"]) 
+        self.Pr = float(params["Pr"])
+        # Turbulent Prandtl number 
+        self.Prt = float(params["Prt"])
         # Sutherland parameters
         self.T0 = float(params["T0"]) 
         self.mu0 = float(params["mu0"]) 
         self.S = float(params["S"]) 
+        self.mut = mut
 
         # Initialize NN
         self.weights, self.biases = self.initialize_NN(self.layers)
@@ -197,8 +200,12 @@ class PhysicsInformedNN:
              * ((self.T0 + self.S) / (T + self.S))
         # Specific heat at constant pressure
         cp = (self.gamma * self.R) / (self.gamma - 1.0)
+        # Effective viscosity
+        mueff = mu + self.mut # mut comes from CFD
         # Thermal conductivity
         kcond = (mu * cp) / self.Pr
+        # Effective thermal viscosity
+        keff = kcond + (self.mut * cp / self.Prt)
 
         # Derivatives
         ux = self.grad(u, x)
@@ -207,13 +214,13 @@ class PhysicsInformedNN:
         vy = self.grad(v, x)
 
         # Viscous stress tensor
-        tauxx = mu * ((4.0/3.0) * ux - (2.0/3.0) * vy)
-        tauyy = mu * ((4.0/3.0) * vy - (2.0/3.0) * ux)
-        tauxy = mu * (uy + vx)
+        tauxx = mueff * ((4.0/3.0) * ux - (2.0/3.0) * vy)
+        tauyy = mueff * ((4.0/3.0) * vy - (2.0/3.0) * ux)
+        tauxy = mueff * (uy + vx)
 
         # Conductivity heat        
-        qx = - kcond * self.grad(T, x)
-        qy = - kcond * self.grad(T, y)
+        qx = - keff * self.grad(T, x)
+        qy = - keff * self.grad(T, y)
 
         # Convective fluxes 
         # Derivative wrt x
@@ -238,8 +245,6 @@ class PhysicsInformedNN:
         Gv2 = tauxy 
         Gv3 = tauyy
         Gv4 = u * tauxy + v * tauyy - qy
-
-        
 
         return x
 

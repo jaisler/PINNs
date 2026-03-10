@@ -43,6 +43,9 @@ def main():
         Ustar = objSample.GetUstar() # N x 3
         rhostar = objSample.GetRHOstar() # N
         pstar = objSample.GetPstar() # N
+        # Note that if Euler equations are used it return an array
+        # of zeros
+        mutstar = objSample.GetMutstar()
 
     else:
         # Read data set
@@ -52,6 +55,7 @@ def main():
         Ustar = df[['ustar', 'vstar', 'wstar']].to_numpy(dtype=float)
         rhostar = df['rhostar'].to_numpy(dtype=float)
         pstar = df['pstar'].to_numpy(dtype=float)
+        mutstar = df['mutstar'].to_numpy(dtype=float) 
 
     if(params['routine']['inference']):
         # Number of points inside the geometry. This is not the same
@@ -65,6 +69,7 @@ def main():
         u = Ustar[:,0]   # N
         v = Ustar[:,1]   # N
         p = pstar[:]     # N
+        mut = mutstar[:] # N: eddy viscosity
         
         # Training Data - noiseless data
         N_train = min(params['N_train'], N)    
@@ -85,7 +90,7 @@ def main():
         # Training - note that model is a object of the class
         # Note that model is a object of the class
         model = pinns.PhysicsInformedNN(xtrain, ytrain, rhotrain, utrain, 
-            vtrain, ptrain, params) 
+            vtrain, ptrain, params, mut) 
         # Train
         start_time = time.time()                
         model.train(params['N_AdamIter'])

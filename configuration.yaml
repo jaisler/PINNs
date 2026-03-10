@@ -11,6 +11,9 @@ pathData: '/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.co
 flowfield: 'flow.vtu' 
 mesh: 'afrl2d.geo'
 
+# Solver
+equation: 'RANS' # Euler, RANS 
+
 # Routines
 routine:
   plotflow: True
@@ -53,11 +56,11 @@ dims: 2
 gamma: 1.4
 # Universal gas constant
 R: 287.058 # N.m/kg.K
-# Dynamic viscosity - freestream
-mu: 1.97E-5 #N.s/m^2
 # Reference quatities
 H: 0.0508
 Lref: 0.0254 # m
+# Dynamic viscosity - freestream
+mu: 1.97E-5 #N.s/m^2
 # Freestream condition
 U_0: 727.0 # m/s
 T: 327.0   # K
