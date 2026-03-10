@@ -51,14 +51,30 @@ dims: 2
 
 # Heat capacity ratio 
 gamma: 1.4
+# Universal gas constant
+R: 287.058 # N.m/kg.K
+# Dynamic viscosity - freestream
+mu: 1.97E-5 #N.s/m^2
 # Reference quatities
 H: 0.0508
 Lref: 0.0254 # m
 # Freestream condition
 U_0: 727.0 # m/s
 T: 327.0   # K
-p: 61700   # Pa
+p: 61700.0   # Pa
 rho: 0.657 # kg/m^3
 # Turbulence modeling
 k: 7884.91         # m^2/s^2
 omega: 2.62957e+07 # 1/s
+# Reynolds number
+Re: 614149.0
+# Mach Number
+Ma: 2.0
+# Prandtl lam.
+Pr: 0.72
+# Prandtl turb.
+Prt: 0.9
+# Sutherland parameters
+T0: = 273.15 ! K
+mu0: = 1.716E-5 ! Kg.s/m
+S: = 110.4 ! K

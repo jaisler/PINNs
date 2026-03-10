@@ -32,6 +32,15 @@ class PhysicsInformedNN:
         self.layers = params["layers"]
         # Heat capacity ratio
         self.gamma = float(params["gamma"])
+        # if RANS
+        # Universal gas constant
+        self.R = float(params["R"])
+        # Prandtl number
+        self.Pr = float(params["Pr"]) 
+        # Sutherland parameters
+        self.T0 = float(params["T0"]) 
+        self.mu0 = float(params["mu0"]) 
+        self.S = float(params["S"]) 
 
         # Initialize NN
         self.weights, self.biases = self.initialize_NN(self.layers)
@@ -165,7 +174,6 @@ class PhysicsInformedNN:
         return rho, u, v, p, f1, f2, f3, f4
 
     def net_steady_rans(self, x, y):
-        a = []
 
         # Need gradients wrt x,y
         x = x.clone().detach().requires_grad_(True)
@@ -182,10 +190,30 @@ class PhysicsInformedNN:
         E = e + 0.5 * (u**2 + v**2)
         # Enthalpy
         H = rho * E + p
+        # Temperature
+        T = p / (rho * self.R)
+        # Dynamic viscosity (Sutherland)
+        mu = self.mu0 * (T / self.T0) ** (1.5) \
+             * ((self.T0 + self.S) / (T + self.S))
+        # Specific heat at constant pressure
+        cp = (self.gamma * self.R) / (self.gamma - 1.0)
+        # Thermal conductivity
+        kcond = (mu * cp) / self.Pr
 
         # Derivatives
+        ux = self.grad(u, x)
+        vx = self.grad(v, x)
+        uy = self.grad(u, y)
+        vy = self.grad(v, x)
 
+        # Viscous stress tensor
+        tauxx = mu * ((4.0/3.0) * ux - (2.0/3.0) * vy)
+        tauyy = mu * ((4.0/3.0) * vy - (2.0/3.0) * ux)
+        tauxy = mu * (uy + vx)
 
+        # Conductivity heat        
+        qx = - kcond * self.grad(T, x)
+        qy = - kcond * self.grad(T, y)
 
         # Convective fluxes 
         # Derivative wrt x
@@ -201,21 +229,19 @@ class PhysicsInformedNN:
 
         # Viscous fluxes 
         # Derivative wrt x
-        #Fv1 = 
-        #Fv2 =  
-        #Fv3 =  
-        #Fv4 = 
+        Fv1 = 0.0
+        Fv2 = tauxx 
+        Fv3 = tauxy 
+        Fv4 = u * tauxx + v * tauxy - qx
         # Derivative wrt y
-        #Gv1 = 
-        #Gv2 = 
-        #Gv3 = 
-        #Gv4 = 
+        Gv1 = 0.0
+        Gv2 = tauxy 
+        Gv3 = tauyy
+        Gv4 = u * tauxy + v * tauyy - qy
 
+        
 
-
-
-
-        return a
+        return x
 
     def loss_fn(self, x, y, rho_t, u_t, v_t, p_t):
         """
