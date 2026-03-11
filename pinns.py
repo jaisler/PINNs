@@ -28,6 +28,8 @@ class PhysicsInformedNN:
         self.rho = torch.tensor(rho, dtype=torch.float32, device=device)
         self.p = torch.tensor(p, dtype=torch.float32, device=device)
 
+        # Equation
+        self.eq = params['equation']
         # Layers
         self.layers = params["layers"]
         # Heat capacity ratio
@@ -43,7 +45,8 @@ class PhysicsInformedNN:
         self.T0 = float(params["T0"]) 
         self.mu0 = float(params["mu0"]) 
         self.S = float(params["S"]) 
-        self.mut = mut
+        # turbulent dynamic viscosity
+        self.mut = torch.tensor(mut, dtype=torch.float32, device=self.device)
 
         # Initialize NN
         self.weights, self.biases = self.initialize_NN(self.layers)
@@ -176,7 +179,7 @@ class PhysicsInformedNN:
 
         return rho, u, v, p, f1, f2, f3, f4
 
-    def net_steady_rans(self, x, y):
+    def net_steady_compressible_rans(self, x, y):
 
         # Need gradients wrt x,y
         x = x.clone().detach().requires_grad_(True)
@@ -258,10 +261,15 @@ class PhysicsInformedNN:
         """
         Loss function for PINNs regarding the steady euler equation
         """
-        rho_pred, u_pred, v_pred, p_pred, \
-            f1_res, f2_res, f3_res, f4_res \
-            = self.net_steady_euler(x, y)
-        
+        if (self.eq == 'Euler'):
+            rho_pred, u_pred, v_pred, p_pred, \
+                f1_res, f2_res, f3_res, f4_res \
+                = self.net_steady_euler(x, y)
+        elif (self.eq == 'RANS'):        
+            rho_pred, u_pred, v_pred, p_pred, \
+                f1_res, f2_res, f3_res, f4_res \
+                = self.net_steady_compressible_rans(x, y)
+
         loss = (torch.mean((rho_t - rho_pred) ** 2) +
             torch.mean((u_t   - u_pred)   ** 2) +
             torch.mean((v_t   - v_pred)   ** 2) +
