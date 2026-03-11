@@ -96,7 +96,7 @@ class SamplingData:
         # Depending on the equations the eddy viscosity returns
         # zero or the value from the CFD
         if (params['equation'] == 'RANS'):
-            mut = sampled["Eddy_viscosity"]
+            mut = sampled["Eddy_Viscosity"]
             self.mutstar = mut[mask] / params["mu"]
         elif (params['equation'] == 'Euler'):
             # Otherwise return zero

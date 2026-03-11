@@ -200,8 +200,8 @@ class PhysicsInformedNN:
              * ((self.T0 + self.S) / (T + self.S))
         # Specific heat at constant pressure
         cp = (self.gamma * self.R) / (self.gamma - 1.0)
-        # Effective viscosity
-        mueff = mu + self.mut # mut comes from CFD
+        # Effective viscosity 
+        mueff = mu + self.mut # mut (turb. dyn. viscosity) comes from CFD
         # Thermal conductivity
         kcond = (mu * cp) / self.Pr
         # Effective thermal viscosity
@@ -211,7 +211,7 @@ class PhysicsInformedNN:
         ux = self.grad(u, x)
         vx = self.grad(v, x)
         uy = self.grad(u, y)
-        vy = self.grad(v, x)
+        vy = self.grad(v, y)
 
         # Viscous stress tensor
         tauxx = mueff * ((4.0/3.0) * ux - (2.0/3.0) * vy)
@@ -236,12 +236,12 @@ class PhysicsInformedNN:
 
         # Viscous fluxes 
         # Derivative wrt x
-        Fv1 = 0.0
+        Fv1 = torch.zeros_like(rho)
         Fv2 = tauxx 
         Fv3 = tauxy 
         Fv4 = u * tauxx + v * tauxy - qx
         # Derivative wrt y
-        Gv1 = 0.0
+        Gv1 = torch.zeros_like(rho)
         Gv2 = tauxy 
         Gv3 = tauyy
         Gv4 = u * tauxy + v * tauyy - qy
@@ -249,8 +249,8 @@ class PhysicsInformedNN:
         # Residual
         f1 = self.grad(Fc1, x) + self.grad(Gc1, y)
         f2 = self.grad(Fc2 - Fv2, x) + self.grad(Gc2 - Gv2, y)
-        f3 = self.grad(Fc3 - Fv3, x) + self.grad(Gc3 - Gv3, x)
-        f4 = self.grad(Fc4 - Fv4, x) + self.grad(Gc4 - Gv4, x)
+        f3 = self.grad(Fc3 - Fv3, x) + self.grad(Gc3 - Gv3, y)
+        f4 = self.grad(Fc4 - Fv4, x) + self.grad(Gc4 - Gv4, y)
 
         return rho, u, v, p, f1, f2, f3, f4
 

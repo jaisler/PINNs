@@ -2,7 +2,7 @@
 # All paths are to be given without final slash.
 
 # Path 
-pathFlow: '/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/scramjet/afrl/2d/cases/euler/case'
+pathFlow: '/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/scramjet/afrl/2d/cases/rans/case'
 pathMesh: '/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/scramjet/afrl/2d/meshes/mesh2'
 pathRes: '/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/results' 
 pathData: '/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/data' 
@@ -78,6 +78,6 @@ Pr: 0.72
 # Prandtl turb.
 Prt: 0.9
 # Sutherland parameters
-T0: = 273.15 ! K
-mu0: = 1.716E-5 ! Kg.s/m
-S: = 110.4 ! K
+T0: 273.15 # K
+mu0: 1.716e-5 # Kg.s/m
+S: 110.4 # K
