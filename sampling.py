@@ -92,7 +92,17 @@ class SamplingData:
         self.Ustar = U[mask] / params['U_0']
         self.pstar = p[mask] / (params['rho'] 
             * params['U_0'] * params['U_0']) 
-        
+
+        # Depending on the equations the eddy viscosity returns
+        # zero or the value from the CFD
+        if (params['equation'] == 'RANS'):
+            mut = sampled["Eddy_Viscosity"]
+            self.mutstar = mut[mask] / params["mu"]
+        elif (params['equation'] == 'Euler'):
+            # Otherwise return zero
+            self.mutstar = self.X[mask] * 0.0
+
+
     def GetBaseSampler(self, sampling_type: str):
         if sampling_type == "random":
             return self.SampleRandomPoints
@@ -315,6 +325,9 @@ class SamplingData:
 
     def GetPstar(self):
         return self.pstar
+    
+    def GetMutstar(self):
+        return self.mutstar
 
     def WriteDataToCSV(self, params):
         out = np.column_stack([self.Xstar, self.rhostar, self.Ustar[:,0], 

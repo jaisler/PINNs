@@ -7,7 +7,7 @@ np.random.seed(1234)
 
 class PhysicsInformedNN:
     # Initialize the class
-    def __init__(self, x, y, rho, u, v, p, params):
+    def __init__(self, x, y, rho, u, v, p, params, mut=None):
 
         device = torch.device(params.get("device", "cpu"))
         self.device = device
@@ -32,6 +32,18 @@ class PhysicsInformedNN:
         self.layers = params["layers"]
         # Heat capacity ratio
         self.gamma = float(params["gamma"])
+        # if RANS
+        # Universal gas constant
+        self.R = float(params["R"])
+        # Prandtl number
+        self.Pr = float(params["Pr"])
+        # Turbulent Prandtl number 
+        self.Prt = float(params["Prt"])
+        # Sutherland parameters
+        self.T0 = float(params["T0"]) 
+        self.mu0 = float(params["mu0"]) 
+        self.S = float(params["S"]) 
+        self.mut = mut
 
         # Initialize NN
         self.weights, self.biases = self.initialize_NN(self.layers)
@@ -161,6 +173,84 @@ class PhysicsInformedNN:
         f2 = self.grad(F2, x) + self.grad(G2, y)
         f3 = self.grad(F3, x) + self.grad(G3, y)
         f4 = self.grad(F4, x) + self.grad(G4, y)
+
+        return rho, u, v, p, f1, f2, f3, f4
+
+    def net_steady_rans(self, x, y):
+
+        # Need gradients wrt x,y
+        x = x.clone().detach().requires_grad_(True)
+        y = y.clone().detach().requires_grad_(True)
+
+        # Get forward pass
+        rho, u, v, p = self.net_fields(x, y)
+
+        # Heat capacity ratio
+        gamma = self.gamma
+        # Internal energy
+        e = p / ((gamma - 1.0) * rho)
+        # Total Energy
+        E = e + 0.5 * (u**2 + v**2)
+        # Enthalpy
+        H = rho * E + p
+        # Temperature
+        T = p / (rho * self.R)
+        # Dynamic viscosity (Sutherland)
+        mu = self.mu0 * (T / self.T0) ** (1.5) \
+             * ((self.T0 + self.S) / (T + self.S))
+        # Specific heat at constant pressure
+        cp = (self.gamma * self.R) / (self.gamma - 1.0)
+        # Effective viscosity 
+        mueff = mu + self.mut # mut (turb. dyn. viscosity) comes from CFD
+        # Thermal conductivity
+        kcond = (mu * cp) / self.Pr
+        # Effective thermal viscosity
+        keff = kcond + (self.mut * cp / self.Prt)
+
+        # Derivatives
+        ux = self.grad(u, x)
+        vx = self.grad(v, x)
+        uy = self.grad(u, y)
+        vy = self.grad(v, y)
+
+        # Viscous stress tensor
+        tauxx = mueff * ((4.0/3.0) * ux - (2.0/3.0) * vy)
+        tauyy = mueff * ((4.0/3.0) * vy - (2.0/3.0) * ux)
+        tauxy = mueff * (uy + vx)
+
+        # Conductivity heat        
+        qx = - keff * self.grad(T, x)
+        qy = - keff * self.grad(T, y)
+
+        # Convective fluxes 
+        # Derivative wrt x
+        Fc1 = rho * u 
+        Fc2 = rho * u**2 + p 
+        Fc3 = rho * u * v 
+        Fc4 = u * H
+        # Derivative wrt y
+        Gc1 = rho * v
+        Gc2 = rho * u * v
+        Gc3 = rho * v**2 + p
+        Gc4 = v * H
+
+        # Viscous fluxes 
+        # Derivative wrt x
+        Fv1 = torch.zeros_like(rho)
+        Fv2 = tauxx 
+        Fv3 = tauxy 
+        Fv4 = u * tauxx + v * tauxy - qx
+        # Derivative wrt y
+        Gv1 = torch.zeros_like(rho)
+        Gv2 = tauxy 
+        Gv3 = tauyy
+        Gv4 = u * tauxy + v * tauyy - qy
+
+        # Residual
+        f1 = self.grad(Fc1, x) + self.grad(Gc1, y)
+        f2 = self.grad(Fc2 - Fv2, x) + self.grad(Gc2 - Gv2, y)
+        f3 = self.grad(Fc3 - Fv3, x) + self.grad(Gc3 - Gv3, y)
+        f4 = self.grad(Fc4 - Fv4, x) + self.grad(Gc4 - Gv4, y)
 
         return rho, u, v, p, f1, f2, f3, f4
 
