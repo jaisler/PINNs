@@ -74,34 +74,35 @@ class SamplingData:
         sampled = point_cloud.sample(mesh)  
         # Apply the mask in all points
         mask = sampled["vtkValidPointMask"].astype(bool)
-        self.pts = self.pts[mask]
 
         # sampled.point_data now contains interpolated arrays at your points
         #print(sampled.point_data.keys())
 
         # Extract arrays
         # Note that the arrays are normalised
-        X = sampled.points        # (N,3) or (N,2)
-        U = sampled["Velocity"]   # (N,3) or (N,2) if vector
-        rho = sampled["Density"]  # (N,) 
-        p = sampled["Pressure"]   # (N,) if scalar
+        self.X = sampled.points[mask]        # (N,3) or (N,2)
+        self.U = sampled["Velocity"][mask]   # (N,3) or (N,2) if vector
+        self.rho = sampled["Density"][mask]  # (N,) 
+        self.p = sampled["Pressure"][mask]   # (N,) if scalar
+
+        self.pts = self.pts[mask]
 
         # Remove invalid points and normalised it
-        self.Xstar = X[mask] / params['Lref'] 
-        self.rhostar = rho[mask] / params['rho']
-        self.Ustar = U[mask] / params['U_0']
-        self.pstar = p[mask] / (params['rho'] 
-            * params['U_0'] * params['U_0']) 
+        #self.Xstar = X / params['Lref'] 
+        #self.rhostar = rho / params['rho']
+        #self.Ustar = U / params['U_0']
+        #self.pstar = p / (params['rho'] 
+        #    * params['U_0'] * params['U_0']) 
 
         # Depending on the equations the eddy viscosity returns
         # zero or the value from the CFD
         if (params['equation'] == 'RANS'):
             mut = sampled["Eddy_Viscosity"]
-            self.mutstar = mut[mask] / params["mu"]
+            #self.mut = mut[mask] / params["mu"]
+            self.mut = mut[mask]
         elif (params['equation'] == 'Euler'):
             # Otherwise return zero
-            self.mutstar = self.X[mask] * 0.0
-
+            self.mut = np.zeros((self.X.shape[0], 1), dtype=float)
 
     def GetBaseSampler(self, sampling_type: str):
         if sampling_type == "random":
@@ -314,31 +315,31 @@ class SamplingData:
 
         return pts
     
-    def GetXstar(self):       
-        return self.Xstar
+    def GetX(self):       
+        return self.X
 
-    def GetRHOstar(self):
-        return self.rhostar
+    def GetRHO(self):
+        return self.rho
 
-    def GetUstar(self):       
-        return self.Ustar
+    def GetU(self):       
+        return self.U
 
-    def GetPstar(self):
-        return self.pstar
+    def GetP(self):
+        return self.p
     
-    def GetMutstar(self):
-        return self.mutstar
+    def GetMut(self):
+        return self.mut
 
     def WriteDataToCSV(self, params):
-        out = np.column_stack([self.Xstar, self.rhostar, self.Ustar[:,0], 
-            self.Ustar[:,1], self.Ustar[:,2], self.pstar])
+        out = np.column_stack([self.X, self.rho, self.U[:,0], 
+            self.U[:,1], self.U[:,2], self.p,self.mut])
         np.savetxt(
             params['pathData']+'/'+params['sampling']['fdata']+'.csv', 
             out, delimiter=",", 
-            header="xstar,ystar,zstar,rhostar,ustar,vstar,wstar,pstar", 
+            header="x,y,z,rho,u,v,w,p,mut", 
             comments="")
 
     def PlotSamplingPointsToPDF(self, params):
-        pl.PlotSamplingPoints(self.Xstar, self.pts_in, self.pts_bc, \
+        pl.PlotSamplingPoints(self.X, self.pts_in, self.pts_bc, \
                               self.pts_grad, params)
 
