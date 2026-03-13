@@ -79,6 +79,8 @@ def main():
         utrain = u[idx, None]
         vtrain = v[idx, None]
         ptrain = p[idx, None]
+        # Additional parameter from CFD
+        mut = mut[idx, None]
 
         # Plot target points
         pl.PlotTargetPoints(xtrain, ytrain, params)

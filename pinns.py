@@ -12,7 +12,45 @@ class PhysicsInformedNN:
         device = torch.device(params.get("device", "cpu"))
         self.device = device
 
-        X = np.concatenate([x, y], 1)
+        # Equation
+        self.eq = params['equation']
+        # Layers
+        self.layers = params["layers"]
+        # Heat capacity ratio
+        self.gamma = float(params["gamma"])
+        # Reference parameters (Euler and RANS)
+        self.Lref    = float(params["Lref"])
+        self.rhoref = float(params["rho"])
+        self.Uref   = float(params["U_0"])
+        self.pref   = self.rhoref * self.Uref * self.Uref
+
+        if (params['equation'] == 'RANS'):
+            # Universal gas constant
+            self.R = float(params["R"])
+            # Prandtl number
+            self.Pr = float(params["Pr"])
+            # Turbulent Prandtl number 
+            self.Prt = float(params["Prt"])
+            # Molecular dynamic viscosity
+            self.muref  = float(params["mu"])
+            # Temperature
+            self.Tref = self.Uref**2 / self.R
+            # Reynolds number
+            self.Re = self.rhoref * self.Uref * self.Lref / self.muref
+            # Starred quatities (Sutherland's)
+            self.T0star = float(params["T0"]) / self.Tref
+            self.Sstar  = float(params["S"]) / self.Tref
+            self.mu0star = float(params["mu0"]) / self.muref
+
+        # Output must have size 4 (rho, u, v, p)
+        if self.layers[-1] != 4:
+            raise ValueError("Last layer must have size 4 for [rho,u,v,p].")
+
+        # Non-dimensional data for optimisation performance
+        xstar, ystar, rhostar, ustar, vstar, pstar, mutstar = \
+            self.GetNonDimensionalData(x, y, rho, u, v , p, mut)
+        
+        X = np.concatenate([xstar, ystar], 1)
 
         self.lb = torch.tensor(X.min(0), dtype=torch.float32, device=device)  # (2,)
         self.ub = torch.tensor(X.max(0), dtype=torch.float32, device=device)  # (2,)
@@ -23,30 +61,15 @@ class PhysicsInformedNN:
         self.y = self.X[:,1:2]
 
         # Variables
-        self.u = torch.tensor(u, dtype=torch.float32, device=device)
-        self.v = torch.tensor(v, dtype=torch.float32, device=device)
-        self.rho = torch.tensor(rho, dtype=torch.float32, device=device)
-        self.p = torch.tensor(p, dtype=torch.float32, device=device)
-
-        # Equation
-        self.eq = params['equation']
-        # Layers
-        self.layers = params["layers"]
-        # Heat capacity ratio
-        self.gamma = float(params["gamma"])
-        # if RANS
-        # Universal gas constant
-        self.R = float(params["R"])
-        # Prandtl number
-        self.Pr = float(params["Pr"])
-        # Turbulent Prandtl number 
-        self.Prt = float(params["Prt"])
-        # Sutherland parameters
-        self.T0 = float(params["T0"]) 
-        self.mu0 = float(params["mu0"]) 
-        self.S = float(params["S"]) 
-        # turbulent dynamic viscosity
-        self.mut = torch.tensor(mut, dtype=torch.float32, device=self.device)
+        self.u = torch.tensor(ustar, dtype=torch.float32, device=device)
+        self.v = torch.tensor(vstar, dtype=torch.float32, device=device)
+        self.rho = torch.tensor(rhostar, dtype=torch.float32, device=device)
+        self.p = torch.tensor(pstar, dtype=torch.float32, device=device)
+        if (params['equation'] == 'RANS'):
+            # Trubulent dynamic viscosity
+            self.mutstar = torch.as_tensor(mutstar, dtype=torch.float32, device=self.device)
+            if self.mutstar.ndim == 1:
+                self.mutstar = self.mutstar[:, None]
 
         # Initialize NN
         self.weights, self.biases = self.initialize_NN(self.layers)
@@ -58,11 +81,32 @@ class PhysicsInformedNN:
             history_size=params.get("lbfgs_history", 50),
             line_search_fn="strong_wolfe",
             tolerance_grad=params.get("lbfgs_tol_grad", 1e-12),
-            tolerance_change=params.get("lbfgs_tol_change", 1e-12),)
+            tolerance_change=params.get("lbfgs_tol_change", 1e-12))
 
         # Optimizers
         self.optimizer_Adam = torch.optim.Adam(self.trainable_parameters(), 
             lr=params.get("lr", 1e-3))
+
+    def GetNonDimensionalData(self, x, y, rho, u, v, p, mut):
+        """
+        Generate non-dimensional data
+        """
+
+        xstar = x / self.Lref
+        ystar = y / self.Lref
+        rhostar = rho / self.rhoref
+        ustar = u / self.Uref
+        vstar = v / self.Uref
+        pstar = p / (self.rhoref * self.Uref * self.Uref)
+        # Turbulent dynamic viscosity (this quatity came form CFD RANS)
+        if self.eq == 'RANS' and mut is None:
+            raise ValueError("For equation='RANS', mut must be provided.")
+        elif self.eq == 'Euler':
+            mutstar = None
+        else:
+            mutstar = mut / self.muref
+
+        return xstar, ystar, rhostar, ustar, vstar, pstar, mutstar
 
     def initialize_NN(self, layers):
         """
@@ -127,10 +171,14 @@ class PhysicsInformedNN:
         X = torch.cat([x, y], dim=1)
         out = self.neural_net(X, self.weights, self.biases)
 
-        rho = out[:,0:1]
-        u   = out[:,1:2]
-        v   = out[:,2:3]
-        p   = out[:,3:4]
+        raw_rho = out[:,0:1]
+        u       = out[:,1:2]
+        v       = out[:,2:3]
+        raw_p   = out[:,3:4]
+
+        # Enforce positivity of rho and p
+        rho = torch.nn.functional.softplus(raw_rho) + 1e-9
+        p   = torch.nn.functional.softplus(raw_p) + 1e-9
 
         return rho, u, v, p
 
@@ -148,7 +196,7 @@ class PhysicsInformedNN:
         x = x.clone().detach().requires_grad_(True)
         y = y.clone().detach().requires_grad_(True)
 
-        # Get forward pass
+        # Get forward pass: starred quantities 
         rho, u, v, p = self.net_fields(x, y)
 
         # Heat capacity ratio
@@ -180,35 +228,40 @@ class PhysicsInformedNN:
         return rho, u, v, p, f1, f2, f3, f4
 
     def net_steady_compressible_rans(self, x, y):
+        """
+        Steady compressible Navier–Stokes with prescribed eddy viscosity, or
+        RANS residual with frozen turbulent viscosity field.
+        Non-dimensional formulation.
+        """
 
         # Need gradients wrt x,y
         x = x.clone().detach().requires_grad_(True)
         y = y.clone().detach().requires_grad_(True)
 
-        # Get forward pass
+        # Get forward pass: starred fields
         rho, u, v, p = self.net_fields(x, y)
 
         # Heat capacity ratio
         gamma = self.gamma
         # Internal energy
-        e = p / ((gamma - 1.0) * rho)
+        estar = p / ((gamma - 1.0) * rho)
         # Total Energy
-        E = e + 0.5 * (u**2 + v**2)
+        Estar = estar + 0.5 * (u**2 + v**2)
         # Enthalpy
-        H = rho * E + p
-        # Temperature
-        T = p / (rho * self.R)
+        Hstar = rho * Estar + p
+        # Temperature (non-dimensional form)
+        Tstar = p / rho
+
         # Dynamic viscosity (Sutherland)
-        mu = self.mu0 * (T / self.T0) ** (1.5) \
-             * ((self.T0 + self.S) / (T + self.S))
-        # Specific heat at constant pressure
-        cp = (self.gamma * self.R) / (self.gamma - 1.0)
-        # Effective viscosity 
-        mueff = mu + self.mut # mut (turb. dyn. viscosity) comes from CFD
-        # Thermal conductivity
-        kcond = (mu * cp) / self.Pr
-        # Effective thermal viscosity
-        keff = kcond + (self.mut * cp / self.Prt)
+        mustar = self.mu0star * (Tstar / self.T0star) ** 1.5 * ((self.T0star + self.Sstar) \
+            / (Tstar + self.Sstar))
+        
+        # Effective viscosity
+        mueffstar = mustar + self.mutstar
+
+        # Effective conductivity (requires some calculations)
+        keffstar = (self.gamma / (self.gamma - 1.0)) * ((mustar / self.Pr) \
+            + (self.mutstar / self.Prt))
 
         # Derivatives
         ux = self.grad(u, x)
@@ -217,25 +270,25 @@ class PhysicsInformedNN:
         vy = self.grad(v, y)
 
         # Viscous stress tensor
-        tauxx = mueff * ((4.0/3.0) * ux - (2.0/3.0) * vy)
-        tauyy = mueff * ((4.0/3.0) * vy - (2.0/3.0) * ux)
-        tauxy = mueff * (uy + vx)
+        tauxx = (mueffstar / self.Re) * ((4.0/3.0) * ux - (2.0/3.0) * vy)
+        tauyy = (mueffstar / self.Re) * ((4.0/3.0) * vy - (2.0/3.0) * ux)
+        tauxy = (mueffstar / self.Re) * (uy + vx)
 
         # Conductivity heat        
-        qx = - keff * self.grad(T, x)
-        qy = - keff * self.grad(T, y)
+        qx = - (keffstar / self.Re) * self.grad(Tstar, x)
+        qy = - (keffstar / self.Re) * self.grad(Tstar, y)
 
         # Convective fluxes 
         # Derivative wrt x
         Fc1 = rho * u 
         Fc2 = rho * u**2 + p 
         Fc3 = rho * u * v 
-        Fc4 = u * H
+        Fc4 = u * Hstar
         # Derivative wrt y
         Gc1 = rho * v
         Gc2 = rho * u * v
         Gc3 = rho * v**2 + p
-        Gc4 = v * H
+        Gc4 = v * Hstar
 
         # Viscous fluxes 
         # Derivative wrt x
@@ -257,7 +310,7 @@ class PhysicsInformedNN:
 
         return rho, u, v, p, f1, f2, f3, f4
 
-    def loss_fn(self, x, y, rho_t, u_t, v_t, p_t):
+    def loss_fn(self, x, y, rho_t, u_t, v_t, p_t, return_terms=False):
         """
         Loss function for PINNs regarding the steady euler equation
         """
@@ -269,16 +322,42 @@ class PhysicsInformedNN:
             rho_pred, u_pred, v_pred, p_pred, \
                 f1_res, f2_res, f3_res, f4_res \
                 = self.net_steady_compressible_rans(x, y)
+        else:
+            raise ValueError(f"Unknown equation type: {self.eq}")
 
-        loss = (torch.mean((rho_t - rho_pred) ** 2) +
-            torch.mean((u_t   - u_pred)   ** 2) +
-            torch.mean((v_t   - v_pred)   ** 2) +
-            torch.mean((p_t   - p_pred)   ** 2) +
-            torch.mean(f1_res ** 2) +
-            torch.mean(f2_res ** 2) +
-            torch.mean(f3_res ** 2) +
-            torch.mean(f4_res ** 2))
+        # Data losses
+        l_rho = torch.mean((rho_t - rho_pred) ** 2)
+        l_u   = torch.mean((u_t   - u_pred)   ** 2)
+        l_v   = torch.mean((v_t   - v_pred)   ** 2)
+        l_p   = torch.mean((p_t   - p_pred)   ** 2)
+
+        # PDE residual losses
+        l_f1  = torch.mean(f1_res ** 2)
+        l_f2  = torch.mean(f2_res ** 2)
+        l_f3  = torch.mean(f3_res ** 2)
+        l_f4  = torch.mean(f4_res ** 2)
+
+        # weights: chosen based on residuals
+        if self.eq == 'Euler':
+            w_f1, w_f2, w_f3, w_f4 = 1.0, 1.0, 1.0, 1.0
+        else:
+            w_f1, w_f2, w_f3, w_f4 = 1.0, 1.0, 1.0, 1.0
         
+        # Total loss
+        loss = (
+            l_rho
+            + l_u
+            + l_v
+            + l_p
+            + w_f1 * l_f1
+            + w_f2 * l_f2
+            + w_f3 * l_f3
+            + w_f4 * l_f4
+        )
+
+        if return_terms:
+            return loss, l_rho, l_u, l_v, l_p, l_f1, l_f2, l_f3, l_f4
+
         return loss
 
     def trainable_parameters(self):
@@ -314,13 +393,27 @@ class PhysicsInformedNN:
         # Adam loop
         for it in range(nIter):
             self.optimizer_Adam.zero_grad()
-
             loss = self.loss_fn(self.x, self.y, self.rho, self.u, self.v, self.p)
             loss.backward()
             self.optimizer_Adam.step()
 
             if it % print_every == 0:
-                self.callback(it, loss.item())
+                loss_val, l_rho, l_u, l_v, l_p, l_f1, l_f2, l_f3, l_f4 = \
+                    self.loss_fn(self.x, self.y, self.rho, self.u, self.v, self.p,
+                                return_terms=True)
+
+                print(
+                    f"It: {it:6d} | "
+                    f"Loss: {loss_val.item():.3e} | "
+                    f"rho: {l_rho.item():.3e} | "
+                    f"u: {l_u.item():.3e} | "
+                    f"v: {l_v.item():.3e} | "
+                    f"p: {l_p.item():.3e} | "
+                    f"f1: {l_f1.item():.3e} | "
+                    f"f2: {l_f2.item():.3e} | "
+                    f"f3: {l_f3.item():.3e} | "
+                    f"f4: {l_f4.item():.3e}"
+                )
 
         # LBFGS refinement (optional)
         if use_lbfgs:
@@ -402,8 +495,8 @@ class PhysicsInformedNN:
         works regardless of whether the model runs on CPU or GPU.
         """
 
-        x = np.asarray(x)
-        y = np.asarray(y)
+        x = np.asarray(x) / self.Lref
+        y = np.asarray(y) / self.Lref
         if x.ndim == 1: x = x[:, None]
         if y.ndim == 1: y = y[:, None]
 
@@ -412,10 +505,24 @@ class PhysicsInformedNN:
 
         rho, u, v, p = self.net_fields(x_t, y_t)
 
-        return (rho.cpu().numpy(),
-                u.cpu().numpy(),
-                v.cpu().numpy(),
-                p.cpu().numpy())
+        rhod, ud, vd, pd = self.GetDimensionalData(rho, u, v, p)
+
+        return (rhod.cpu().numpy(),
+                ud.cpu().numpy(),
+                vd.cpu().numpy(),
+                pd.cpu().numpy())
+
+    def GetDimensionalData(self, rho, u, v, p):
+        """
+        Make the data dimensional again
+        """
+        
+        rhod = rho * self.rhoref
+        ud = u * self.Uref
+        vd = v * self.Uref
+        pd = p * (self.rhoref * self.Uref * self.Uref)
+
+        return rhod, ud, vd, pd
 
     def callback(self, it, loss_value):
         print(f"It: {it}, Loss: {loss_value:.3e}")
