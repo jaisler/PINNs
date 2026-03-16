@@ -5,9 +5,10 @@ import torch.nn as nn
 torch.manual_seed(1234)
 np.random.seed(1234)
 
-class PhysicsInformedNN:
+class PhysicsInformedNN(nn.Module):
     # Initialize the class
     def __init__(self, x, y, rho, u, v, p, params, mut=None):
+        super().__init__()
 
         device = torch.device(params.get("device", "cpu"))
         self.device = device
@@ -24,7 +25,7 @@ class PhysicsInformedNN:
         self.Uref   = float(params["U_0"])
         self.pref   = self.rhoref * self.Uref * self.Uref
 
-        if (params['equation'] == 'RANS'):
+        if self.eq == 'RANS':
             # Universal gas constant
             self.R = float(params["R"])
             # Prandtl number
@@ -42,14 +43,36 @@ class PhysicsInformedNN:
             self.Sstar  = float(params["S"]) / self.Tref
             self.mu0star = float(params["mu0"]) / self.muref
 
-        # Output must have size 4 (rho, u, v, p)
-        if self.layers[-1] != 4:
-            raise ValueError("Last layer must have size 4 for [rho,u,v,p].")
+        # Check the output layer
+        if self.eq == 'Euler':
+            expected_out = 4
+        elif self.eq == 'RANS':
+            expected_out = 5
+        else:
+            raise ValueError(f"Unknown equation type: {self.eq}")
 
+        if self.layers[-1] != expected_out:
+            raise ValueError(
+                f"For equation='{self.eq}', last layer must be {expected_out}, "
+                f"but got {self.layers[-1]}")
+        
         # Non-dimensional data for optimisation performance
         xstar, ystar, rhostar, ustar, vstar, pstar, mutstar = \
             self.GetNonDimensionalData(x, y, rho, u, v , p, mut)
-        
+
+        # Rescaling mut (turbulent viscosity for marchine learning)
+        if self.eq == 'RANS':
+            if mutstar is None:
+                raise ValueError("For equation='RANS', mut must be provided.")
+
+            # Second scaling for ML only
+            self.mut_scale = float(np.percentile(mutstar, 95.0))
+            if self.mut_scale <= 0.0:
+                self.mut_scale = 1.0
+
+            # Scaled target used in the supervised loss
+            muthat = mutstar / self.mut_scale   
+
         X = np.concatenate([xstar, ystar], 1)
 
         self.lb = torch.tensor(X.min(0), dtype=torch.float32, device=device)  # (2,)
@@ -65,11 +88,8 @@ class PhysicsInformedNN:
         self.v = torch.tensor(vstar, dtype=torch.float32, device=device)
         self.rho = torch.tensor(rhostar, dtype=torch.float32, device=device)
         self.p = torch.tensor(pstar, dtype=torch.float32, device=device)
-        if (params['equation'] == 'RANS'):
-            # Trubulent dynamic viscosity
-            self.mutstar = torch.as_tensor(mutstar, dtype=torch.float32, device=self.device)
-            if self.mutstar.ndim == 1:
-                self.mutstar = self.mutstar[:, None]
+        if self.eq == 'RANS': 
+            self.mut = torch.tensor(muthat, dtype=torch.float32, device=device)        
 
         # Initialize NN
         self.weights, self.biases = self.initialize_NN(self.layers)
@@ -87,7 +107,7 @@ class PhysicsInformedNN:
         self.optimizer_Adam = torch.optim.Adam(self.trainable_parameters(), 
             lr=params.get("lr", 1e-3))
 
-    def GetNonDimensionalData(self, x, y, rho, u, v, p, mut):
+    def GetNonDimensionalData(self, x, y, rho, u, v, p, mut=None):
         """
         Generate non-dimensional data
         """
@@ -99,13 +119,13 @@ class PhysicsInformedNN:
         vstar = v / self.Uref
         pstar = p / (self.rhoref * self.Uref * self.Uref)
         # Turbulent dynamic viscosity (this quatity came form CFD RANS)
-        if self.eq == 'RANS' and mut is None:
-            raise ValueError("For equation='RANS', mut must be provided.")
+        if self.eq == 'RANS':
+            if mut is None:
+                raise ValueError("For equation='RANS', mut must be provided.")
+            mutstar = mut / self.muref
         elif self.eq == 'Euler':
             mutstar = None
-        else:
-            mutstar = mut / self.muref
-
+ 
         return xstar, ystar, rhostar, ustar, vstar, pstar, mutstar
 
     def initialize_NN(self, layers):
@@ -164,13 +184,16 @@ class PhysicsInformedNN:
 
     def net_fields(self, x, y):
         """
-        Returns only (rho,u,v,p) from the network.
-        No derivatives.
+        Returns:
+        Euler -> rho, u, v, p
+        RANS  -> rho, u, v, p, mut
+        No deriviatives.
         Used by predict(...) and net_steady_euler(...)
         """
         X = torch.cat([x, y], dim=1)
         out = self.neural_net(X, self.weights, self.biases)
 
+        # Common variables
         raw_rho = out[:,0:1]
         u       = out[:,1:2]
         v       = out[:,2:3]
@@ -180,7 +203,16 @@ class PhysicsInformedNN:
         rho = torch.nn.functional.softplus(raw_rho) + 1e-9
         p   = torch.nn.functional.softplus(raw_p) + 1e-9
 
-        return rho, u, v, p
+        if self.eq == 'Euler':
+            return rho, u, v, p
+        
+        elif self.eq == 'RANS':
+            raw_mut = out[:,4:5]
+            muthat = torch.nn.functional.softplus(raw_mut) + 1e-9
+            return rho, u, v, p, muthat
+        
+        else:
+            raise ValueError(f"Unknown equation type: {self.eq}")
 
     def net_steady_euler(self, x, y):
         """
@@ -239,7 +271,10 @@ class PhysicsInformedNN:
         y = y.clone().detach().requires_grad_(True)
 
         # Get forward pass: starred fields
-        rho, u, v, p = self.net_fields(x, y)
+        rho, u, v, p, muthat = self.net_fields(x, y)
+
+        # Recover physical nondimensional eddy viscosity
+        mutstar = self.mut_scale * muthat
 
         # Heat capacity ratio
         gamma = self.gamma
@@ -257,11 +292,11 @@ class PhysicsInformedNN:
             / (Tstar + self.Sstar))
         
         # Effective viscosity
-        mueffstar = mustar + self.mutstar
+        mueffstar = mustar + mutstar
 
         # Effective conductivity (requires some calculations)
         keffstar = (self.gamma / (self.gamma - 1.0)) * ((mustar / self.Pr) \
-            + (self.mutstar / self.Prt))
+            + (mutstar / self.Prt))
 
         # Derivatives
         ux = self.grad(u, x)
@@ -308,20 +343,31 @@ class PhysicsInformedNN:
         f3 = self.grad(Fc3 - Fv3, x) + self.grad(Gc3 - Gv3, y)
         f4 = self.grad(Fc4 - Fv4, x) + self.grad(Gc4 - Gv4, y)
 
-        return rho, u, v, p, f1, f2, f3, f4
+        # Note that, at the end, it returns muthat, not mutstar, 
+        # because the loss is on the scaled variable
+        return rho, u, v, p, muthat, f1, f2, f3, f4
 
-    def loss_fn(self, x, y, rho_t, u_t, v_t, p_t, return_terms=False):
+    def loss_fn(self, x, y, rho_t, u_t, v_t, p_t, mut_t=None, return_terms=False):
         """
-        Loss function for PINNs regarding the steady euler equation
+        Loss function for PINNs regarding the steady euler and RANS equations
         """
         if (self.eq == 'Euler'):
             rho_pred, u_pred, v_pred, p_pred, \
                 f1_res, f2_res, f3_res, f4_res \
                 = self.net_steady_euler(x, y)
+            # Loss of the turbulent viscosity is zero for Euler
+            l_mut = torch.tensor(0.0, device=self.device)
+            
         elif (self.eq == 'RANS'):        
-            rho_pred, u_pred, v_pred, p_pred, \
+            rho_pred, u_pred, v_pred, p_pred, mut_pred, \
                 f1_res, f2_res, f3_res, f4_res \
                 = self.net_steady_compressible_rans(x, y)
+            
+            if mut_t is None:
+                raise ValueError("For RANS, mut_t must be provided in loss_fn.")
+            # Loss of the turbulent viscosity         
+            l_mut = torch.mean((mut_t - mut_pred) ** 2)
+        
         else:
             raise ValueError(f"Unknown equation type: {self.eq}")
 
@@ -337,6 +383,9 @@ class PhysicsInformedNN:
         l_f3  = torch.mean(f3_res ** 2)
         l_f4  = torch.mean(f4_res ** 2)
 
+        # weights
+        w_mut = 1.0 if self.eq == 'RANS' else 0.0
+
         # weights: chosen based on residuals
         if self.eq == 'Euler':
             w_f1, w_f2, w_f3, w_f4 = 1.0, 1.0, 1.0, 1.0
@@ -349,6 +398,7 @@ class PhysicsInformedNN:
             + l_u
             + l_v
             + l_p
+            + w_mut * l_mut
             + w_f1 * l_f1
             + w_f2 * l_f2
             + w_f3 * l_f3
@@ -356,7 +406,7 @@ class PhysicsInformedNN:
         )
 
         if return_terms:
-            return loss, l_rho, l_u, l_v, l_p, l_f1, l_f2, l_f3, l_f4
+            return loss, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4
 
         return loss
 
@@ -393,34 +443,62 @@ class PhysicsInformedNN:
         # Adam loop
         for it in range(nIter):
             self.optimizer_Adam.zero_grad()
-            loss = self.loss_fn(self.x, self.y, self.rho, self.u, self.v, self.p)
+            
+            if self.eq == 'Euler':
+                loss = self.loss_fn(self.x, self.y, self.rho, self.u, self.v, self.p)
+            elif self.eq == 'RANS':
+                loss = self.loss_fn(self.x, self.y, self.rho, self.u, self.v, self.p, \
+                                    self.mut)
+            
             loss.backward()
             self.optimizer_Adam.step()
 
             if it % print_every == 0:
-                loss_val, l_rho, l_u, l_v, l_p, l_f1, l_f2, l_f3, l_f4 = \
-                    self.loss_fn(self.x, self.y, self.rho, self.u, self.v, self.p,
-                                return_terms=True)
+                if self.eq == 'Euler':
+                    loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
+                        self.loss_fn(self.x, self.y, self.rho, self.u, self.v, self.p, 
+                                     return_terms=True)
 
-                print(
-                    f"It: {it:6d} | "
-                    f"Loss: {loss_val.item():.3e} | "
-                    f"rho: {l_rho.item():.3e} | "
-                    f"u: {l_u.item():.3e} | "
-                    f"v: {l_v.item():.3e} | "
-                    f"p: {l_p.item():.3e} | "
-                    f"f1: {l_f1.item():.3e} | "
-                    f"f2: {l_f2.item():.3e} | "
-                    f"f3: {l_f3.item():.3e} | "
-                    f"f4: {l_f4.item():.3e}"
-                )
+                    print(
+                        f"It: {it:6d} | "
+                        f"Loss: {loss_val.item():.3e} | "
+                        f"rho: {l_rho.item():.3e} | "
+                        f"u: {l_u.item():.3e} | "
+                        f"v: {l_v.item():.3e} | "
+                        f"p: {l_p.item():.3e} | "
+                        f"f1: {l_f1.item():.3e} | "
+                        f"f2: {l_f2.item():.3e} | "
+                        f"f3: {l_f3.item():.3e} | "
+                        f"f4: {l_f4.item():.3e}"
+                    )
+
+                if self.eq == 'RANS':
+                    loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
+                        self.loss_fn(self.x, self.y, self.rho, self.u, self.v, self.p,
+                                     self.mut, return_terms=True)
+
+                    print(
+                        f"It: {it:6d} | "
+                        f"Loss: {loss_val.item():.3e} | "
+                        f"rho: {l_rho.item():.3e} | "
+                        f"u: {l_u.item():.3e} | "
+                        f"v: {l_v.item():.3e} | "
+                        f"p: {l_p.item():.3e} | "
+                        f"mut: {l_mut.item():.3e} | "
+                        f"f1: {l_f1.item():.3e} | "
+                        f"f2: {l_f2.item():.3e} | "
+                        f"f3: {l_f3.item():.3e} | "
+                        f"f4: {l_f4.item():.3e}"
+                    )
 
         # LBFGS refinement (optional)
         if use_lbfgs:
             def closure():
                 self.optimizer.zero_grad()
-                loss = self.loss_fn(self.x, self.y, self.rho, self.u, self.v,
-                    self.p)
+                if self.eq == 'Euler':
+                    loss = self.loss_fn(self.x, self.y, self.rho, self.u, self.v, self.p)
+                elif self.eq == 'RANS':
+                    loss = self.loss_fn(self.x, self.y, self.rho, self.u, self.v, self.p, self.mut)
                 loss.backward()
                 return loss
 
@@ -503,16 +581,35 @@ class PhysicsInformedNN:
         x_t = torch.tensor(x, dtype=torch.float32, device=self.device)
         y_t = torch.tensor(y, dtype=torch.float32, device=self.device)
 
-        rho, u, v, p = self.net_fields(x_t, y_t)
+        if self.eq == 'Euler':
+            rho, u, v, p = self.net_fields(x_t, y_t)
 
-        rhod, ud, vd, pd = self.GetDimensionalData(rho, u, v, p)
+            rhod, ud, vd, pd = self.GetDimensionalData(rho, u, v, p)
+            return (
+                rhod.cpu().numpy(), 
+                ud.cpu().numpy(), 
+                vd.cpu().numpy(), 
+                pd.cpu().numpy()
+            )
 
-        return (rhod.cpu().numpy(),
+        elif self.eq == 'RANS':
+            rho, u, v, p, muthat = self.net_fields(x_t, y_t)
+            
+            # Rescaling back to mutstar
+            mutstar = self.mut_scale * muthat
+
+            rhod, ud, vd, pd, mutd = self.GetDimensionalData(rho, u, v, p, mutstar)
+            
+            return (
+                rhod.cpu().numpy(),
                 ud.cpu().numpy(),
                 vd.cpu().numpy(),
-                pd.cpu().numpy())
+                pd.cpu().numpy(),
+                # Change to also return mutd
+                #mutd.cpu().numpy()
+            )
 
-    def GetDimensionalData(self, rho, u, v, p):
+    def GetDimensionalData(self, rho, u, v, p, mut=None):
         """
         Make the data dimensional again
         """
@@ -522,7 +619,11 @@ class PhysicsInformedNN:
         vd = v * self.Uref
         pd = p * (self.rhoref * self.Uref * self.Uref)
 
-        return rhod, ud, vd, pd
+        if self.eq == 'Euler':
+            return rhod, ud, vd, pd
+        elif self.eq == 'RANS':
+            mutd = mut * self.muref
+            return rhod, ud, vd, pd, mutd 
 
     def callback(self, it, loss_value):
         print(f"It: {it}, Loss: {loss_value:.3e}")
