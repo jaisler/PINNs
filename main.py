@@ -27,8 +27,9 @@ def main():
         os.makedirs(params['pathData'], exist_ok=True)
 
     # Plot flow fields to be analysed
-    flowfield = pv.read(os.path.join(params['pathFlow'], params['flowfield']))
-    pl.PlotFlowField(flowfield, params)
+    if (params['routine']['plotflow']):
+        flowfield = pv.read(os.path.join(params['pathFlow'], params['flowfield']))
+        pl.PlotFlowField(flowfield, params)
 
     # Sampling points
     if (params['routine']['sampling']):
@@ -79,8 +80,7 @@ def main():
         utrain = u[idx, None]
         vtrain = v[idx, None]
         ptrain = p[idx, None]
-        # Additional parameter from CFD
-        mut = mut[idx, None]
+        muttrain = mut[idx, None]
 
         # Plot target points
         pl.PlotTargetPoints(xtrain, ytrain, params)
@@ -88,7 +88,7 @@ def main():
         # Training - note that model is a object of the class
         # Note that model is a object of the class
         model = pinns.PhysicsInformedNN(xtrain, ytrain, rhotrain, utrain, 
-            vtrain, ptrain, params, mut) 
+            vtrain, ptrain, params, muttrain) 
         # Train
         start_time = time.time()                
         model.train(params['N_AdamIter'])
