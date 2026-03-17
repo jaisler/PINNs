@@ -9,10 +9,10 @@ class PhysicsInformedNN(nn.Module):
     # Initialize the class (Constructor)
     def __init__(
         self,
-        x_data, y_data, rho_data, u_data, v_data, p_data, # data points
-        x_f, y_f, # Collocation points (only coordinates)
+        xdata, ydata, rhodata, udata, vdata, pdata, # data points
+        xf, yf, # Collocation points (only coordinates)
         params,
-        mut_data=None # for RANS
+        mutdata=None # for RANS
     ):
         super().__init__()
 
@@ -62,9 +62,12 @@ class PhysicsInformedNN(nn.Module):
                 f"For equation='{self.eq}', last layer must be {expected_out}, "
                 f"but got {self.layers[-1]}")
         
-        # Non-dimensional data for optimisation performance
+        # Non-dimensional data (data points)
         xstar, ystar, rhostar, ustar, vstar, pstar, mutstar = \
-            self.GetNonDimensionalData(x, y, rho, u, v , p, mut)
+            self.GetNonDimensionalData(xdata, ydata, rhodata, udata, vdata, pdata,
+                                       mutdata)
+        # Non-dimensional coordiantes (collocation points for PINNs)
+        xfstar, yfstar = self.GetNonDimensionalData(xf, yf)
 
         # Rescaling mut (turbulent viscosity for marchine learning)
         if self.eq == 'RANS':
@@ -79,23 +82,35 @@ class PhysicsInformedNN(nn.Module):
             # Scaled target used in the supervised loss
             muthat = mutstar / self.mut_scale   
 
-        X = np.concatenate([xstar, ystar], 1)
-
-        self.lb = torch.tensor(X.min(0), dtype=torch.float32, device=device)  # (2,)
-        self.ub = torch.tensor(X.max(0), dtype=torch.float32, device=device)  # (2,)
-
+        # Data points
+        # Data coordiantes
+        Xdata = np.concatenate([xstar, ystar], 1)
         # Spatial coordinates
-        self.X = torch.tensor(X, dtype=torch.float32, device=device)
-        self.x = self.X[:,0:1]
-        self.y = self.X[:,1:2]
-
-        # Variables
+        self.X = torch.tensor(Xdata, dtype=torch.float32, device=device)
+        self.x = self.Xdata[:,0:1]
+        self.y = self.Xdata[:,1:2]
+        # Physical variables points (training physical information)
         self.u = torch.tensor(ustar, dtype=torch.float32, device=device)
         self.v = torch.tensor(vstar, dtype=torch.float32, device=device)
         self.rho = torch.tensor(rhostar, dtype=torch.float32, device=device)
         self.p = torch.tensor(pstar, dtype=torch.float32, device=device)
         if self.eq == 'RANS': 
             self.mut = torch.tensor(muthat, dtype=torch.float32, device=device)        
+
+        # Collocation points
+        # Data coordiantes
+        Xf = np.concatenate([xstar, ystar], 1)
+        self.lb = torch.tensor(Xf.min(0), dtype=torch.float32, device=device)  # (2,)
+        self.ub = torch.tensor(Xf.max(0), dtype=torch.float32, device=device)  # (2,)
+        # Spatial coordinates
+        self.Xf = torch.tensor(Xf, dtype=torch.float32, device=device)
+        self.xf = self.Xf[:,0:1]
+        self.yf = self.Xf[:,1:2]
+
+        # Calculate the lower and upper bound from the union of all training coord.
+        Xall = np.concatenate([Xdata, Xf], axis=0)
+        self.lb = torch.tensor(Xall.min(0), dtype=torch.float32, device=device)  # (2,)
+        self.ub = torch.tensor(Xall.max(0), dtype=torch.float32, device=device)  # (2,)
 
         # Initialize NN
         self.weights, self.biases = self.initialize_NN(self.layers)
@@ -115,7 +130,7 @@ class PhysicsInformedNN(nn.Module):
 
     def GetNonDimensionalData(self, x, y, rho, u, v, p, mut=None):
         """
-        Generate non-dimensional data
+        Generate non-dimensional data (data points)
         """
 
         xstar = x / self.Lref
@@ -133,6 +148,17 @@ class PhysicsInformedNN(nn.Module):
             mutstar = None
  
         return xstar, ystar, rhostar, ustar, vstar, pstar, mutstar
+
+
+    def GetNonDimensionalCoord(self, x, y):
+        """
+        Generate non-dimensional coordinates (collocation points)
+        """
+
+        xstar = x / self.Lref
+        ystar = y / self.Lref
+ 
+        return xstar, ystar
 
     def initialize_NN(self, layers):
         """
@@ -353,35 +379,43 @@ class PhysicsInformedNN(nn.Module):
         # because the loss is on the scaled variable
         return rho, u, v, p, muthat, f1, f2, f3, f4
 
-    def loss_fn(self, x, y, rho_t, u_t, v_t, p_t, mut_t=None, return_terms=False):
+    def loss_fn(self, return_terms=False):
         """
-        Loss function for PINNs regarding the steady euler and RANS equations
+        Loss function for data and PDE
         """
+
         if (self.eq == 'Euler'):
-            rho_pred, u_pred, v_pred, p_pred, \
+            # Data 
+            rho_pred, u_pred, v_pred, p_pred = self.net_fields(self.x, self.y)
+            # Residuals
+            _, _, _, _, \
                 f1_res, f2_res, f3_res, f4_res \
-                = self.net_steady_euler(x, y)
+                = self.net_steady_euler(self.xf, self.yf)
             # Loss of the turbulent viscosity is zero for Euler
             l_mut = torch.tensor(0.0, device=self.device)
             
-        elif (self.eq == 'RANS'):        
-            rho_pred, u_pred, v_pred, p_pred, mut_pred, \
+        elif (self.eq == 'RANS'):
+            # Data        
+            rho_pred, u_pred, v_pred, p_pred, mut_pred \
+                = self.net_fields(self.x, self.y)
+            # Residuals
+            _, _, _, _, _, \
                 f1_res, f2_res, f3_res, f4_res \
-                = self.net_steady_compressible_rans(x, y)
+                = self.net_steady_compressible_rans(self.xf, self.yf)
             
-            if mut_t is None:
+            if self.mut is None:
                 raise ValueError("For RANS, mut_t must be provided in loss_fn.")
             # Loss of the turbulent viscosity         
-            l_mut = torch.mean((mut_t - mut_pred) ** 2)
+            l_mut = torch.mean((self.mut - mut_pred) ** 2)
         
         else:
             raise ValueError(f"Unknown equation type: {self.eq}")
 
         # Data losses
-        l_rho = torch.mean((rho_t - rho_pred) ** 2)
-        l_u   = torch.mean((u_t   - u_pred)   ** 2)
-        l_v   = torch.mean((v_t   - v_pred)   ** 2)
-        l_p   = torch.mean((p_t   - p_pred)   ** 2)
+        l_rho = torch.mean((self.rho - rho_pred) ** 2)
+        l_u   = torch.mean((self.u   - u_pred)   ** 2)
+        l_v   = torch.mean((self.v   - v_pred)   ** 2)
+        l_p   = torch.mean((self.p   - p_pred)   ** 2)
 
         # PDE residual losses
         l_f1  = torch.mean(f1_res ** 2)
