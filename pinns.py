@@ -6,8 +6,14 @@ torch.manual_seed(1234)
 np.random.seed(1234)
 
 class PhysicsInformedNN(nn.Module):
-    # Initialize the class
-    def __init__(self, x, y, rho, u, v, p, params, mut=None):
+    # Initialize the class (Constructor)
+    def __init__(
+        self,
+        x_data, y_data, rho_data, u_data, v_data, p_data, # data points
+        x_f, y_f, # Collocation points (only coordinates)
+        params,
+        mut_data=None # for RANS
+    ):
         super().__init__()
 
         device = torch.device(params.get("device", "cpu"))
