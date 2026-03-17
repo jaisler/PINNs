@@ -10,7 +10,6 @@ import pinns
 import sampling as smp
 import plot as pl
 
-
 def main():
 
     # Configuration file
@@ -28,8 +27,9 @@ def main():
         os.makedirs(params['pathData'], exist_ok=True)
 
     # Plot flow fields to be analysed
-    flowfield = pv.read(os.path.join(params['pathFlow'], params['flowfield']))
-    pl.PlotFlowField(flowfield, params)
+    if (params['routine']['plotflow']):
+        flowfield = pv.read(os.path.join(params['pathFlow'], params['flowfield']))
+        pl.PlotFlowField(flowfield, params)
 
     # Sampling points
     if (params['routine']['sampling']):
@@ -39,72 +39,67 @@ def main():
         objSample.PlotSamplingPointsToPDF(params)
 
         # Get sampling ponits and fields
-        Xstar = objSample.GetXstar() # N x 3
-        Ustar = objSample.GetUstar() # N x 3
-        rhostar = objSample.GetRHOstar() # N
-        pstar = objSample.GetPstar() # N
+        X = objSample.GetX() # N x 3
+        U = objSample.GetU() # N x 3
+        rho = objSample.GetRHO() # N
+        p = objSample.GetP() # N
         # Note that if Euler equations are used it return an array
         # of zeros
-        mutstar = objSample.GetMutstar()
+        mut = objSample.GetMut()
 
     else:
         # Read data set
         df = pd.read_csv(os.path.join(params['pathData'], 
             params['sampling']['fdata'] + '.csv'))
-        Xstar = df[['xstar', 'ystar', 'zstar']].to_numpy(dtype=float)
-        Ustar = df[['ustar', 'vstar', 'wstar']].to_numpy(dtype=float)
-        rhostar = df['rhostar'].to_numpy(dtype=float)
-        pstar = df['pstar'].to_numpy(dtype=float)
-        mutstar = df['mutstar'].to_numpy(dtype=float) 
+        X = df[['x', 'y', 'z']].to_numpy(dtype=float)
+        U = df[['u', 'v', 'w']].to_numpy(dtype=float)
+        rho = df['rho'].to_numpy(dtype=float)
+        p = df['p'].to_numpy(dtype=float)
+        mut = df['mut'].to_numpy(dtype=float) 
 
     if(params['routine']['inference']):
         # Number of points inside the geometry. This is not the same
         # number of the points provided in the configureation file.
-        N = Xstar.shape[0]
+        N = X.shape[0]
 
         # Rearrange Data 
-        x = Xstar[:,0]   # N 
-        y = Xstar[:,1]   # N
-        rho = rhostar[:] # N
-        u = Ustar[:,0]   # N
-        v = Ustar[:,1]   # N
-        p = pstar[:]     # N
-        mut = mutstar[:] # N: eddy viscosity
+        x = X[:,0]   # N 
+        y = X[:,1]   # N
+        rho = rho[:] # N
+        u = U[:,0]   # N
+        v = U[:,1]   # N
+        p = p[:]     # N
+        mut = mut[:] # N: eddy viscosity
         
         # Training Data - noiseless data
         N_train = min(params['N_train'], N)    
         idx = np.random.choice(N, N_train, replace=False)
-        xtrain = x[idx,None]
-        ytrain = y[idx,None]
-        rhotrain = rho[idx,None]
-        utrain = u[idx,None]
-        vtrain = v[idx,None]
-        ptrain = p[idx,None]
+        xtrain = x[idx, None]
+        ytrain = y[idx, None]
+        rhotrain = rho[idx, None]
+        utrain = u[idx, None]
+        vtrain = v[idx, None]
+        ptrain = p[idx, None]
+        muttrain = mut[idx, None]
 
-        # Dimensional values
-        xtd = xtrain * params['Lref']
-        ytd = ytrain * params['Lref']
         # Plot target points
-        pl.PlotTargetPoints(xtd, ytd, params)
+        pl.PlotTargetPoints(xtrain, ytrain, params)
 
         # Training - note that model is a object of the class
         # Note that model is a object of the class
         model = pinns.PhysicsInformedNN(xtrain, ytrain, rhotrain, utrain, 
-            vtrain, ptrain, params, mut) 
+            vtrain, ptrain, params, muttrain) 
         # Train
         start_time = time.time()                
         model.train(params['N_AdamIter'])
         elapsed = time.time() - start_time                
         print('Training time: %.4f' % (elapsed))
+        
         # Prediction
         rho_pred, u_pred, v_pred, p_pred  = model.predict(x, y) 
-
-        # Dimensional values
-        xd = x * params['Lref']
-        yd = y * params['Lref']
-        rhod = rho_pred * params['rho']
-        # Plotting - postprocessing      
-        pl.PlotPredictedFlow(xd, yd, rhod, params)
+        
+        # Plot inference
+        pl.PlotPredictedFlow(x, y, rho_pred, params)
 
         # compute relative L2 errors if you have ground truth at these points
         def rel_l2(pred, true):
