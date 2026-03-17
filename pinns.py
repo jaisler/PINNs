@@ -508,19 +508,6 @@ class PhysicsInformedNN(nn.Module):
     @torch.no_grad()
     def predict(self, x, y):
         """
-        Predict flow fields (rho, u, v, p) at given spatial locations using a
-        forward pass of the trained neural network.
-
-        This method performs *inference only* (no training, no gradient tracking,
-        no PDE residual evaluation). It is typically used after (or during) training
-        to query the network solution at arbitrary points.
-
-        Mathematically, the PINN represents an approximation of the unknown fields:
-            (rho, u, v, p)(x, y) ≈ (ρ̂, û, v̂, p̂)_θ(x, y)
-
-        where θ are the learned network parameters. This routine evaluates the
-        mapping (x, y) -> (ρ̂, û, v̂, p̂) by calling `self.net_fields(x_t, y_t)`.
-
         Decorator
         ---------
         @torch.no_grad()
@@ -553,24 +540,6 @@ class PhysicsInformedNN(nn.Module):
             Predicted y-velocity v̂ at the input points, shape (N, 1).
         p : numpy.ndarray
             Predicted pressure p̂ at the input points, shape (N, 1).
-
-        Expected Attributes (class members)
-        -----------------------------------
-        self.device : torch.device
-            Device where the model and tensors live (e.g., CPU or CUDA GPU).
-        self.net_fields : callable
-            Function that takes torch tensors (x_t, y_t) with shape (N, 1)
-            and returns torch tensors (rho, u, v, p) each of shape (N, 1).
-
-        Notes
-        -----
-        - This function does NOT compute PDE residuals or derivatives such as
-        ∂u/∂x, ∂u/∂y, etc. For residual evaluation you must use a function
-        that runs with autograd enabled (i.e., without `@torch.no_grad()`).
-        - Inputs are converted to float32. If your model was trained in float64,
-        you may want to change dtype accordingly.
-        - Outputs are moved to CPU (`.cpu()`) before converting to NumPy, so this
-        works regardless of whether the model runs on CPU or GPU.
         """
 
         x = np.asarray(x) / self.Lref
