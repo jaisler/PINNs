@@ -67,7 +67,7 @@ class PhysicsInformedNN(nn.Module):
             self.GetNonDimensionalData(xdata, ydata, rhodata, udata, vdata, pdata,
                                        mutdata)
         # Non-dimensional coordiantes (collocation points for PINNs)
-        xfstar, yfstar = self.GetNonDimensionalData(xf, yf)
+        xfstar, yfstar = self.GetNonDimensionalCoord(xf, yf)
 
         # Rescaling mut (turbulent viscosity for marchine learning)
         if self.eq == 'RANS':
@@ -86,7 +86,7 @@ class PhysicsInformedNN(nn.Module):
         # Data coordiantes
         Xdata = np.concatenate([xstar, ystar], 1)
         # Spatial coordinates
-        self.X = torch.tensor(Xdata, dtype=torch.float32, device=device)
+        self.Xdata = torch.tensor(Xdata, dtype=torch.float32, device=device)
         self.x = self.Xdata[:,0:1]
         self.y = self.Xdata[:,1:2]
         # Physical variables points (training physical information)
@@ -97,11 +97,10 @@ class PhysicsInformedNN(nn.Module):
         if self.eq == 'RANS': 
             self.mut = torch.tensor(muthat, dtype=torch.float32, device=device)        
 
+        # TODO: I need to add exception when collocation points are not provided.
         # Collocation points
         # Data coordiantes
-        Xf = np.concatenate([xstar, ystar], 1)
-        self.lb = torch.tensor(Xf.min(0), dtype=torch.float32, device=device)  # (2,)
-        self.ub = torch.tensor(Xf.max(0), dtype=torch.float32, device=device)  # (2,)
+        Xf = np.concatenate([xfstar, yfstar], 1)
         # Spatial coordinates
         self.Xf = torch.tensor(Xf, dtype=torch.float32, device=device)
         self.xf = self.Xf[:,0:1]
@@ -485,10 +484,9 @@ class PhysicsInformedNN(nn.Module):
             self.optimizer_Adam.zero_grad()
             
             if self.eq == 'Euler':
-                loss = self.loss_fn(self.x, self.y, self.rho, self.u, self.v, self.p)
+                loss = self.loss_fn()
             elif self.eq == 'RANS':
-                loss = self.loss_fn(self.x, self.y, self.rho, self.u, self.v, self.p, \
-                                    self.mut)
+                loss = self.loss_fn()
             
             loss.backward()
             self.optimizer_Adam.step()
@@ -496,8 +494,7 @@ class PhysicsInformedNN(nn.Module):
             if it % print_every == 0:
                 if self.eq == 'Euler':
                     loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
-                        self.loss_fn(self.x, self.y, self.rho, self.u, self.v, self.p, 
-                                     return_terms=True)
+                        self.loss_fn(return_terms=True)
 
                     print(
                         f"It: {it:6d} | "
@@ -514,8 +511,7 @@ class PhysicsInformedNN(nn.Module):
 
                 if self.eq == 'RANS':
                     loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
-                        self.loss_fn(self.x, self.y, self.rho, self.u, self.v, self.p,
-                                     self.mut, return_terms=True)
+                        self.loss_fn(return_terms=True)
 
                     print(
                         f"It: {it:6d} | "
@@ -536,9 +532,9 @@ class PhysicsInformedNN(nn.Module):
             def closure():
                 self.optimizer.zero_grad()
                 if self.eq == 'Euler':
-                    loss = self.loss_fn(self.x, self.y, self.rho, self.u, self.v, self.p)
+                    loss = self.loss_fn()
                 elif self.eq == 'RANS':
-                    loss = self.loss_fn(self.x, self.y, self.rho, self.u, self.v, self.p, self.mut)
+                    loss = self.loss_fn()
                 loss.backward()
                 return loss
 
