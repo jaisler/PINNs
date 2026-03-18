@@ -5,6 +5,9 @@ import torch.nn as nn
 torch.manual_seed(1234)
 np.random.seed(1234)
 
+if torch.cuda.is_available():
+    torch.cuda.manual_seed_all(1234)
+
 class PhysicsInformedNN(nn.Module):
     # Initialize the class (Constructor)
     def __init__(
@@ -16,19 +19,17 @@ class PhysicsInformedNN(nn.Module):
     ):
         super().__init__()
 
-        device_str = torch.device(params.get("device", None))
-
+        # Device selection
+        device_str = params.get("device", None)
         if device_str is None:
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         else:
             if "cuda" in device_str and not torch.cuda.is_available():
                 print("CUDA requested but not available. Falling back to CPU")
-                device = torch.device("cpu")
+                self.device = torch.device("cpu")
             else:
-                device = torch.device(device_str)
-
-        self.device = device
-        print(f"Using device {self.device}")
+                self.device = torch.device(device_str)
+        print(f"Using device: {self.device}")
 
         # Equation
         self.eq = params['equation']
@@ -97,33 +98,36 @@ class PhysicsInformedNN(nn.Module):
         # Data coordiantes
         Xdata = np.concatenate([xstar, ystar], 1)
         # Spatial coordinates
-        self.Xdata = torch.tensor(Xdata, dtype=torch.float32, device=device)
+        self.Xdata = torch.tensor(Xdata, dtype=torch.float32, device=self.device)
         self.x = self.Xdata[:,0:1]
         self.y = self.Xdata[:,1:2]
         # Physical variables points (training physical information)
-        self.u = torch.tensor(ustar, dtype=torch.float32, device=device)
-        self.v = torch.tensor(vstar, dtype=torch.float32, device=device)
-        self.rho = torch.tensor(rhostar, dtype=torch.float32, device=device)
-        self.p = torch.tensor(pstar, dtype=torch.float32, device=device)
+        self.u = torch.tensor(ustar, dtype=torch.float32, device=self.device)
+        self.v = torch.tensor(vstar, dtype=torch.float32, device=self.device)
+        self.rho = torch.tensor(rhostar, dtype=torch.float32, device=self.device)
+        self.p = torch.tensor(pstar, dtype=torch.float32, device=self.device)
         if self.eq == 'RANS': 
-            self.mut = torch.tensor(muthat, dtype=torch.float32, device=device)        
+            self.mut = torch.tensor(muthat, dtype=torch.float32, device=self.device)        
 
         # TODO: I need to add exception when collocation points are not provided.
         # Collocation points
         # Data coordiantes
         Xf = np.concatenate([xfstar, yfstar], 1)
         # Spatial coordinates
-        self.Xf = torch.tensor(Xf, dtype=torch.float32, device=device)
+        self.Xf = torch.tensor(Xf, dtype=torch.float32, device=self.device)
         self.xf = self.Xf[:,0:1]
         self.yf = self.Xf[:,1:2]
 
         # Calculate the lower and upper bound from the union of all training coord.
         Xall = np.concatenate([Xdata, Xf], axis=0)
-        self.lb = torch.tensor(Xall.min(0), dtype=torch.float32, device=device)  # (2,)
-        self.ub = torch.tensor(Xall.max(0), dtype=torch.float32, device=device)  # (2,)
+        self.lb = torch.tensor(Xall.min(0), dtype=torch.float32, device=self.device)  # (2,)
+        self.ub = torch.tensor(Xall.max(0), dtype=torch.float32, device=self.device)  # (2,)
 
         # Initialize NN
         self.weights, self.biases = self.initialize_NN(self.layers)
+        
+        # Move the whole module to the selected device
+        self.to(self.device)
 
         # Optional LBFGS
         self.optimizer = torch.optim.LBFGS(
@@ -467,7 +471,7 @@ class PhysicsInformedNN(nn.Module):
         """
         return list(self.weights) + list(self.biases)
 
-    def train(self, nIter, use_lbfgs=False, print_every=10):
+    def fit(self, nIter, use_lbfgs=False, print_every=10):
         """
         Train the Physics-Informed Neural Network (PINN) parameters using Adam,
         with an optional L-BFGS refinement stage.
@@ -489,6 +493,9 @@ class PhysicsInformedNN(nn.Module):
             the final L-BFGS loss.
             
         """
+
+        # Training=True
+        super().train()
 
         # Adam loop
         for it in range(nIter):
@@ -588,6 +595,9 @@ class PhysicsInformedNN(nn.Module):
         p : numpy.ndarray
             Predicted pressure p̂ at the input points, shape (N, 1).
         """
+
+        # Training=False
+        super().eval()
 
         x = np.asarray(x) / self.Lref
         y = np.asarray(y) / self.Lref
