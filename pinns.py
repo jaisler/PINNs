@@ -16,8 +16,19 @@ class PhysicsInformedNN(nn.Module):
     ):
         super().__init__()
 
-        device = torch.device(params.get("device", "cpu"))
+        device_str = torch.device(params.get("device", None))
+
+        if device_str is None:
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        else:
+            if "cuda" in device_str and not torch.cuda.is_available():
+                print("CUDA requested but not available. Falling back to CPU")
+                device = torch.device("cpu")
+            else:
+                device = torch.device(device_str)
+
         self.device = device
+        print(f"Using device {self.device}")
 
         # Equation
         self.eq = params['equation']
