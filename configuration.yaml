@@ -2,17 +2,17 @@
 # All paths are to be given without final slash.
 
 # Path 
-pathFlow: '/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/scramjet/afrl/2d/cases/rans/case'
-pathMesh: '/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/scramjet/afrl/2d/meshes/mesh2'
-pathRes: '/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/results' 
-pathData: '/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/data' 
- 
+pathFlow: ''
+pathMesh: ''
+pathRes: ''
+pathData: ''
+
 # Flow field file
 flowfield: 'flow.vtu' 
 mesh: 'afrl2d.geo'
 
 # Solver
-equation: 'RANS' # Euler, RANS 
+equation: 'Euler' # Euler, RANS 
 
 # Routines
 routine:
@@ -20,6 +20,7 @@ routine:
   sampling: True
   inference: True
   identification: False
+  pinn: True
 
 plotflow:
   fields: ["Density", "Pressure", "Velocity", "Velocity"]
@@ -30,12 +31,18 @@ plotflow:
 
 # Sampling parameters
 sampling:
-  nspoin: 2100
-  nspoin_grad: 2300 # grad
+  # Data points
+  nspoin: 2100 # data
+  nspoin_grad: 2300 # data
+  nspoin_bc: [40, 260, 40, 160] # data
+  # Collocation points for PINN
+  nspoin_coll: 2100 # collocation points
+  nspoin_coll_grad: 2300 # collocation points
+  nspoin_coll_bc: [40, 260, 40, 160] # collocation points
+  # Sampling type for inner points
   type: 'lhs' # random, lhs
-  grad_type_var: 'Density'
   bc: ['inlet','bottom','outlet','top']
-  nspoin_bc: [40, 260, 40, 160]
+  grad_type_var: 'Density'
   pool_factor: 8
   alpha_grad_rho: 1.4
   seed: 1234
@@ -43,15 +50,16 @@ sampling:
   ftargets: 'target_points'
   fdata: 'sampling_data'
 
-
-# PINNs steup
-N_train: 600
-N_AdamIter: 50000
-layers: [2, 20, 20, 50, 50, 100, 100, 200, 200, 4]
+# NN setup
+N_train_data: 1000
+N_train_coll: 1000
+N_AdamIter: 20000
+layers: [2, 64, 64, 64, 64, 4]
 
 # General parameters
 dims: 2
 
+# Physical parameters
 # Heat capacity ratio 
 gamma: 1.4
 # Universal gas constant

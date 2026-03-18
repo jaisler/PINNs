@@ -6,8 +6,14 @@ torch.manual_seed(1234)
 np.random.seed(1234)
 
 class PhysicsInformedNN(nn.Module):
-    # Initialize the class
-    def __init__(self, x, y, rho, u, v, p, params, mut=None):
+    # Initialize the class (Constructor)
+    def __init__(
+        self,
+        xdata, ydata, rhodata, udata, vdata, pdata, # data points
+        xf, yf, # Collocation points (only coordinates)
+        params,
+        mutdata=None # for RANS
+    ):
         super().__init__()
 
         device = torch.device(params.get("device", "cpu"))
@@ -56,9 +62,12 @@ class PhysicsInformedNN(nn.Module):
                 f"For equation='{self.eq}', last layer must be {expected_out}, "
                 f"but got {self.layers[-1]}")
         
-        # Non-dimensional data for optimisation performance
+        # Non-dimensional data (data points)
         xstar, ystar, rhostar, ustar, vstar, pstar, mutstar = \
-            self.GetNonDimensionalData(x, y, rho, u, v , p, mut)
+            self.GetNonDimensionalData(xdata, ydata, rhodata, udata, vdata, pdata,
+                                       mutdata)
+        # Non-dimensional coordiantes (collocation points for PINNs)
+        xfstar, yfstar = self.GetNonDimensionalCoord(xf, yf)
 
         # Rescaling mut (turbulent viscosity for marchine learning)
         if self.eq == 'RANS':
@@ -73,23 +82,34 @@ class PhysicsInformedNN(nn.Module):
             # Scaled target used in the supervised loss
             muthat = mutstar / self.mut_scale   
 
-        X = np.concatenate([xstar, ystar], 1)
-
-        self.lb = torch.tensor(X.min(0), dtype=torch.float32, device=device)  # (2,)
-        self.ub = torch.tensor(X.max(0), dtype=torch.float32, device=device)  # (2,)
-
+        # Data points
+        # Data coordiantes
+        Xdata = np.concatenate([xstar, ystar], 1)
         # Spatial coordinates
-        self.X = torch.tensor(X, dtype=torch.float32, device=device)
-        self.x = self.X[:,0:1]
-        self.y = self.X[:,1:2]
-
-        # Variables
+        self.Xdata = torch.tensor(Xdata, dtype=torch.float32, device=device)
+        self.x = self.Xdata[:,0:1]
+        self.y = self.Xdata[:,1:2]
+        # Physical variables points (training physical information)
         self.u = torch.tensor(ustar, dtype=torch.float32, device=device)
         self.v = torch.tensor(vstar, dtype=torch.float32, device=device)
         self.rho = torch.tensor(rhostar, dtype=torch.float32, device=device)
         self.p = torch.tensor(pstar, dtype=torch.float32, device=device)
         if self.eq == 'RANS': 
             self.mut = torch.tensor(muthat, dtype=torch.float32, device=device)        
+
+        # TODO: I need to add exception when collocation points are not provided.
+        # Collocation points
+        # Data coordiantes
+        Xf = np.concatenate([xfstar, yfstar], 1)
+        # Spatial coordinates
+        self.Xf = torch.tensor(Xf, dtype=torch.float32, device=device)
+        self.xf = self.Xf[:,0:1]
+        self.yf = self.Xf[:,1:2]
+
+        # Calculate the lower and upper bound from the union of all training coord.
+        Xall = np.concatenate([Xdata, Xf], axis=0)
+        self.lb = torch.tensor(Xall.min(0), dtype=torch.float32, device=device)  # (2,)
+        self.ub = torch.tensor(Xall.max(0), dtype=torch.float32, device=device)  # (2,)
 
         # Initialize NN
         self.weights, self.biases = self.initialize_NN(self.layers)
@@ -109,7 +129,7 @@ class PhysicsInformedNN(nn.Module):
 
     def GetNonDimensionalData(self, x, y, rho, u, v, p, mut=None):
         """
-        Generate non-dimensional data
+        Generate non-dimensional data (data points)
         """
 
         xstar = x / self.Lref
@@ -127,6 +147,17 @@ class PhysicsInformedNN(nn.Module):
             mutstar = None
  
         return xstar, ystar, rhostar, ustar, vstar, pstar, mutstar
+
+
+    def GetNonDimensionalCoord(self, x, y):
+        """
+        Generate non-dimensional coordinates (collocation points)
+        """
+
+        xstar = x / self.Lref
+        ystar = y / self.Lref
+ 
+        return xstar, ystar
 
     def initialize_NN(self, layers):
         """
@@ -347,35 +378,43 @@ class PhysicsInformedNN(nn.Module):
         # because the loss is on the scaled variable
         return rho, u, v, p, muthat, f1, f2, f3, f4
 
-    def loss_fn(self, x, y, rho_t, u_t, v_t, p_t, mut_t=None, return_terms=False):
+    def loss_fn(self, return_terms=False):
         """
-        Loss function for PINNs regarding the steady euler and RANS equations
+        Loss function for data and PDE
         """
+
         if (self.eq == 'Euler'):
-            rho_pred, u_pred, v_pred, p_pred, \
+            # Data 
+            rho_pred, u_pred, v_pred, p_pred = self.net_fields(self.x, self.y)
+            # Residuals
+            _, _, _, _, \
                 f1_res, f2_res, f3_res, f4_res \
-                = self.net_steady_euler(x, y)
+                = self.net_steady_euler(self.xf, self.yf)
             # Loss of the turbulent viscosity is zero for Euler
             l_mut = torch.tensor(0.0, device=self.device)
             
-        elif (self.eq == 'RANS'):        
-            rho_pred, u_pred, v_pred, p_pred, mut_pred, \
+        elif (self.eq == 'RANS'):
+            # Data        
+            rho_pred, u_pred, v_pred, p_pred, mut_pred \
+                = self.net_fields(self.x, self.y)
+            # Residuals
+            _, _, _, _, _, \
                 f1_res, f2_res, f3_res, f4_res \
-                = self.net_steady_compressible_rans(x, y)
+                = self.net_steady_compressible_rans(self.xf, self.yf)
             
-            if mut_t is None:
+            if self.mut is None:
                 raise ValueError("For RANS, mut_t must be provided in loss_fn.")
             # Loss of the turbulent viscosity         
-            l_mut = torch.mean((mut_t - mut_pred) ** 2)
+            l_mut = torch.mean((self.mut - mut_pred) ** 2)
         
         else:
             raise ValueError(f"Unknown equation type: {self.eq}")
 
         # Data losses
-        l_rho = torch.mean((rho_t - rho_pred) ** 2)
-        l_u   = torch.mean((u_t   - u_pred)   ** 2)
-        l_v   = torch.mean((v_t   - v_pred)   ** 2)
-        l_p   = torch.mean((p_t   - p_pred)   ** 2)
+        l_rho = torch.mean((self.rho - rho_pred) ** 2)
+        l_u   = torch.mean((self.u   - u_pred)   ** 2)
+        l_v   = torch.mean((self.v   - v_pred)   ** 2)
+        l_p   = torch.mean((self.p   - p_pred)   ** 2)
 
         # PDE residual losses
         l_f1  = torch.mean(f1_res ** 2)
@@ -445,10 +484,9 @@ class PhysicsInformedNN(nn.Module):
             self.optimizer_Adam.zero_grad()
             
             if self.eq == 'Euler':
-                loss = self.loss_fn(self.x, self.y, self.rho, self.u, self.v, self.p)
+                loss = self.loss_fn()
             elif self.eq == 'RANS':
-                loss = self.loss_fn(self.x, self.y, self.rho, self.u, self.v, self.p, \
-                                    self.mut)
+                loss = self.loss_fn()
             
             loss.backward()
             self.optimizer_Adam.step()
@@ -456,8 +494,7 @@ class PhysicsInformedNN(nn.Module):
             if it % print_every == 0:
                 if self.eq == 'Euler':
                     loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
-                        self.loss_fn(self.x, self.y, self.rho, self.u, self.v, self.p, 
-                                     return_terms=True)
+                        self.loss_fn(return_terms=True)
 
                     print(
                         f"It: {it:6d} | "
@@ -474,8 +511,7 @@ class PhysicsInformedNN(nn.Module):
 
                 if self.eq == 'RANS':
                     loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
-                        self.loss_fn(self.x, self.y, self.rho, self.u, self.v, self.p,
-                                     self.mut, return_terms=True)
+                        self.loss_fn(return_terms=True)
 
                     print(
                         f"It: {it:6d} | "
@@ -496,9 +532,9 @@ class PhysicsInformedNN(nn.Module):
             def closure():
                 self.optimizer.zero_grad()
                 if self.eq == 'Euler':
-                    loss = self.loss_fn(self.x, self.y, self.rho, self.u, self.v, self.p)
+                    loss = self.loss_fn()
                 elif self.eq == 'RANS':
-                    loss = self.loss_fn(self.x, self.y, self.rho, self.u, self.v, self.p, self.mut)
+                    loss = self.loss_fn()
                 loss.backward()
                 return loss
 
@@ -508,19 +544,6 @@ class PhysicsInformedNN(nn.Module):
     @torch.no_grad()
     def predict(self, x, y):
         """
-        Predict flow fields (rho, u, v, p) at given spatial locations using a
-        forward pass of the trained neural network.
-
-        This method performs *inference only* (no training, no gradient tracking,
-        no PDE residual evaluation). It is typically used after (or during) training
-        to query the network solution at arbitrary points.
-
-        Mathematically, the PINN represents an approximation of the unknown fields:
-            (rho, u, v, p)(x, y) ≈ (ρ̂, û, v̂, p̂)_θ(x, y)
-
-        where θ are the learned network parameters. This routine evaluates the
-        mapping (x, y) -> (ρ̂, û, v̂, p̂) by calling `self.net_fields(x_t, y_t)`.
-
         Decorator
         ---------
         @torch.no_grad()
@@ -553,24 +576,6 @@ class PhysicsInformedNN(nn.Module):
             Predicted y-velocity v̂ at the input points, shape (N, 1).
         p : numpy.ndarray
             Predicted pressure p̂ at the input points, shape (N, 1).
-
-        Expected Attributes (class members)
-        -----------------------------------
-        self.device : torch.device
-            Device where the model and tensors live (e.g., CPU or CUDA GPU).
-        self.net_fields : callable
-            Function that takes torch tensors (x_t, y_t) with shape (N, 1)
-            and returns torch tensors (rho, u, v, p) each of shape (N, 1).
-
-        Notes
-        -----
-        - This function does NOT compute PDE residuals or derivatives such as
-        ∂u/∂x, ∂u/∂y, etc. For residual evaluation you must use a function
-        that runs with autograd enabled (i.e., without `@torch.no_grad()`).
-        - Inputs are converted to float32. If your model was trained in float64,
-        you may want to change dtype accordingly.
-        - Outputs are moved to CPU (`.cpu()`) before converting to NumPy, so this
-        works regardless of whether the model runs on CPU or GPU.
         """
 
         x = np.asarray(x) / self.Lref

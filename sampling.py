@@ -7,7 +7,7 @@ import plot as pl
 
 class SamplingData:
     # Initialize the class
-    def __init__(self, params):
+    def __init__(self, params, collpts=False):
 
         # Dimension
         self.dims = params['dims']
@@ -15,6 +15,17 @@ class SamplingData:
         self.pts_bc = np.empty((0, 3), dtype=float)
         self.pts_grad = np.empty((0, 3), dtype=float)
         self.pts = np.empty((0, 3), dtype=float)
+
+        if collpts:
+            # Collocation points
+            npinner = params['sampling']['nspoin_coll']
+            npgrad = params['sampling']['nspoin_coll_grad']
+            npbc = params['sampling']['nspoin_coll_bc']
+        else:
+            # Data points
+            npinner = params['sampling']['nspoin']
+            npgrad = params['sampling']['nspoin_grad']
+            npbc = params['sampling']['nspoin_bc']
 
         # Load your solution
         # .vtk, .pvtu, .vtm, ...
@@ -28,9 +39,9 @@ class SamplingData:
         # Get base sampler function 
         base_sampler = self.GetBaseSampler(params['sampling']['type'])
 
-        if params['sampling']['nspoin'] > 0:
+        if npinner > 0:
             # Call chosen sampler 
-            pts_in = base_sampler(params['sampling']['nspoin'], xmin, xmax, ymin, ymax)  
+            pts_in = base_sampler(npinner, xmin, xmax, ymin, ymax)  
             # The flow is 2D but VTK expects 3D points, lift to z=zmin (or 0)
             if self.dims == 2:
                 pts_in = np.column_stack([pts_in, np.full((pts_in.shape[0],), zmin)])
@@ -46,9 +57,9 @@ class SamplingData:
         
         # Add extra points in regions detected by a sensor
         # Extra points based on gradient |grad(rho)|
-        if params['sampling']['nspoin_grad'] > 0:
+        if npgrad > 0:
             pts_grad = self.SampleBasedOnGrad(
-                mesh=mesh, npoin_grad=params['sampling']['nspoin_grad'],
+                mesh=mesh, npoin_grad=npgrad,
                 xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, zmin=zmin, zmax=zmax,
                 base_sampler=base_sampler,
                 var_name=params['sampling'].get('grad_type_var', 'Density'),
@@ -60,7 +71,7 @@ class SamplingData:
 
         # Points on the boundary condition
         bc_names = params['sampling']['bc']
-        bc_poin = params['sampling']['nspoin_bc']
+        bc_poin = npbc #params['sampling']['nspoin_bc']
         for phys_name, n_bc in zip(bc_names, bc_poin):
             if n_bc > 0:
                 pts_bc = self.SampleBoundaryCondition(phys_name, n_bc, params)                
@@ -80,29 +91,29 @@ class SamplingData:
 
         # Extract arrays
         # Note that the arrays are normalised
-        self.X = sampled.points[mask]        # (N,3) or (N,2)
-        self.U = sampled["Velocity"][mask]   # (N,3) or (N,2) if vector
-        self.rho = sampled["Density"][mask]  # (N,) 
-        self.p = sampled["Pressure"][mask]   # (N,) if scalar
-
         self.pts = self.pts[mask]
+        self.X = sampled.points[mask]        # (N,3) or (N,2)
 
-        # Remove invalid points and normalised it
-        #self.Xstar = X / params['Lref'] 
-        #self.rhostar = rho / params['rho']
-        #self.Ustar = U / params['U_0']
-        #self.pstar = p / (params['rho'] 
-        #    * params['U_0'] * params['U_0']) 
+        if collpts:
+            self.U = sampled.points[mask] * 0.0  
+            self.rho = sampled.points[mask] * 0.0  
+            self.p = sampled.points[mask] * 0.0
+            self.mut = sampled.points[mask] * 0.0
+            
+        else:
+            self.U = sampled["Velocity"][mask]   # (N,3) or (N,2) if vector
+            self.rho = sampled["Density"][mask]  # (N,) 
+            self.p = sampled["Pressure"][mask]   # (N,) if scalar
 
-        # Depending on the equations the eddy viscosity returns
-        # zero or the value from the CFD
-        if (params['equation'] == 'RANS'):
-            mut = sampled["Eddy_Viscosity"]
-            #self.mut = mut[mask] / params["mu"]
-            self.mut = mut[mask]
-        elif (params['equation'] == 'Euler'):
-            # Otherwise return zero
-            self.mut = np.zeros((self.X.shape[0], 1), dtype=float)
+            # Depending on the equations the eddy viscosity returns
+            # zero or the value from the CFD
+            if (params['equation'] == 'RANS'):
+                mut = sampled["Eddy_Viscosity"]
+                #self.mut = mut[mask] / params["mu"]
+                self.mut = mut[mask]
+            elif (params['equation'] == 'Euler'):
+                # Otherwise return zero
+                self.mut = np.zeros((self.X.shape[0], 1), dtype=float)
 
     def GetBaseSampler(self, sampling_type: str):
         if sampling_type == "random":

@@ -31,21 +31,26 @@ def main():
         flowfield = pv.read(os.path.join(params['pathFlow'], params['flowfield']))
         pl.PlotFlowField(flowfield, params)
 
-    # Sampling points
+    # Sampling points - Data points
     if (params['routine']['sampling']):
         # Create data set
-        objSample = smp.SamplingData(params) 
-        objSample.WriteDataToCSV(params)
-        objSample.PlotSamplingPointsToPDF(params)
+        objSampleData = smp.SamplingData(params, False) 
+        objSampleData.WriteDataToCSV(params)
+        #objSampleData.PlotSamplingPointsToPDF(params)
 
-        # Get sampling ponits and fields
-        X = objSample.GetX() # N x 3
-        U = objSample.GetU() # N x 3
-        rho = objSample.GetRHO() # N
-        p = objSample.GetP() # N
+        # Get sampling ponits and fields. Data points
+        X = objSampleData.GetX() # N x 3
+        U = objSampleData.GetU() # N x 3
+        rho = objSampleData.GetRHO() # N
+        p = objSampleData.GetP() # N
         # Note that if Euler equations are used it return an array
         # of zeros
-        mut = objSample.GetMut()
+        mut = objSampleData.GetMut()
+
+        # Collocation points (PDE residuals)
+        if params['routine']['pinn']:  
+            objSampleColl = smp.SamplingData(params, True) 
+            Xf = objSampleColl.GetX()
 
     else:
         # Read data set
@@ -57,9 +62,13 @@ def main():
         p = df['p'].to_numpy(dtype=float)
         mut = df['mut'].to_numpy(dtype=float) 
 
+        # TODO: Implement writing collocation points in a file
+        # TODO: Implement plotting collocation points
+
     if(params['routine']['inference']):
         # Number of points inside the geometry. This is not the same
         # number of the points provided in the configureation file.
+        # Data points
         N = X.shape[0]
 
         # Rearrange Data 
@@ -72,34 +81,52 @@ def main():
         mut = mut[:] # N: eddy viscosity
         
         # Training Data - noiseless data
-        N_train = min(params['N_train'], N)    
-        idx = np.random.choice(N, N_train, replace=False)
-        xtrain = x[idx, None]
-        ytrain = y[idx, None]
-        rhotrain = rho[idx, None]
-        utrain = u[idx, None]
-        vtrain = v[idx, None]
-        ptrain = p[idx, None]
-        muttrain = mut[idx, None]
+        N_train_data = min(params['N_train_data'], N)    
+        idx = np.random.choice(N, N_train_data, replace=False)
+        xtrain = x[idx,None]
+        ytrain = y[idx,None]
+        rhotrain = rho[idx,None]
+        utrain = u[idx,None]
+        vtrain = v[idx,None]
+        ptrain = p[idx,None]
+        muttrain = mut[idx,None]
 
+        # TODO: I need to add exception when collocation points are not provided.
+        if params['routine']['pinn']:    
+            # Collocation points
+            Ncoll = Xf.shape[0]
+            xf = Xf[:,0]   # N 
+            yf = Xf[:,1]   # N
+            # Training data
+            N_train_coll = min(params['N_train_coll'], Ncoll)    
+            idxc = np.random.choice(Ncoll, N_train_coll, replace=False)
+            xftrain = xf[idxc,None]
+            yftrain = yf[idxc,None]
+        
         # Plot target points
-        pl.PlotTargetPoints(xtrain, ytrain, params)
+        #pl.PlotTargetPoints(xtrain, ytrain, xftrain, yftrain, params)
 
         # Training - note that model is a object of the class
         # Note that model is a object of the class
         model = pinns.PhysicsInformedNN(xtrain, ytrain, rhotrain, utrain, 
-            vtrain, ptrain, params, muttrain) 
+            vtrain, ptrain, xftrain, yftrain, params, muttrain)
+
         # Train
         start_time = time.time()                
         model.train(params['N_AdamIter'])
         elapsed = time.time() - start_time                
         print('Training time: %.4f' % (elapsed))
         
-        # Prediction
-        rho_pred, u_pred, v_pred, p_pred  = model.predict(x, y) 
-        
+        # Prediction for plotting (data, collocation)
+        Xall = np.concatenate([X, Xf], axis=0)
+        xall = Xall[:,0]
+        yall = Xall[:,1]
+        rhoall_pred, uall_pred, vall_pred, pall_pred = model.predict(xall, yall) 
         # Plot inference
-        pl.PlotPredictedFlow(x, y, rho_pred, params)
+        pl.PlotPredictedFlow(xall, yall, rhoall_pred, params)
+
+        # Predition for the data points (error calculation)
+        rho_pred, u_pred, v_pred, p_pred = model.predict(x, y) 
 
         # compute relative L2 errors if you have ground truth at these points
         def rel_l2(pred, true):

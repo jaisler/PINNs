@@ -36,12 +36,13 @@ def PlotSamplingPoints(pall, pin, pbc, pgrad, params):
     plt.show()
     plt.close(fig)
 
-def PlotTargetPoints(x, y, params):
+def PlotTargetPoints(x, y, xf, yf, params):
 
     fig, ax = plt.subplots(1, 1, num=1, figsize=(12, 4), sharey=True)
     plt.rc('legend', **{'fontsize': 14})
 
     p0, = ax.plot(x, y, 'o', color='g', markersize=3)
+    p1, = ax.plot(xf, yf, 'o', color='darkorange', markersize=3)
 
     ax.tick_params(direction="in", which='both')
     ax.grid(color='0.5', linestyle=':', linewidth=0.5, which='both')
@@ -51,7 +52,7 @@ def PlotTargetPoints(x, y, params):
     ax.set_xlabel(r'$x$ $[m]$', fontsize=18)
     ax.set_ylabel(r'$y$ $[m]$', fontsize=18)
 
-    ax.legend([p0], [r'Training points'], loc='best')
+    ax.legend([p0,p1], [r'Targets',r'Residual'], loc='best')
     ax.set_aspect("equal", adjustable="box")
     fig.subplots_adjust(left=0.08, right=0.99, bottom=0.15, top=0.97)
     fig.savefig(params['pathRes']+'/'+params['sampling']['ftargets']+'.pdf')
