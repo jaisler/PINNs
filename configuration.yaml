@@ -11,8 +11,11 @@ pathData: ''
 flowfield: 'flow.vtu' 
 mesh: 'afrl2d.geo'
 
-# Solver
-equation: 'Euler' # Euler, RANS 
+# Solver: Euler or RANS
+equation: 'Euler'  
+
+# Device: cpu or cuda
+device: cuda
 
 # Routines
 routine:
