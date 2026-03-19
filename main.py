@@ -31,6 +31,11 @@ def main():
         flowfield = pv.read(os.path.join(params['pathFlow'], params['flowfield']))
         pl.PlotFlowField(flowfield, params)
 
+    # Initialisation
+    Xf = None
+    xftrain = None
+    yftrain = None
+
     # Sampling points - Data points
     if (params['routine']['sampling']):
         # Create data set
@@ -48,10 +53,10 @@ def main():
         mut = objSampleData.GetMut()
 
         # Collocation points (PDE residuals)
-        if params['routine']['pinn']:  
+        if params['model'] == 'pinn':  
             objSampleColl = smp.SamplingData(params, True) 
             Xf = objSampleColl.GetX()
-
+        
     else:
         # Read data set
         df = pd.read_csv(os.path.join(params['pathData'], 
@@ -61,7 +66,6 @@ def main():
         rho = df['rho'].to_numpy(dtype=float)
         p = df['p'].to_numpy(dtype=float)
         mut = df['mut'].to_numpy(dtype=float) 
-
         # TODO: Implement writing collocation points in a file
         # TODO: Implement plotting collocation points
 
@@ -91,8 +95,7 @@ def main():
         ptrain = p[idx,None]
         muttrain = mut[idx,None]
 
-        # TODO: I need to add exception when collocation points are not provided.
-        if params['routine']['pinn']:    
+        if Xf is not None:  
             # Collocation points
             Ncoll = Xf.shape[0]
             xf = Xf[:,0]   # N 
@@ -118,7 +121,10 @@ def main():
         print('Training time: %.4f' % (elapsed))
         
         # Prediction for plotting (data, collocation)
-        Xall = np.concatenate([X, Xf], axis=0)
+        if Xf is not None:
+            Xall = np.concatenate([X, Xf], axis=0)
+        else:
+            Xall = X.copy()
         xall = Xall[:,0]
         yall = Xall[:,1]
         rhoall_pred, uall_pred, vall_pred, pall_pred = model.predict(xall, yall) 

@@ -17,13 +17,15 @@ equation: 'Euler'
 # Device: cpu or cuda
 device: cuda
 
+# Model: supervised or pinn
+model: pinn
+
 # Routines
 routine:
   plotflow: True
   sampling: True
   inference: True
   identification: False
-  pinn: True
 
 plotflow:
   fields: ["Density", "Pressure", "Velocity", "Velocity"]
