@@ -59,10 +59,10 @@ def PlotTargetPoints(x, y, xf, yf, params):
     plt.show()
     plt.close(fig)
 
-def PlotPredictedFlow(x, y, u_pred, params, perc=90, mult=1.5, debug=True):
+
+def PlotPredictedFlow(x, y, u_pred, params, perc=95, mult=1.8):
     
     tri = mtri.Triangulation(x, y)
-
     tris = tri.triangles
     
     xtri = x[tris]
@@ -80,15 +80,22 @@ def PlotPredictedFlow(x, y, u_pred, params, perc=90, mult=1.5, debug=True):
     
     # Scale
     vmin, vmax = 0.0, 1.3
-    levels = np.linspace(vmin, vmax, 51) 
-    cs = ax.tricontourf(tri, u_pred.ravel(), cmap="bwr",
-                        levels=levels, vmin=vmin, vmax=vmax, extend="both")
+    levels = np.linspace(vmin, vmax, 201) 
+    cs = ax.tricontourf(
+        tri, 
+        u_pred.ravel(), 
+        cmap="bwr",
+        levels=levels, 
+        vmin=vmin, 
+        vmax=vmax, 
+        extend="both"
+    )
 
     cbar = fig.colorbar(
         cs, ax=ax,
         shrink=0.42,       # length of the bar (0-1)
-        fraction=0.1,    # thickness (relative to axes)
-        pad=0.02,         # gap between plot and colorbar
+        fraction=0.1,      # thickness (relative to axes)
+        pad=0.02,          # gap between plot and colorbar
         aspect=10,         # also affects thickness vs length
         ticks=[0.0, 0.5, 1.0, 1.3]
     )
