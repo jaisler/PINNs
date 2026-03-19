@@ -31,6 +31,8 @@ class PhysicsInformedNN(nn.Module):
                 self.device = torch.device(device_str)
         print(f"Using device: {self.device}")
 
+        # Model
+        self.model = params['model']
         # Equation
         self.eq = params['equation']
         # Layers
@@ -42,6 +44,9 @@ class PhysicsInformedNN(nn.Module):
         self.rhoref = float(params["rho"])
         self.Uref   = float(params["U_0"])
         self.pref   = self.rhoref * self.Uref * self.Uref
+
+        # Initialisation
+        Xf = None # Collocation points
 
         if self.eq == 'RANS':
             # Universal gas constant
@@ -61,7 +66,11 @@ class PhysicsInformedNN(nn.Module):
             self.Sstar  = float(params["S"]) / self.Tref
             self.mu0star = float(params["mu0"]) / self.muref
 
-        # Check the output layer
+        # Check model
+        if self.model not in ('supervised', 'pinn'):
+            raise ValueError(f"Unknown model type: {self.model}")
+
+        # Check the equation
         if self.eq == 'Euler':
             expected_out = 4
         elif self.eq == 'RANS':
@@ -69,6 +78,7 @@ class PhysicsInformedNN(nn.Module):
         else:
             raise ValueError(f"Unknown equation type: {self.eq}")
 
+        # Check the output layer
         if self.layers[-1] != expected_out:
             raise ValueError(
                 f"For equation='{self.eq}', last layer must be {expected_out}, "
@@ -78,9 +88,7 @@ class PhysicsInformedNN(nn.Module):
         xstar, ystar, rhostar, ustar, vstar, pstar, mutstar = \
             self.GetNonDimensionalData(xdata, ydata, rhodata, udata, vdata, pdata,
                                        mutdata)
-        # Non-dimensional coordiantes (collocation points for PINNs)
-        xfstar, yfstar = self.GetNonDimensionalCoord(xf, yf)
-
+        
         # Rescaling mut (turbulent viscosity for marchine learning)
         if self.eq == 'RANS':
             if mutstar is None:
@@ -109,17 +117,25 @@ class PhysicsInformedNN(nn.Module):
         if self.eq == 'RANS': 
             self.mut = torch.tensor(muthat, dtype=torch.float32, device=self.device)        
 
-        # TODO: I need to add exception when collocation points are not provided.
-        # Collocation points
-        # Data coordiantes
-        Xf = np.concatenate([xfstar, yfstar], 1)
-        # Spatial coordinates
-        self.Xf = torch.tensor(Xf, dtype=torch.float32, device=self.device)
-        self.xf = self.Xf[:,0:1]
-        self.yf = self.Xf[:,1:2]
+        if xf is not None and yf is not None and self.model == 'pinn':
+            # Non-dimensional coordiantes (collocation points for PINNs)
+            xfstar, yfstar = self.GetNonDimensionalCoord(xf, yf)
+            # Data coordiantes
+            Xf = np.concatenate([xfstar, yfstar], 1)
+            # Spatial coordinates
+            self.Xf = torch.tensor(Xf, dtype=torch.float32, device=self.device)
+            self.xf = self.Xf[:,0:1]
+            self.yf = self.Xf[:,1:2]
+        else:
+            self.Xf = None
+            self.xf = None
+            self.yf = None
 
         # Calculate the lower and upper bound from the union of all training coord.
-        Xall = np.concatenate([Xdata, Xf], axis=0)
+        if Xf is not None:
+            Xall = np.concatenate([Xdata, Xf], axis=0)
+        else:
+            Xall = Xdata.copy()
         self.lb = torch.tensor(Xall.min(0), dtype=torch.float32, device=self.device)  # (2,)
         self.ub = torch.tensor(Xall.max(0), dtype=torch.float32, device=self.device)  # (2,)
 
@@ -257,9 +273,6 @@ class PhysicsInformedNN(nn.Module):
             muthat = torch.nn.functional.softplus(raw_mut) + 1e-9
             return rho, u, v, p, muthat
         
-        else:
-            raise ValueError(f"Unknown equation type: {self.eq}")
-
     def net_steady_euler(self, x, y):
         """
         Network outputs: rho, u, v, p (primitive variables).
@@ -398,44 +411,72 @@ class PhysicsInformedNN(nn.Module):
         Loss function for data and PDE
         """
 
-        if (self.eq == 'Euler'):
-            # Data 
-            rho_pred, u_pred, v_pred, p_pred = self.net_fields(self.x, self.y)
-            # Residuals
-            _, _, _, _, \
-                f1_res, f2_res, f3_res, f4_res \
-                = self.net_steady_euler(self.xf, self.yf)
-            # Loss of the turbulent viscosity is zero for Euler
-            l_mut = torch.tensor(0.0, device=self.device)
+        if self.model == 'pinn':
             
-        elif (self.eq == 'RANS'):
-            # Data        
-            rho_pred, u_pred, v_pred, p_pred, mut_pred \
-                = self.net_fields(self.x, self.y)
-            # Residuals
-            _, _, _, _, _, \
-                f1_res, f2_res, f3_res, f4_res \
-                = self.net_steady_compressible_rans(self.xf, self.yf)
-            
-            if self.mut is None:
-                raise ValueError("For RANS, mut_t must be provided in loss_fn.")
-            # Loss of the turbulent viscosity         
-            l_mut = torch.mean((self.mut - mut_pred) ** 2)
-        
-        else:
-            raise ValueError(f"Unknown equation type: {self.eq}")
+            if self.xf is None or self.yf is None:
+                raise ValueError("PINN mode requires collocation points xf and yf.")
 
+            if self.eq == 'Euler':
+                # Data
+                rho_pred, u_pred, v_pred, p_pred = self.net_fields(self.x, self.y)        
+                # Residuals
+                _, _, _, _, \
+                    f1_res, f2_res, f3_res, f4_res \
+                    = self.net_steady_euler(self.xf, self.yf)
+                # Loss of the turbulent viscosity is zero for Euler
+                l_mut = torch.tensor(0.0, device=self.device)
+                
+            elif self.eq == 'RANS':
+                # Data        
+                rho_pred, u_pred, v_pred, p_pred, mut_pred \
+                    = self.net_fields(self.x, self.y)
+                # Residuals
+                _, _, _, _, _, \
+                    f1_res, f2_res, f3_res, f4_res \
+                    = self.net_steady_compressible_rans(self.xf, self.yf)
+                
+                if self.mut is None:
+                    raise ValueError("For RANS, mut_t must be provided in loss_fn.")
+                # Loss of the turbulent viscosity         
+                l_mut = torch.mean((self.mut - mut_pred) ** 2)
+
+            # PDE residual losses
+            l_f1  = torch.mean(f1_res ** 2)
+            l_f2  = torch.mean(f2_res ** 2)
+            l_f3  = torch.mean(f3_res ** 2)
+            l_f4  = torch.mean(f4_res ** 2)
+
+        elif self.model == 'supervised':
+            
+            if self.eq == 'Euler': 
+                # Data
+                rho_pred, u_pred, v_pred, p_pred = self.net_fields(self.x, self.y)        
+                # is not RANS
+                l_mut = torch.tensor(0.0, device=self.device)
+
+            elif self.eq == 'RANS':
+                # Data        
+                rho_pred, u_pred, v_pred, p_pred, mut_pred \
+                    = self.net_fields(self.x, self.y)
+    
+                if self.mut is None:
+                    raise ValueError("For RANS, mut_t must be provided in loss_fn.")
+                # Loss of the turbulent viscosity         
+                l_mut = torch.mean((self.mut - mut_pred) ** 2)
+ 
+
+            # PDE residual losses
+            l_f1 = torch.tensor(0.0, device=self.device)
+            l_f2 = torch.tensor(0.0, device=self.device)
+            l_f3 = torch.tensor(0.0, device=self.device)
+            l_f4 = torch.tensor(0.0, device=self.device)
+                
+                
         # Data losses
         l_rho = torch.mean((self.rho - rho_pred) ** 2)
         l_u   = torch.mean((self.u   - u_pred)   ** 2)
         l_v   = torch.mean((self.v   - v_pred)   ** 2)
         l_p   = torch.mean((self.p   - p_pred)   ** 2)
-
-        # PDE residual losses
-        l_f1  = torch.mean(f1_res ** 2)
-        l_f2  = torch.mean(f2_res ** 2)
-        l_f3  = torch.mean(f3_res ** 2)
-        l_f4  = torch.mean(f4_res ** 2)
 
         # weights
         w_mut = 1.0 if self.eq == 'RANS' else 0.0
@@ -443,7 +484,7 @@ class PhysicsInformedNN(nn.Module):
         # weights: chosen based on residuals
         if self.eq == 'Euler':
             w_f1, w_f2, w_f3, w_f4 = 1.0, 1.0, 1.0, 1.0
-        else:
+        elif self.eq == 'RANS':
             w_f1, w_f2, w_f3, w_f4 = 1.0, 1.0, 1.0, 1.0
         
         # Total loss
@@ -500,59 +541,83 @@ class PhysicsInformedNN(nn.Module):
         # Adam loop
         for it in range(nIter):
             self.optimizer_Adam.zero_grad()
-            
-            if self.eq == 'Euler':
-                loss = self.loss_fn()
-            elif self.eq == 'RANS':
-                loss = self.loss_fn()
-            
+            # Loss function
+            loss = self.loss_fn()
+            # Backward propagation (gradients)
             loss.backward()
             self.optimizer_Adam.step()
 
             if it % print_every == 0:
-                if self.eq == 'Euler':
+                if self.model == 'pinn':
+
+                    if self.eq == 'Euler':
+                        loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
+                            self.loss_fn(return_terms=True)
+
+                        print(
+                            f"It: {it:6d} | "
+                            f"Loss: {loss_val.item():.3e} | "
+                            f"rho: {l_rho.item():.3e} | "
+                            f"u: {l_u.item():.3e} | "
+                            f"v: {l_v.item():.3e} | "
+                            f"p: {l_p.item():.3e} | "
+                            f"f1: {l_f1.item():.3e} | "
+                            f"f2: {l_f2.item():.3e} | "
+                            f"f3: {l_f3.item():.3e} | "
+                            f"f4: {l_f4.item():.3e}"
+                        )
+
+                    elif self.eq == 'RANS':
+                        loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
+                            self.loss_fn(return_terms=True)
+
+                        print(
+                            f"It: {it:6d} | "
+                            f"Loss: {loss_val.item():.3e} | "
+                            f"rho: {l_rho.item():.3e} | "
+                            f"u: {l_u.item():.3e} | "
+                            f"v: {l_v.item():.3e} | "
+                            f"p: {l_p.item():.3e} | "
+                            f"mut: {l_mut.item():.3e} | "
+                            f"f1: {l_f1.item():.3e} | "
+                            f"f2: {l_f2.item():.3e} | "
+                            f"f3: {l_f3.item():.3e} | "
+                            f"f4: {l_f4.item():.3e}"
+                        )
+                
+                elif self.model == 'supervised':
                     loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
                         self.loss_fn(return_terms=True)
 
-                    print(
-                        f"It: {it:6d} | "
-                        f"Loss: {loss_val.item():.3e} | "
-                        f"rho: {l_rho.item():.3e} | "
-                        f"u: {l_u.item():.3e} | "
-                        f"v: {l_v.item():.3e} | "
-                        f"p: {l_p.item():.3e} | "
-                        f"f1: {l_f1.item():.3e} | "
-                        f"f2: {l_f2.item():.3e} | "
-                        f"f3: {l_f3.item():.3e} | "
-                        f"f4: {l_f4.item():.3e}"
-                    )
+                    if self.eq == 'Euler':
 
-                if self.eq == 'RANS':
-                    loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
-                        self.loss_fn(return_terms=True)
+                        print(
+                            f"It: {it:6d} | "
+                            f"Loss: {loss_val.item():.3e} | "
+                            f"rho: {l_rho.item():.3e} | "
+                            f"u: {l_u.item():.3e} | "
+                            f"v: {l_v.item():.3e} | "
+                            f"p: {l_p.item():.3e} "
+                        )
 
-                    print(
-                        f"It: {it:6d} | "
-                        f"Loss: {loss_val.item():.3e} | "
-                        f"rho: {l_rho.item():.3e} | "
-                        f"u: {l_u.item():.3e} | "
-                        f"v: {l_v.item():.3e} | "
-                        f"p: {l_p.item():.3e} | "
-                        f"mut: {l_mut.item():.3e} | "
-                        f"f1: {l_f1.item():.3e} | "
-                        f"f2: {l_f2.item():.3e} | "
-                        f"f3: {l_f3.item():.3e} | "
-                        f"f4: {l_f4.item():.3e}"
-                    )
+                    elif self.eq == 'RANS':
+
+                        print(
+                            f"It: {it:6d} | "
+                            f"Loss: {loss_val.item():.3e} | "
+                            f"rho: {l_rho.item():.3e} | "
+                            f"u: {l_u.item():.3e} | "
+                            f"v: {l_v.item():.3e} | "
+                            f"p: {l_p.item():.3e} | "
+                            f"mut: {l_mut.item():.3e}"
+                        )
+
 
         # LBFGS refinement (optional)
         if use_lbfgs:
             def closure():
                 self.optimizer.zero_grad()
-                if self.eq == 'Euler':
-                    loss = self.loss_fn()
-                elif self.eq == 'RANS':
-                    loss = self.loss_fn()
+                loss = self.loss_fn()
                 loss.backward()
                 return loss
 
