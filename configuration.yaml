@@ -54,6 +54,7 @@ sampling:
   fpoints: 'all_points'
   ftargets: 'target_points'
   fdata: 'sampling_data'
+  fcoll: 'sampling_coll'
 
 # NN setup
 N_train_data: 1000

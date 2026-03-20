@@ -341,14 +341,22 @@ class SamplingData:
     def GetMut(self):
         return self.mut
 
-    def WriteDataToCSV(self, params):
-        out = np.column_stack([self.X, self.rho, self.U[:,0], 
-            self.U[:,1], self.U[:,2], self.p,self.mut])
-        np.savetxt(
-            params['pathData']+'/'+params['sampling']['fdata']+'.csv', 
-            out, delimiter=",", 
-            header="x,y,z,rho,u,v,w,p,mut", 
-            comments="")
+    def WriteDataToCSV(self, params, collpts=False):
+        if collpts:
+            out = self.X 
+            np.savetxt(
+                params['pathData']+'/'+params['sampling']['fcoll']+'.csv', 
+                out, delimiter=",", 
+                header="xf,yf,zf", 
+                comments="")
+        else:     
+            out = np.column_stack([self.X, self.rho, self.U[:,0], 
+                self.U[:,1], self.U[:,2], self.p,self.mut]) 
+            np.savetxt(
+                params['pathData']+'/'+params['sampling']['fdata']+'.csv', 
+                out, delimiter=",", 
+                header="x,y,z,rho,u,v,w,p,mut", 
+                comments="")
 
     def PlotSamplingPointsToPDF(self, params):
         pl.PlotSamplingPoints(self.X, self.pts_in, self.pts_bc, \
