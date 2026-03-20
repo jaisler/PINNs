@@ -55,10 +55,11 @@ def main():
         # Collocation points (PDE residuals)
         if params['model'] == 'pinn':  
             objSampleColl = smp.SamplingData(params, True) 
+            objSampleColl.WriteDataToCSV(params, True)
             Xf = objSampleColl.GetX()
         
     else:
-        # Read data set
+        # Read data points
         df = pd.read_csv(os.path.join(params['pathData'], 
             params['sampling']['fdata'] + '.csv'))
         X = df[['x', 'y', 'z']].to_numpy(dtype=float)
@@ -66,7 +67,13 @@ def main():
         rho = df['rho'].to_numpy(dtype=float)
         p = df['p'].to_numpy(dtype=float)
         mut = df['mut'].to_numpy(dtype=float) 
-        # TODO: Implement writing collocation points in a file
+        
+        # Collocation points (PDE residuals)
+        if params['model'] == 'pinn':   
+            dff = pd.read_csv(os.path.join(params['pathData'], 
+                params['sampling']['fcoll'] + '.csv'))
+            Xf = df[['xf', 'yf', 'zf']].to_numpy(dtype=float)
+         
         # TODO: Implement plotting collocation points
 
     if(params['routine']['inference']):
