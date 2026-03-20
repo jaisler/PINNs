@@ -358,7 +358,7 @@ class SamplingData:
                 header="x,y,z,rho,u,v,w,p,mut", 
                 comments="")
 
-    def PlotSamplingPointsToPDF(self, params):
+    def PlotSamplingPoints(self, params, collpts=False):
         pl.PlotSamplingPoints(self.X, self.pts_in, self.pts_bc, \
-                              self.pts_grad, params)
+                              self.pts_grad, params, collpts)
 

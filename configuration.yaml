@@ -51,7 +51,10 @@ sampling:
   pool_factor: 8
   alpha_grad_rho: 1.4
   seed: 1234
-  fpoints: 'all_points'
+  pldata: 'pl_data'
+  plcoll: 'pl_coll'
+  plall: ''
+  pltrain: ''
   ftargets: 'target_points'
   fdata: 'sampling_data'
   fcoll: 'sampling_coll'

@@ -40,8 +40,8 @@ def main():
     if (params['routine']['sampling']):
         # Create data set
         objSampleData = smp.SamplingData(params, False) 
-        objSampleData.WriteDataToCSV(params)
-        #objSampleData.PlotSamplingPointsToPDF(params)
+        objSampleData.WriteDataToCSV(params, False)
+        objSampleData.PlotSamplingPoints(params, False)
 
         # Get sampling ponits and fields. Data points
         X = objSampleData.GetX() # N x 3
@@ -56,6 +56,7 @@ def main():
         if params['model'] == 'pinn':  
             objSampleColl = smp.SamplingData(params, True) 
             objSampleColl.WriteDataToCSV(params, True)
+            objSampleColl.PlotSamplingPoints(params, True)
             Xf = objSampleColl.GetX()
         
     else:
@@ -74,8 +75,6 @@ def main():
                 params['sampling']['fcoll'] + '.csv'))
             Xf = df[['xf', 'yf', 'zf']].to_numpy(dtype=float)
          
-        # TODO: Implement plotting collocation points
-
     if(params['routine']['inference']):
         # Number of points inside the geometry. This is not the same
         # number of the points provided in the configureation file.

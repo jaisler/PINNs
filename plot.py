@@ -8,14 +8,14 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 rc('text', usetex=True)
 
-def PlotSamplingPoints(pall, pin, pbc, pgrad, params):
+def PlotSamplingPoints(pall, pin, pbc, pgrad, params, collpts=False):
 
     fig, ax = plt.subplots(1, 1, num=1, figsize=(12, 4), sharey=True)
     plt.rc('legend', **{'fontsize': 14})
 
-    p0, = ax.plot(pin[:,0], pin[:,1], 'o', color='r', markersize=3)
-    p1, = ax.plot(pbc[:,0], pbc[:,1], 'o', color='b', markersize=3)
-    p2, = ax.plot(pgrad[:,0], pgrad[:,1], 'o', color='m', markersize=3)
+    p0, = ax.plot(pin[:,0], pin[:,1], 'o', color='r', markersize=2)
+    p1, = ax.plot(pbc[:,0], pbc[:,1], 'o', color='b', markersize=2)
+    p2, = ax.plot(pgrad[:,0], pgrad[:,1], 'o', color='m', markersize=2)
     #p3, = ax.plot(pall[:,0], pall[:,1], 'o', color='k', markersize=2)
 
     ax.tick_params(direction="in", which='both')
@@ -26,13 +26,20 @@ def PlotSamplingPoints(pall, pin, pbc, pgrad, params):
     ax.set_xlabel(r'$x$ $[m]$', fontsize=18)
     ax.set_ylabel(r'$y$ $[m]$', fontsize=18)
 
+    ax.set_title("Collocation points", fontsize=18) if collpts else \
+        ax.set_title("Data points", fontsize=18)
+
     ax.legend([p0,p1,p2], [r'Inner',
                            r'Boundary',
                            r'$\left|\nabla \rho\right|^{\alpha}$'], loc='best')
     
     ax.set_aspect("equal", adjustable="box")
     fig.subplots_adjust(left=0.08, right=0.99, bottom=0.15, top=0.97)
-    fig.savefig(params['pathRes']+'/'+params['sampling']['fpoints']+'.pdf')
+    if collpts:
+        fig.savefig(params['pathRes']+'/'+params['sampling']['pldata']+'.pdf')
+    else:
+        fig.savefig(params['pathRes']+'/'+params['sampling']['plcoll']+'.pdf')
+
     plt.show()
     plt.close(fig)
 
@@ -52,7 +59,7 @@ def PlotTargetPoints(x, y, xf, yf, params):
     ax.set_xlabel(r'$x$ $[m]$', fontsize=18)
     ax.set_ylabel(r'$y$ $[m]$', fontsize=18)
 
-    ax.legend([p0,p1], [r'Targets',r'Residual'], loc='best')
+    ax.legend([p0,p1], [r'Data',r'Residual'], loc='best')
     ax.set_aspect("equal", adjustable="box")
     fig.subplots_adjust(left=0.08, right=0.99, bottom=0.15, top=0.97)
     fig.savefig(params['pathRes']+'/'+params['sampling']['ftargets']+'.pdf')
