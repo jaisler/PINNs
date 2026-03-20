@@ -53,9 +53,8 @@ sampling:
   seed: 1234
   pldata: 'pl_data'
   plcoll: 'pl_coll'
-  plall: ''
-  pltrain: ''
-  ftargets: 'target_points'
+  plall: 'pl_all'
+  pltrain: 'pl_taining'
   fdata: 'sampling_data'
   fcoll: 'sampling_coll'
 

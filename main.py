@@ -112,9 +112,11 @@ def main():
             xftrain = xf[idxc,None]
             yftrain = yf[idxc,None]
         
-        # Plot target points
-        #pl.PlotTargetPoints(xtrain, ytrain, xftrain, yftrain, params)
-
+        # Plot traning ponts
+        pl.PlotTargetPoints(xtrain, ytrain, xftrain, yftrain, params, True)
+        # Plot all points
+        pl.PlotTargetPoints(x, y, xf, yf, params)
+        
         # Training - note that model is a object of the class
         # Note that model is a object of the class
         model = pinns.PhysicsInformedNN(xtrain, ytrain, rhotrain, utrain, 

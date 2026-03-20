@@ -43,14 +43,15 @@ def PlotSamplingPoints(pall, pin, pbc, pgrad, params, collpts=False):
     plt.show()
     plt.close(fig)
 
-def PlotTargetPoints(x, y, xf, yf, params):
+def PlotTargetPoints(x, y, xf, yf, params, training=False):
 
     fig, ax = plt.subplots(1, 1, num=1, figsize=(12, 4), sharey=True)
     plt.rc('legend', **{'fontsize': 14})
 
-    p0, = ax.plot(x, y, 'o', color='g', markersize=3)
-    p1, = ax.plot(xf, yf, 'o', color='darkorange', markersize=3)
-
+    if xf is not None or yf is not None:
+        p0, = ax.plot(xf, yf, 'o', color='darkorange', markersize=2)
+    p1, = ax.plot(x, y, 'o', color='g', markersize=2)
+    
     ax.tick_params(direction="in", which='both')
     ax.grid(color='0.5', linestyle=':', linewidth=0.5, which='both')
     #ax.set_xlim(0.0, 0.0)
@@ -59,13 +60,21 @@ def PlotTargetPoints(x, y, xf, yf, params):
     ax.set_xlabel(r'$x$ $[m]$', fontsize=18)
     ax.set_ylabel(r'$y$ $[m]$', fontsize=18)
 
-    ax.legend([p0,p1], [r'Data',r'Residual'], loc='best')
+    if xf is not None or yf is not None:
+        ax.legend([p0,p1], [r'Residual',r'Data'], loc='best')
+    else:
+        ax.legend([p1], [r'Data'], loc='best')
+
     ax.set_aspect("equal", adjustable="box")
     fig.subplots_adjust(left=0.08, right=0.99, bottom=0.15, top=0.97)
-    fig.savefig(params['pathRes']+'/'+params['sampling']['ftargets']+'.pdf')
+    if training:
+        ax.set_title("Data and Collocation training points", fontsize=18) 
+        fig.savefig(params['pathRes']+'/'+params['sampling']['pltrain']+'.pdf')
+    else:
+        ax.set_title("Data and Collocation points", fontsize=18) 
+        fig.savefig(params['pathRes']+'/'+params['sampling']['plall']+'.pdf')
     plt.show()
     plt.close(fig)
-
 
 def PlotPredictedFlow(x, y, u_pred, params, perc=95, mult=1.8):
     
