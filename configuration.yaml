@@ -22,7 +22,7 @@ model: pinn
 
 # Routines
 routine:
-  plotflow: True
+  plotflow: False
   sampling: True
   inference: True
   identification: False
@@ -59,10 +59,11 @@ sampling:
   fcoll: 'sampling_coll'
 
 # NN setup
+io_loss: 200
 N_train_data: 1000
 N_train_coll: 1000
-N_AdamIter: 20000
-layers: [2, 64, 64, 64, 64, 4]
+N_AdamIter: 50000
+layers: [2, 32, 32, 32, 4]
 
 # General parameters
 dims: 2

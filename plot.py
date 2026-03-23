@@ -165,3 +165,28 @@ def PlotFlowField(flowfield, params):
         pl.show(auto_close=False)  # init render
         pl.save_graphic(os.path.join(out_dir, f"{f}"+str(k)+".pdf"))
         pl.close()
+
+def PlotLosses(ldata, lres, ltotal, params):
+
+    fig = plt.figure()
+    ax = fig.add_subplot(1,1,1)
+    plt.rc('legend', **{'fontsize': 14})
+
+    # Epochs calculation
+    epochs = np.arange(0, params['N_AdamIter'], 1)
+
+    p0, = ax.semilogy(epochs, ldata, '-', color='b', linewidth=2)
+    p1, = ax.semilogy(epochs, lres, '-', color='r', linewidth=2)
+    p2, = ax.semilogy(epochs, ltotal, '-', color='k', linewidth=2)
+
+    ax.legend([p0,p1,p2], [r'Data loss',r'Residual loss',r'Total loss'], loc='best')
+    ax.tick_params(direction="in", which='both')
+    fig.subplots_adjust(left=0.127, right=0.97, bottom=0.117, top=0.97)
+    ax.grid(color='0.5', linestyle=':', linewidth=0.5, which='both')
+    #ax.set_xlim(0.0, 0.0)
+    #ax.set_ylim(0.0, 0.0)
+    ax.tick_params(labelsize=18)
+    ax.set_xlabel(r'$Epochs$', fontsize=18)
+    ax.set_ylabel(r'$Losses$', fontsize=18)
+    plt.show()
+    plt.close()

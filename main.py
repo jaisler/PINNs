@@ -127,7 +127,14 @@ def main():
         model.fit(params['N_AdamIter'])
         elapsed = time.time() - start_time                
         print('Training time: %.4f' % (elapsed))
-        
+
+        # Get losses
+        ldata = model.GetDataLoss()
+        lres = model.GetResidualLoss()
+        ltotal = model.GetTotalLoss()
+        # Plot losses
+        pl.PlotLosses(ldata, lres, ltotal, params)
+
         # Prediction for plotting (data, collocation)
         if Xf is not None:
             Xall = np.concatenate([X, Xf], axis=0)
