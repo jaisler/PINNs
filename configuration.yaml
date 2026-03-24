@@ -8,7 +8,8 @@ pathRes: ''
 pathData: ''
 
 # Flow field file
-flowfield: 'flow.vtu' 
+flowfield: 'flow.vtu'
+# Geometry 
 mesh: 'afrl2d.geo'
 
 # Solver: Euler or RANS
@@ -22,7 +23,7 @@ model: pinn
 
 # Routines
 routine:
-  plotflow: True
+  plotflow: False
   sampling: True
   inference: True
   identification: False
@@ -51,16 +52,23 @@ sampling:
   pool_factor: 8
   alpha_grad_rho: 1.4
   seed: 1234
-  fpoints: 'all_points'
-  ftargets: 'target_points'
+  pldata: 'pl_data'
+  plcoll: 'pl_coll'
+  plall: 'pl_all'
+  pltrain: 'pl_taining'
   fdata: 'sampling_data'
   fcoll: 'sampling_coll'
 
+# Losses
+loss:
+  plloss: 'losses'
+
 # NN setup
+io_loss: 200
 N_train_data: 1000
 N_train_coll: 1000
-N_AdamIter: 20000
-layers: [2, 64, 64, 64, 64, 4]
+N_AdamIter: 3000
+layers: [2, 16, 16, 32, 32, 64, 64, 4]
 
 # General parameters
 dims: 2

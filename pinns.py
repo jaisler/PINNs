@@ -45,8 +45,16 @@ class PhysicsInformedNN(nn.Module):
         self.Uref   = float(params["U_0"])
         self.pref   = self.rhoref * self.Uref * self.Uref
 
-        # Initialisation
-        Xf = None # Collocation points
+        # IO loss function
+        self.io_loss = params['io_loss']
+
+        # Initialisation: 
+        # Collocation points
+        Xf = None 
+        # Losses
+        self.ldata = []
+        self.lres = []
+        self.loss = []
 
         if self.eq == 'RANS':
             # Universal gas constant
@@ -83,7 +91,7 @@ class PhysicsInformedNN(nn.Module):
             raise ValueError(
                 f"For equation='{self.eq}', last layer must be {expected_out}, "
                 f"but got {self.layers[-1]}")
-        
+
         # Non-dimensional data (data points)
         xstar, ystar, rhostar, ustar, vstar, pstar, mutstar = \
             self.GetNonDimensionalData(xdata, ydata, rhodata, udata, vdata, pdata,
@@ -478,27 +486,27 @@ class PhysicsInformedNN(nn.Module):
         l_v   = torch.mean((self.v   - v_pred)   ** 2)
         l_p   = torch.mean((self.p   - p_pred)   ** 2)
 
-        # weights
-        w_mut = 1.0 if self.eq == 'RANS' else 0.0
-
         # weights: chosen based on residuals
         if self.eq == 'Euler':
             w_f1, w_f2, w_f3, w_f4 = 1.0, 1.0, 1.0, 1.0
+            w_mut = 0.0
+            
         elif self.eq == 'RANS':
             w_f1, w_f2, w_f3, w_f4 = 1.0, 1.0, 1.0, 1.0
-        
+            w_mut = 1.0        
+
+        # Data loss
+        data_loss = l_rho + l_u + l_v + l_p + w_mut * l_mut
+        # Residual loss
+        res_loss = w_f1 * l_f1 + w_f2 * l_f2 + w_f3 * l_f3 + w_f4 * l_f4
         # Total loss
-        loss = (
-            l_rho
-            + l_u
-            + l_v
-            + l_p
-            + w_mut * l_mut
-            + w_f1 * l_f1
-            + w_f2 * l_f2
-            + w_f3 * l_f3
-            + w_f4 * l_f4
-        )
+        loss = data_loss + res_loss  
+
+        # Store as scalars for plotting
+        if return_terms == False:
+            self.ldata.append(data_loss.item())
+            self.lres.append(res_loss.item())
+            self.loss.append(loss.item())
 
         if return_terms:
             return loss, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4
@@ -539,7 +547,7 @@ class PhysicsInformedNN(nn.Module):
         super().train()
 
         # Adam loop
-        for it in range(nIter):
+        for it in range(1, nIter + 1):
             self.optimizer_Adam.zero_grad()
             # Loss function
             loss = self.loss_fn()
@@ -547,7 +555,7 @@ class PhysicsInformedNN(nn.Module):
             loss.backward()
             self.optimizer_Adam.step()
 
-            if it % print_every == 0:
+            if it % self.io_loss == 0:
                 if self.model == 'pinn':
 
                     if self.eq == 'Euler':
@@ -718,3 +726,12 @@ class PhysicsInformedNN(nn.Module):
 
     def callback(self, it, loss_value):
         print(f"It: {it}, Loss: {loss_value:.3e}")
+
+    def GetDataLoss(self):
+        return self.ldata
+
+    def GetResidualLoss(self):
+        return self.lres
+
+    def GetTotalLoss(self):
+        return self.loss
