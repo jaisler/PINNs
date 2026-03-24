@@ -188,5 +188,6 @@ def PlotLosses(ldata, lres, ltotal, params):
     ax.tick_params(labelsize=18)
     ax.set_xlabel(r'$Epochs$', fontsize=18)
     ax.set_ylabel(r'$Losses$', fontsize=18)
+    fig.savefig(params['pathRes']+'/'+params['loss']['plloss']+'.pdf')
     plt.show()
     plt.close()
