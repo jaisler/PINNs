@@ -29,7 +29,7 @@ def main():
     # Plot flow fields to be analysed
     if (params['routine']['plotflow']):
         flowfield = pv.read(os.path.join(params['pathFlow'], params['flowfield']))
-        pl.PlotFlowField(flowfield, params)
+        pl.plot_flow_field(flowfield, params)
 
     # Initialisation
     Xf = None

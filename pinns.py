@@ -49,7 +49,7 @@ class PhysicsInformedNN(nn.Module):
             raise ValueError(f"Unknown activation: {activation}")
 
         # Initialise NN - weights and biases
-        self.InitialiseNN()
+        self.initialise_nn()
 
         # Model
         self.model = params['model']
@@ -118,7 +118,7 @@ class PhysicsInformedNN(nn.Module):
 
         # Non-dimensional data (data points)
         xstar, ystar, rhostar, ustar, vstar, pstar, mutstar = \
-            self.GetNonDimensionalData(xdata, ydata, rhodata, udata, vdata, pdata,
+            self.get_nondimensional_data(xdata, ydata, rhodata, udata, vdata, pdata,
                                        mutdata)
         
         # Rescaling mut (turbulent viscosity for marchine learning)
@@ -151,7 +151,7 @@ class PhysicsInformedNN(nn.Module):
 
         if xf is not None and yf is not None and self.model == 'pinn':
             # Non-dimensional coordiantes (collocation points for PINNs)
-            xfstar, yfstar = self.GetNonDimensionalCoord(xf, yf)
+            xfstar, yfstar = self.get_nondimensional_coord(xf, yf)
             # Data coordiantes
             Xf = np.concatenate([xfstar, yfstar], 1)
             # Spatial coordinates
@@ -188,38 +188,7 @@ class PhysicsInformedNN(nn.Module):
         self.optimizer_adam = torch.optim.Adam(self.parameters(), 
             lr=params.get("lr", 1e-3))
 
-    def GetNonDimensionalData(self, x, y, rho, u, v, p, mut=None):
-        """
-        Generate non-dimensional data (data points)
-        """
-
-        xstar = x / self.Lref
-        ystar = y / self.Lref
-        rhostar = rho / self.rhoref
-        ustar = u / self.Uref
-        vstar = v / self.Uref
-        pstar = p / (self.rhoref * self.Uref * self.Uref)
-        # Turbulent dynamic viscosity (this quatity came form CFD RANS)
-        if self.eq == 'RANS':
-            if mut is None:
-                raise ValueError("For equation='RANS', mut must be provided.")
-            mutstar = mut / self.muref
-        elif self.eq == 'Euler':
-            mutstar = None
- 
-        return xstar, ystar, rhostar, ustar, vstar, pstar, mutstar
-
-    def GetNonDimensionalCoord(self, x, y):
-        """
-        Generate non-dimensional coordinates (collocation points)
-        """
-
-        xstar = x / self.Lref
-        ystar = y / self.Lref
- 
-        return xstar, ystar
-
-    def InitialiseNN(self):
+    def initialise_nn(self):
         
         # Fully connected layers
         self.hidden_layers = nn.ModuleList()
@@ -697,7 +666,7 @@ class PhysicsInformedNN(nn.Module):
         if self.eq == 'Euler':
             rho, u, v, p = self.net_fields(x_t, y_t)
 
-            rhod, ud, vd, pd = self.GetDimensionalData(rho, u, v, p)
+            rhod, ud, vd, pd = self.get_dimensional_data(rho, u, v, p)
             return (
                 rhod.cpu().numpy(), 
                 ud.cpu().numpy(), 
@@ -711,7 +680,7 @@ class PhysicsInformedNN(nn.Module):
             # Rescaling back to mutstar
             mutstar = self.mut_scale * muthat
 
-            rhod, ud, vd, pd, mutd = self.GetDimensionalData(rho, u, v, p, mutstar)
+            rhod, ud, vd, pd, mutd = self.get_dimensional_data(rho, u, v, p, mutstar)
             
             return (
                 rhod.cpu().numpy(),
@@ -722,9 +691,9 @@ class PhysicsInformedNN(nn.Module):
                 #mutd.cpu().numpy()
             )
 
-    def GetDimensionalData(self, rho, u, v, p, mut=None):
+    def get_dimensional_data(self, rho, u, v, p, mut=None):
         """
-        Make the data dimensional again
+        Make the data dimensional
         """
         
         rhod = rho * self.rhoref
@@ -738,8 +707,36 @@ class PhysicsInformedNN(nn.Module):
             mutd = mut * self.muref
             return rhod, ud, vd, pd, mutd 
 
-    def callback(self, it, loss_value):
-        print(f"It: {it}, Loss: {loss_value:.3e}")
+    def get_nondimensional_data(self, x, y, rho, u, v, p, mut=None):
+        """
+        Generate non-dimensional data (data points)
+        """
+
+        xstar = x / self.Lref
+        ystar = y / self.Lref
+        rhostar = rho / self.rhoref
+        ustar = u / self.Uref
+        vstar = v / self.Uref
+        pstar = p / (self.rhoref * self.Uref * self.Uref)
+        # Turbulent dynamic viscosity (this quatity came form CFD RANS)
+        if self.eq == 'RANS':
+            if mut is None:
+                raise ValueError("For equation='RANS', mut must be provided.")
+            mutstar = mut / self.muref
+        elif self.eq == 'Euler':
+            mutstar = None
+ 
+        return xstar, ystar, rhostar, ustar, vstar, pstar, mutstar
+
+    def get_nondimensional_coord(self, x, y):
+        """
+        Generate non-dimensional coordinates (collocation points)
+        """
+
+        xstar = x / self.Lref
+        ystar = y / self.Lref
+ 
+        return xstar, ystar
 
     def GetDataLoss(self):
         return self.ldata
@@ -749,3 +746,6 @@ class PhysicsInformedNN(nn.Module):
 
     def GetTotalLoss(self):
         return self.loss
+    
+    def callback(self, it, loss_value):
+        print(f"It: {it}, Loss: {loss_value:.3e}")
