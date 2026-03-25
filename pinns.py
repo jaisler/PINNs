@@ -31,48 +31,30 @@ class PhysicsInformedNN(nn.Module):
                 self.device = torch.device(device_str)
         print(f"Using device: {self.device}")
 
+        # Architeture
+        self.layers = params["layers"]
+        # Activation function
+        activation = params.get("activation", "tanh").lower()
+        if activation == "tanh":
+            self.activation = nn.Tanh()
+        elif activation == "sigmoid":
+            self.activation = nn.Sigmoid()
+        elif activation == "relu":
+            self.activation = nn.ReLU()
+        elif activation == "gelu":
+            self.activation = nn.GELU()
+        elif activation == "silu":
+            self.activation = nn.SiLU()
+        else:
+            raise ValueError(f"Unknown activation: {activation}")
+
+        # Initialise NN - weights and biases
+        self.InitialiseNN()
+
         # Model
         self.model = params['model']
         # Equation
         self.eq = params['equation']
-        # Layers
-        self.layers = params["layers"]
-        # Heat capacity ratio
-        self.gamma = float(params["gamma"])
-        # Reference parameters (Euler and RANS)
-        self.Lref    = float(params["Lref"])
-        self.rhoref = float(params["rho"])
-        self.Uref   = float(params["U_0"])
-        self.pref   = self.rhoref * self.Uref * self.Uref
-
-        # IO loss function
-        self.io_loss = params['io_loss']
-
-        # Initialisation: 
-        # Collocation points
-        Xf = None 
-        # Losses
-        self.ldata = []
-        self.lres = []
-        self.loss = []
-
-        if self.eq == 'RANS':
-            # Universal gas constant
-            self.R = float(params["R"])
-            # Prandtl number
-            self.Pr = float(params["Pr"])
-            # Turbulent Prandtl number 
-            self.Prt = float(params["Prt"])
-            # Molecular dynamic viscosity
-            self.muref  = float(params["mu"])
-            # Temperature
-            self.Tref = self.Uref**2 / self.R
-            # Reynolds number
-            self.Re = self.rhoref * self.Uref * self.Lref / self.muref
-            # Starred quatities (Sutherland's)
-            self.T0star = float(params["T0"]) / self.Tref
-            self.Sstar  = float(params["S"]) / self.Tref
-            self.mu0star = float(params["mu0"]) / self.muref
 
         # Check model
         if self.model not in ('supervised', 'pinn'):
@@ -91,6 +73,48 @@ class PhysicsInformedNN(nn.Module):
             raise ValueError(
                 f"For equation='{self.eq}', last layer must be {expected_out}, "
                 f"but got {self.layers[-1]}")
+
+        # IO loss function
+        self.io_loss = int(params.get('io_loss', 999999))
+        if self.io_loss < 0:
+            raise ValueError(f"io_loss must be non-negative")
+
+        # Initialisation: 
+        # Collocation points
+        Xf = None
+        # Losses
+        self.ldata = []
+        self.lres = []
+        self.loss = []
+        # Turbulent viscosity
+        self.mut = None 
+
+        # Physical parameters
+        # Heat capacity ratio
+        self.gamma = float(params["gamma"])
+        # Reference parameters (Euler and RANS)
+        self.Lref    = float(params["Lref"])
+        self.rhoref = float(params["rho"])
+        self.Uref   = float(params["U_0"])
+        self.pref   = self.rhoref * self.Uref * self.Uref
+
+        if self.eq == 'RANS':
+            # Universal gas constant
+            self.R = float(params["R"])
+            # Prandtl number
+            self.Pr = float(params["Pr"])
+            # Turbulent Prandtl number 
+            self.Prt = float(params["Prt"])
+            # Molecular dynamic viscosity
+            self.muref  = float(params["mu"])
+            # Temperature
+            self.Tref = self.Uref**2 / self.R
+            # Reynolds number
+            self.Re = self.rhoref * self.Uref * self.Lref / self.muref
+            # Starred quatities (Sutherland's)
+            self.T0star = float(params["T0"]) / self.Tref
+            self.Sstar  = float(params["S"]) / self.Tref
+            self.mu0star = float(params["mu0"]) / self.muref
 
         # Non-dimensional data (data points)
         xstar, ystar, rhostar, ustar, vstar, pstar, mutstar = \
@@ -139,6 +163,7 @@ class PhysicsInformedNN(nn.Module):
             self.xf = None
             self.yf = None
 
+        # Input bounds for normalization
         # Calculate the lower and upper bound from the union of all training coord.
         if Xf is not None:
             Xall = np.concatenate([Xdata, Xf], axis=0)
@@ -146,16 +171,13 @@ class PhysicsInformedNN(nn.Module):
             Xall = Xdata.copy()
         self.lb = torch.tensor(Xall.min(0), dtype=torch.float32, device=self.device)  # (2,)
         self.ub = torch.tensor(Xall.max(0), dtype=torch.float32, device=self.device)  # (2,)
-
-        # Initialize NN
-        self.weights, self.biases = self.initialize_NN(self.layers)
         
         # Move the whole module to the selected device
         self.to(self.device)
 
         # Optional LBFGS
-        self.optimizer = torch.optim.LBFGS(
-            self.trainable_parameters(),
+        self.optimizer_lbfgs = torch.optim.LBFGS(
+            self.parameters(),
             max_iter=params.get("lbfgs_maxiter", 50000),
             history_size=params.get("lbfgs_history", 50),
             line_search_fn="strong_wolfe",
@@ -163,7 +185,7 @@ class PhysicsInformedNN(nn.Module):
             tolerance_change=params.get("lbfgs_tol_change", 1e-12))
 
         # Optimizers
-        self.optimizer_Adam = torch.optim.Adam(self.trainable_parameters(), 
+        self.optimizer_adam = torch.optim.Adam(self.parameters(), 
             lr=params.get("lr", 1e-3))
 
     def GetNonDimensionalData(self, x, y, rho, u, v, p, mut=None):
@@ -187,7 +209,6 @@ class PhysicsInformedNN(nn.Module):
  
         return xstar, ystar, rhostar, ustar, vstar, pstar, mutstar
 
-
     def GetNonDimensionalCoord(self, x, y):
         """
         Generate non-dimensional coordinates (collocation points)
@@ -198,48 +219,77 @@ class PhysicsInformedNN(nn.Module):
  
         return xstar, ystar
 
-    def initialize_NN(self, layers):
-        """
-        Returns (weights, biases) 
-        weights[i]: (layers[i], layers[i+1])
-        biases[i]:  (1, layers[i+1])
-        """
+    def InitialiseNN(self):
         
-        weights = nn.ParameterList()
-        biases = nn.ParameterList()
+        # Fully connected layers
+        self.hidden_layers = nn.ModuleList()
+        for i in range(len(self.layers) - 1):
+            self.hidden_layers.append(
+                nn.Linear(self.layers[i], self.layers[i + 1]))
 
-        for l in range(len(layers) - 1):
-            
-            in_dim, out_dim = layers[l], layers[l + 1]
-            W = nn.Parameter(torch.empty(in_dim, out_dim, device=self.device))
-            b = nn.Parameter(torch.zeros(1, out_dim, device=self.device))
+        self.apply(self._init_weights)
 
-            # Xavier init
-            nn.init.xavier_normal_(W)
-            weights.append(W)
-            biases.append(b)
-
-        return weights, biases
-
-    def neural_net(self, X, weights, biases):
+    def _init_weights(self, m):
+       
+        if isinstance(m, nn.Linear):
+            # Xavier initialization
+            nn.init.xavier_normal_(m.weight)
+            if m.bias is not None:
+                nn.init.zeros_(m.bias)    
+    
+    def forward(self, X):
         """
-        H = 2*(X-lb)/(ub-lb) - 1
-        for each layer: H = tanh(HW + b), last layer linear
+        Forward pass
+        Normalise input: H = 2*(X-lb)/(ub-lb) - 1
+        for each layer: H = tanh(HW + b)
+        last layer linear
         """
-        
+
         # Scale inputs to [-1, 1]
         H = 2.0 * (X - self.lb) / (self.ub - self.lb) - 1.0
+        
+        # Hidden layers with activation
+        for layer in self.hidden_layers[:-1]:
+            H = self.activation(layer(H))
 
-        num_layers = len(weights) + 1
-        for l in range(0, num_layers - 2):
-            W = weights[l]
-            b = biases[l]
-            H = torch.tanh(H @ W + b)
+        # Last layer without activation: linear
+        Y = self.hidden_layers[-1](H)
 
-        W = weights[-1]
-        b = biases[-1]
-        Y = H @ W + b
         return Y
+
+    def neural_net(self, X):
+        return self.forward(X)
+
+    def net_fields(self, x, y):
+        """
+        Returns:
+        Euler -> rho, u, v, p
+        RANS  -> rho, u, v, p, mut
+        No deriviatives.
+        Used by predict(...) and net_steady_euler(...) and 
+        net_steady_compressible_rans(...)
+        """
+        X = torch.cat([x, y], dim=1)
+        out = self.neural_net(X)
+
+        # Common variables
+        raw_rho = out[:,0:1]
+        u       = out[:,1:2]
+        v       = out[:,2:3]
+        raw_p   = out[:,3:4]
+
+        # Enforce positivity of rho and p
+        rho = torch.nn.functional.softplus(raw_rho) + 1e-8
+        p   = torch.nn.functional.softplus(raw_p) + 1e-8
+
+        if self.eq == 'Euler':
+            return rho, u, v, p
+        
+        elif self.eq == 'RANS':
+            raw_mut = out[:,4:5]
+            # Enforce positivity of muthat
+            muthat = torch.nn.functional.softplus(raw_mut) + 1e-8
+            return rho, u, v, p, muthat
 
     def grad(self, y, x):
         """
@@ -252,35 +302,6 @@ class PhysicsInformedNN(nn.Module):
             retain_graph=True,
             only_inputs=True)[0]
 
-    def net_fields(self, x, y):
-        """
-        Returns:
-        Euler -> rho, u, v, p
-        RANS  -> rho, u, v, p, mut
-        No deriviatives.
-        Used by predict(...) and net_steady_euler(...)
-        """
-        X = torch.cat([x, y], dim=1)
-        out = self.neural_net(X, self.weights, self.biases)
-
-        # Common variables
-        raw_rho = out[:,0:1]
-        u       = out[:,1:2]
-        v       = out[:,2:3]
-        raw_p   = out[:,3:4]
-
-        # Enforce positivity of rho and p
-        rho = torch.nn.functional.softplus(raw_rho) + 1e-9
-        p   = torch.nn.functional.softplus(raw_p) + 1e-9
-
-        if self.eq == 'Euler':
-            return rho, u, v, p
-        
-        elif self.eq == 'RANS':
-            raw_mut = out[:,4:5]
-            muthat = torch.nn.functional.softplus(raw_mut) + 1e-9
-            return rho, u, v, p, muthat
-        
     def net_steady_euler(self, x, y):
         """
         Network outputs: rho, u, v, p (primitive variables).
@@ -513,14 +534,7 @@ class PhysicsInformedNN(nn.Module):
 
         return loss
 
-    def trainable_parameters(self):
-        """
-        Return something optimizers can consume, keeping the 
-        'weights/biases' structure.
-        """
-        return list(self.weights) + list(self.biases)
-
-    def fit(self, nIter, use_lbfgs=False, print_every=10):
+    def fit(self, nIter, use_lbfgs=False):
         """
         Train the Physics-Informed Neural Network (PINN) parameters using Adam,
         with an optional L-BFGS refinement stage.
@@ -544,16 +558,16 @@ class PhysicsInformedNN(nn.Module):
         """
 
         # Training=True
-        super().train()
+        self.train()
 
         # Adam loop
         for it in range(1, nIter + 1):
-            self.optimizer_Adam.zero_grad()
+            self.optimizer_adam.zero_grad()
             # Loss function
             loss = self.loss_fn()
             # Backward propagation (gradients)
             loss.backward()
-            self.optimizer_Adam.step()
+            self.optimizer_adam.step()
 
             if it % self.io_loss == 0:
                 if self.model == 'pinn':
@@ -624,12 +638,12 @@ class PhysicsInformedNN(nn.Module):
         # LBFGS refinement (optional)
         if use_lbfgs:
             def closure():
-                self.optimizer.zero_grad()
+                self.optimizer_lbfgs.zero_grad()
                 loss = self.loss_fn()
                 loss.backward()
                 return loss
 
-            loss = self.optimizer.step(closure)
+            loss = self.optimizer_lbfgs.step(closure)
             print(f"LBFGS final loss: {float(loss):.3e}")
 
     @torch.no_grad()
@@ -670,7 +684,7 @@ class PhysicsInformedNN(nn.Module):
         """
 
         # Training=False
-        super().eval()
+        self.eval()
 
         x = np.asarray(x) / self.Lref
         y = np.asarray(y) / self.Lref
