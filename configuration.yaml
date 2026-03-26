@@ -21,6 +21,9 @@ device: cuda
 # Model: supervised or pinn
 model: pinn
 
+# Verbose
+verbose: True
+
 # Routines
 routine:
   plotflow: False
@@ -64,11 +67,21 @@ loss:
   plloss: 'losses'
 
 # NN setup
-io_loss: 200
+io_loss: 1
 N_train_data: 1000
 N_train_coll: 1000
-N_AdamIter: 5000
-layers: [2, 16, 16, 32, 32, 64, 64, 96, 4]
+layers: [2, 16, 16, 32, 32, 64, 64, 96, 96, 4]
+
+# Adam Optimizer
+use_adam: True
+n_adam_iter: 20000
+learning_rate: 4e-4
+scheduler_size: 2000
+scheduler_gamma: 0.8
+
+# LBFGS: start after adam optimizer finish
+use_lbfgs: True
+n_lbfgs_iter: 5000
 
 # Activation function: 
 # Option: tahn, sigmoid, sin, softplus, silu/swish and gelu

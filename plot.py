@@ -171,7 +171,8 @@ def PlotLosses(ldata, lres, ltotal, params):
     plt.rc('legend', **{'fontsize': 14})
 
     # Epochs calculation
-    epochs = np.arange(0, params['N_AdamIter'], 1)
+    n_iter = params['n_adam_iter'] + params['n_lbfgs_iter'] 
+    epochs = np.arange(0, n_iter, 1)
 
     p0, = ax.semilogy(epochs, ldata, '-', color='b', linewidth=2)
     p1, = ax.semilogy(epochs, lres, '-', color='r', linewidth=2)
