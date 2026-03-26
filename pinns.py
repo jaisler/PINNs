@@ -207,11 +207,11 @@ class PhysicsInformedNN(nn.Module):
             # Optimizer
             self.optimizer_lbfgs = torch.optim.LBFGS(
                 self.parameters(),
-                max_iter=params.get("lbfgs_maxiter", 50000),
+                max_iter=params.get("lbfgs_maxiter", 20),
                 history_size=params.get("lbfgs_history", 50),
                 line_search_fn="strong_wolfe",
-                tolerance_grad=params.get("lbfgs_tol_grad", 1e-12),
-                tolerance_change=params.get("lbfgs_tol_change", 1e-12))
+                tolerance_grad=params.get("lbfgs_tol_grad", 1e-7),
+                tolerance_change=params.get("lbfgs_tol_change", 1e-9))
         else:
             self.n_lbfgs_iter = 0
 
@@ -536,38 +536,21 @@ class PhysicsInformedNN(nn.Module):
         # Total loss
         loss = data_loss + res_loss  
 
-        # Store as scalars for plotting
-        if return_terms == False:
-            self.ldata.append(data_loss.item())
-            self.lres.append(res_loss.item())
-            self.loss.append(loss.item())
-
         if return_terms:
             return loss, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4
 
-        return loss
+        return loss, data_loss, res_loss
 
     def fit(self):
         """
         Train the Physics-Informed Neural Network (PINN) parameters using Adam,
-        with an optional L-BFGS refinement stage.
-
-        Parameters
-        ----------
-        nIter : int
-            Number of Adam optimization iterations (gradient steps).
-        use_lbfgs : bool, optional
-            If True, run an L-BFGS refinement stage after Adam (default: False).
-            Requires `self.optimizer` to be a torch.optim.LBFGS instance.
-        print_every : int, optional
-            Print training progress every `print_every` Adam iterations (default: 10).
+        with L-BFGS refinement stage.
 
         Returns
         -------
         None
             The function updates model parameters in-place. If L-BFGS is enabled, it prints
-            the final L-BFGS loss.
-            
+            the final L-BFGS loss.            
         """
 
         # Training=True
@@ -578,16 +561,23 @@ class PhysicsInformedNN(nn.Module):
             if self.verbose:
                 print("----------------------------------")
                 print("Adam optimization")
+            
             for it in range(1, self.n_adam_iter + 1):
                 self.optimizer_adam.zero_grad()
                 # Loss function
-                loss = self.loss_fn()
+                loss, data_loss, res_loss = self.loss_fn()
                 # Backward propagation
                 loss.backward()
                 # Adam step
                 self.optimizer_adam.step()
                 # Scheduler
                 self.scheduler.step()
+                
+                #Store losses
+                self.ldata.append(data_loss.item())
+                self.lres.append(res_loss.item())
+                self.loss.append(loss.item())
+
                 # Print
                 if it % self.io_loss == 0:
                     self.print_loss_fn(it)
@@ -597,16 +587,25 @@ class PhysicsInformedNN(nn.Module):
             if self.verbose:
                 print("----------------------------------")
                 print("L-BFGS optimization")
-            for it in range(1, self.n_adam_iter + 1):
+            
+            for it in range(1, self.n_lbfgs_iter + 1):
                 def closure():
                     self.optimizer_lbfgs.zero_grad()
                     # Loss function
-                    loss = self.loss_fn()
+                    loss, _, _ = self.loss_fn()
                     # Backward propagation
                     loss.backward()
                     return loss
                 # LBFGS step
                 loss = self.optimizer_lbfgs.step(closure)
+
+                # logging pass
+                loss_log, data_loss, res_loss = self.loss_fn()
+
+                self.ldata.append(data_loss.item())
+                self.lres.append(res_loss.item())
+                self.loss.append(loss_log.item())
+
                 # Print
                 if it % self.io_loss == 0:
                     self.print_loss_fn(it)
