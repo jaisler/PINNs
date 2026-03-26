@@ -29,7 +29,6 @@ class PhysicsInformedNN(nn.Module):
                 self.device = torch.device("cpu")
             else:
                 self.device = torch.device(device_str)
-        print(f"Using device: {self.device}")
 
         # Architeture
         self.layers = params["layers"]
@@ -175,40 +174,63 @@ class PhysicsInformedNN(nn.Module):
         # Move the whole module to the selected device
         self.to(self.device)
 
-		# Optimizer parameters
+		# Optimizers
         # Adam
-        self.n_adam_iter = int(params.get('n_adam_iter', 50000))
-        if self.n_adam_iter < 0:
-            raise ValueError("n_adam_iter must be greater than or equal to zero")
-        learning_rate = float(params.get('learning_rate', 5e-4))
-        if self.learning_rate < 0:
-           raise ValueError("learning rate must be greater than or equal to zero")        
-        scheduler_size = int(params.get('scheduler_size', 10000))
-        scheduler_gamma = float(params.get('scheduler_gamma', 0.5))
+        self.use_adam = params.get('use_adam', False)
+        if self.use_adam:
+            self.n_adam_iter = int(params.get('n_adam_iter', 50000))
+            if self.n_adam_iter <= 0:
+                raise ValueError("n_adam_iter must be greater than zero")
+            learning_rate = float(params.get('learning_rate', 5e-4))
+            if learning_rate <= 0:
+                raise ValueError("learning rate must be greater than zero")        
+            scheduler_size = int(params.get('scheduler_size', 10000))
+            scheduler_gamma = float(params.get('scheduler_gamma', 0.5))
+             
+            # Optimizer
+            self.optimizer_adam = torch.optim.Adam(self.parameters(), 
+                lr=learning_rate)
+
+            # Scheduler
+            self.scheduler = torch.optim.lr_scheduler.StepLR(
+                self.optimizer_adam, step_size=scheduler_size, gamma=scheduler_gamma)
+        else:
+            self.n_adam_iter = 0
+
         # LBFGS
-        self.n_lbfgs_iter = int(params.get('n_lbfgs_iter', 10000))
-        if self.n_lbfgs_iter < 0:
-            raise ValueError("n_adam_iter must be greater than or equal to zero")
         self.use_lbfgs = params.get('use_lbfgs', False)
+        if self.use_lbfgs:
+            self.n_lbfgs_iter = int(params.get('n_lbfgs_iter', 10000))
+            if self.n_lbfgs_iter <= 0:
+                raise ValueError("n_adam_iter must be greater than zero")
 
-		# Optional LBFGS
-        self.optimizer_lbfgs = torch.optim.LBFGS(
-            self.parameters(),
-            max_iter=params.get("lbfgs_maxiter", 50000),
-            history_size=params.get("lbfgs_history", 50),
-            line_search_fn="strong_wolfe",
-            tolerance_grad=params.get("lbfgs_tol_grad", 1e-12),
-            tolerance_change=params.get("lbfgs_tol_change", 1e-12))
+            # Optimizer
+            self.optimizer_lbfgs = torch.optim.LBFGS(
+                self.parameters(),
+                max_iter=params.get("lbfgs_maxiter", 50000),
+                history_size=params.get("lbfgs_history", 50),
+                line_search_fn="strong_wolfe",
+                tolerance_grad=params.get("lbfgs_tol_grad", 1e-12),
+                tolerance_change=params.get("lbfgs_tol_change", 1e-12))
+        else:
+            self.n_lbfgs_iter = 0
 
-        # Optimizers
-        self.optimizer_adam = torch.optim.Adam(self.parameters(), 
-            lr=learning_rate)
-
-		# Scheduler
-        self.scheduler = torch.optim.lr_scheduler.StepLR(
-            self.optimizer_adam, step_size=scheduler_size, gamma=scheduler_gamma)
-        #self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
- 		#	self.optimizer_adam, mode='min', factor=0.5, patience=1000)
+        # Verbose
+        self.verbose = params.get("verbose", False)
+        # PhysicsInformedNN setup
+        if self.verbose:
+            print("----------------------------------")
+            print("PhysicsInformedNN initialized")
+            print(f"  Device                : {self.device}")
+            print(f"  Model                 : {self.model}")
+            print(f"  Equation              : {self.eq}")
+            print(f"  Activation function   : {self.activation}")
+            print(f"  Data points           : {Xdata.shape[0]}")
+            if Xf is not None:
+                print(f"  Collocation points    : {Xf.shape[0]}")
+            print(f"  Use Adam              : {self.use_adam}") 
+            print(f"  Adam learning rate    : {learning_rate}")
+            print(f"  Use L-BFGS            : {self.use_lbfgs}")
 
     def initialise_nn(self):
         
@@ -551,22 +573,30 @@ class PhysicsInformedNN(nn.Module):
         # Training=True
         self.train()
 
-        # Adam + LBFGS loop
-        for it in range(1, self.n_adam_iter + 1):
-            self.optimizer_adam.zero_grad()
-            # Loss function
-            loss = self.loss_fn()
-            # Backward propagation
-            loss.backward()
-            # Adam step
-            self.optimizer_adam.step()
-            # Scheduler
-            self.scheduler.step()
-            # Print
-            if it % self.io_loss == 0:
-                self.print_loss_fn(it)
+        if self.use_adam:
+            # Adam loop
+            if self.verbose:
+                print("----------------------------------")
+                print("Adam optimization")
+            for it in range(1, self.n_adam_iter + 1):
+                self.optimizer_adam.zero_grad()
+                # Loss function
+                loss = self.loss_fn()
+                # Backward propagation
+                loss.backward()
+                # Adam step
+                self.optimizer_adam.step()
+                # Scheduler
+                self.scheduler.step()
+                # Print
+                if it % self.io_loss == 0:
+                    self.print_loss_fn(it)
 
         if self.use_lbfgs:
+            # L-BFGS loop
+            if self.verbose:
+                print("----------------------------------")
+                print("L-BFGS optimization")
             for it in range(1, self.n_adam_iter + 1):
                 def closure():
                     self.optimizer_lbfgs.zero_grad()

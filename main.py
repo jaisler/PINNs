@@ -125,7 +125,8 @@ def main():
         # Train
         start_time = time.time()                
         model.fit()
-        elapsed = time.time() - start_time                
+        elapsed = time.time() - start_time
+        print("----------------------------------")                
         print('Training time: %.4f' % (elapsed))
 
         # Get losses
@@ -160,6 +161,7 @@ def main():
         err_v = rel_l2(v_pred, v)
         err_p = rel_l2(p_pred, p)
 
+        print("----------------------------------")
         print("Relative L2 errors:")
         print(f"  rho: {err_rho:.3e}")
         print(f"  u  : {err_u:.3e}")
