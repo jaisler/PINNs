@@ -175,7 +175,23 @@ class PhysicsInformedNN(nn.Module):
         # Move the whole module to the selected device
         self.to(self.device)
 
-        # Optional LBFGS
+		# Optimizer parameters
+        # Adam
+        self.n_adam_iter = int(params.get('n_adam_iter', 50000))
+        if self.n_adam_iter < 0:
+            raise ValueError("n_adam_iter must be greater than or equal to zero")
+        learning_rate = float(params.get('learning_rate', 5e-4))
+        if self.learning_rate < 0:
+           raise ValueError("learning rate must be greater than or equal to zero")        
+        scheduler_size = int(params.get('scheduler_size', 10000))
+        scheduler_gamma = float(params.get('scheduler_gamma', 0.5))
+        # LBFGS
+        self.n_lbfgs_iter = int(params.get('n_lbfgs_iter', 10000))
+        if self.n_lbfgs_iter < 0:
+            raise ValueError("n_adam_iter must be greater than or equal to zero")
+        self.use_lbfgs = params.get('use_lbfgs', False)
+
+		# Optional LBFGS
         self.optimizer_lbfgs = torch.optim.LBFGS(
             self.parameters(),
             max_iter=params.get("lbfgs_maxiter", 50000),
@@ -186,7 +202,13 @@ class PhysicsInformedNN(nn.Module):
 
         # Optimizers
         self.optimizer_adam = torch.optim.Adam(self.parameters(), 
-            lr=params.get("lr", 1e-3))
+            lr=learning_rate)
+
+		# Scheduler
+        self.scheduler = torch.optim.lr_scheduler.StepLR(
+            self.optimizer_adam, step_size=scheduler_size, gamma=scheduler_gamma)
+        #self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+ 		#	self.optimizer_adam, mode='min', factor=0.5, patience=1000)
 
     def initialise_nn(self):
         
@@ -503,7 +525,7 @@ class PhysicsInformedNN(nn.Module):
 
         return loss
 
-    def fit(self, nIter, use_lbfgs=False):
+    def fit(self):
         """
         Train the Physics-Informed Neural Network (PINN) parameters using Adam,
         with an optional L-BFGS refinement stage.
@@ -529,91 +551,101 @@ class PhysicsInformedNN(nn.Module):
         # Training=True
         self.train()
 
-        # Adam loop
-        for it in range(1, nIter + 1):
+        # Adam + LBFGS loop
+        for it in range(1, self.n_adam_iter + 1):
             self.optimizer_adam.zero_grad()
             # Loss function
             loss = self.loss_fn()
-            # Backward propagation (gradients)
+            # Backward propagation
             loss.backward()
+            # Adam step
             self.optimizer_adam.step()
-
+            # Scheduler
+            self.scheduler.step()
+            # Print
             if it % self.io_loss == 0:
-                if self.model == 'pinn':
+                self.print_loss_fn(it)
 
-                    if self.eq == 'Euler':
-                        loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
-                            self.loss_fn(return_terms=True)
+        if self.use_lbfgs:
+            for it in range(1, self.n_adam_iter + 1):
+                def closure():
+                    self.optimizer_lbfgs.zero_grad()
+                    # Loss function
+                    loss = self.loss_fn()
+                    # Backward propagation
+                    loss.backward()
+                    return loss
+                # LBFGS step
+                loss = self.optimizer_lbfgs.step(closure)
+                # Print
+                if it % self.io_loss == 0:
+                    self.print_loss_fn(it)
+ 
+    def print_loss_fn(self, it):
+    
+        if self.model == 'pinn':
 
-                        print(
-                            f"It: {it:6d} | "
-                            f"Loss: {loss_val.item():.3e} | "
-                            f"rho: {l_rho.item():.3e} | "
-                            f"u: {l_u.item():.3e} | "
-                            f"v: {l_v.item():.3e} | "
-                            f"p: {l_p.item():.3e} | "
-                            f"f1: {l_f1.item():.3e} | "
-                            f"f2: {l_f2.item():.3e} | "
-                            f"f3: {l_f3.item():.3e} | "
-                            f"f4: {l_f4.item():.3e}"
-                        )
+            if self.eq == 'Euler':
+                loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
+                    self.loss_fn(return_terms=True)
 
-                    elif self.eq == 'RANS':
-                        loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
-                            self.loss_fn(return_terms=True)
+                print(
+                    f"It: {it:6d} | "
+                    f"Loss: {loss_val.item():.3e} | "
+                    f"rho: {l_rho.item():.3e} | "
+                    f"u: {l_u.item():.3e} | "
+                    f"v: {l_v.item():.3e} | "
+                    f"p: {l_p.item():.3e} | "
+                    f"f1: {l_f1.item():.3e} | "
+                    f"f2: {l_f2.item():.3e} | "
+                    f"f3: {l_f3.item():.3e} | "
+                    f"f4: {l_f4.item():.3e}"
+                )
 
-                        print(
-                            f"It: {it:6d} | "
-                            f"Loss: {loss_val.item():.3e} | "
-                            f"rho: {l_rho.item():.3e} | "
-                            f"u: {l_u.item():.3e} | "
-                            f"v: {l_v.item():.3e} | "
-                            f"p: {l_p.item():.3e} | "
-                            f"mut: {l_mut.item():.3e} | "
-                            f"f1: {l_f1.item():.3e} | "
-                            f"f2: {l_f2.item():.3e} | "
-                            f"f3: {l_f3.item():.3e} | "
-                            f"f4: {l_f4.item():.3e}"
-                        )
-                
-                elif self.model == 'supervised':
-                    loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
-                        self.loss_fn(return_terms=True)
+            elif self.eq == 'RANS':
+                loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
+                    self.loss_fn(return_terms=True)
 
-                    if self.eq == 'Euler':
+                print(
+                    f"It: {it:6d} | "
+                    f"Loss: {loss_val.item():.3e} | "
+                    f"rho: {l_rho.item():.3e} | "
+                    f"u: {l_u.item():.3e} | "
+                    f"v: {l_v.item():.3e} | "
+                    f"p: {l_p.item():.3e} | "
+                    f"mut: {l_mut.item():.3e} | "
+                    f"f1: {l_f1.item():.3e} | "
+                    f"f2: {l_f2.item():.3e} | "
+                    f"f3: {l_f3.item():.3e} | "
+                    f"f4: {l_f4.item():.3e}"
+                )
+        
+        elif self.model == 'supervised':
+            loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
+                self.loss_fn(return_terms=True)
 
-                        print(
-                            f"It: {it:6d} | "
-                            f"Loss: {loss_val.item():.3e} | "
-                            f"rho: {l_rho.item():.3e} | "
-                            f"u: {l_u.item():.3e} | "
-                            f"v: {l_v.item():.3e} | "
-                            f"p: {l_p.item():.3e} "
-                        )
+            if self.eq == 'Euler':
 
-                    elif self.eq == 'RANS':
+                print(
+                    f"It: {it:6d} | "
+                    f"Loss: {loss_val.item():.3e} | "
+                    f"rho: {l_rho.item():.3e} | "
+                    f"u: {l_u.item():.3e} | "
+                    f"v: {l_v.item():.3e} | "
+                    f"p: {l_p.item():.3e} "
+                )
 
-                        print(
-                            f"It: {it:6d} | "
-                            f"Loss: {loss_val.item():.3e} | "
-                            f"rho: {l_rho.item():.3e} | "
-                            f"u: {l_u.item():.3e} | "
-                            f"v: {l_v.item():.3e} | "
-                            f"p: {l_p.item():.3e} | "
-                            f"mut: {l_mut.item():.3e}"
-                        )
+            elif self.eq == 'RANS':
 
-
-        # LBFGS refinement (optional)
-        if use_lbfgs:
-            def closure():
-                self.optimizer_lbfgs.zero_grad()
-                loss = self.loss_fn()
-                loss.backward()
-                return loss
-
-            loss = self.optimizer_lbfgs.step(closure)
-            print(f"LBFGS final loss: {float(loss):.3e}")
+                print(
+                    f"It: {it:6d} | "
+                    f"Loss: {loss_val.item():.3e} | "
+                    f"rho: {l_rho.item():.3e} | "
+                    f"u: {l_u.item():.3e} | "
+                    f"v: {l_v.item():.3e} | "
+                    f"p: {l_p.item():.3e} | "
+                    f"mut: {l_mut.item():.3e}"
+                )
 
     @torch.no_grad()
     def predict(self, x, y):

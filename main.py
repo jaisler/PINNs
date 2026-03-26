@@ -124,7 +124,7 @@ def main():
 
         # Train
         start_time = time.time()                
-        model.fit(params['N_AdamIter'])
+        model.fit()
         elapsed = time.time() - start_time                
         print('Training time: %.4f' % (elapsed))
 

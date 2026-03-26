@@ -64,11 +64,20 @@ loss:
   plloss: 'losses'
 
 # NN setup
-io_loss: 200
+io_loss: 2
 N_train_data: 1000
 N_train_coll: 1000
-N_AdamIter: 5000
-layers: [2, 16, 16, 32, 32, 64, 64, 96, 4]
+layers: [2, 16, 16, 32, 32, 64, 64, 96, 96, 4]
+
+# Adam Optimizer
+n_adam_iter: 50
+learning_rate: 5e-4
+scheduler_size: 1000
+scheduler_gamma: 0.75
+
+# LBFGS: start after adam optimizer finish
+use_lbfgs: True
+n_lbfgs_iter: 10
 
 # Activation function: 
 # Option: tahn, sigmoid, sin, softplus, silu/swish and gelu
