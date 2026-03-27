@@ -164,15 +164,14 @@ def plot_flow_field(flowfield, params):
         pl.save_graphic(os.path.join(out_dir, f"{f}"+str(k)+".pdf"))
         pl.close()
 
-def PlotLosses(ldata, lres, ltotal, params):
+def PlotLosses(ldata, lres, ltotal, nepoch, params):
 
     fig = plt.figure()
     ax = fig.add_subplot(1,1,1)
     plt.rc('legend', **{'fontsize': 14})
 
     # Epochs calculation
-    n_iter = params['n_adam_iter'] + params['n_lbfgs_iter'] 
-    epochs = np.arange(0, n_iter, 1)
+    epochs = np.arange(0, nepoch, 1)
 
     p0, = ax.semilogy(epochs, ldata, '-', color='b', linewidth=2)
     p1, = ax.semilogy(epochs, lres, '-', color='r', linewidth=2)

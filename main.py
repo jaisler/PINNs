@@ -130,11 +130,12 @@ def main():
         print('Training time: %.4f' % (elapsed))
 
         # Get losses
-        ldata = model.GetDataLoss()
-        lres = model.GetResidualLoss()
-        ltotal = model.GetTotalLoss()
+        ldata = model.get_data_loss()
+        lres = model.get_residual_loss()
+        ltotal = model.get_total_loss()
+        nepoch = model.get_n_epoch()
         # Plot losses
-        pl.PlotLosses(ldata, lres, ltotal, params)
+        pl.PlotLosses(ldata, lres, ltotal, nepoch, params)
 
         # Prediction for plotting (data, collocation)
         if Xf is not None:
