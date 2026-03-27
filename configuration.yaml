@@ -7,6 +7,11 @@ pathMesh: ''
 pathRes: ''
 pathData: ''
 
+pathFlow: '/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/scramjet/afrl/2d/cases/euler/case'
+pathMesh: '/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/scramjet/afrl/2d/meshes/mesh2'
+pathRes: '/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/results'
+pathData: '/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/data'
+
 # Flow field file
 flowfield: 'flow.vtu'
 # Geometry 
@@ -73,15 +78,15 @@ N_train_coll: 1000
 layers: [2, 16, 16, 32, 32, 64, 64, 96, 96, 4]
 
 # Adam Optimizer
-use_adam: True
-n_adam_iter: 20000
+use_adam: False
+n_adam_iter: 100
 learning_rate: 4e-4
 scheduler_size: 2000
 scheduler_gamma: 0.8
 
 # LBFGS: start after adam optimizer finish
 use_lbfgs: True
-n_lbfgs_iter: 5000
+n_lbfgs_iter: 50
 
 # Activation function: 
 # Option: tahn, sigmoid, sin, softplus, silu/swish and gelu

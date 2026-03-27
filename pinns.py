@@ -85,6 +85,8 @@ class PhysicsInformedNN(nn.Module):
         self.ldata = []
         self.lres = []
         self.loss = []
+        # Epochs
+        self.n_epoch = 0
         # Turbulent viscosity
         self.mut = None 
 
@@ -207,8 +209,8 @@ class PhysicsInformedNN(nn.Module):
             # Optimizer
             self.optimizer_lbfgs = torch.optim.LBFGS(
                 self.parameters(),
-                max_iter=params.get("lbfgs_maxiter", 20),
-                history_size=params.get("lbfgs_history", 50),
+                max_iter=params.get("lbfgs_maxiter", 25),
+                history_size=params.get("lbfgs_history", 45),
                 line_search_fn="strong_wolfe",
                 tolerance_grad=params.get("lbfgs_tol_grad", 1e-7),
                 tolerance_change=params.get("lbfgs_tol_change", 1e-9))
@@ -229,7 +231,8 @@ class PhysicsInformedNN(nn.Module):
             if Xf is not None:
                 print(f"  Collocation points    : {Xf.shape[0]}")
             print(f"  Use Adam              : {self.use_adam}") 
-            print(f"  Adam learning rate    : {learning_rate}")
+            if self.use_adam:
+                print(f"  Adam learning rate    : {learning_rate}")
             print(f"  Use L-BFGS            : {self.use_lbfgs}")
 
     def initialise_nn(self):
@@ -577,6 +580,7 @@ class PhysicsInformedNN(nn.Module):
                 self.ldata.append(data_loss.item())
                 self.lres.append(res_loss.item())
                 self.loss.append(loss.item())
+                self.n_epoch += 1
 
                 # Print
                 if it % self.io_loss == 0:
@@ -592,19 +596,19 @@ class PhysicsInformedNN(nn.Module):
                 def closure():
                     self.optimizer_lbfgs.zero_grad()
                     # Loss function
-                    loss, _, _ = self.loss_fn()
+                    loss, data_loss, res_loss = self.loss_fn()
                     # Backward propagation
                     loss.backward()
+                    
+                    #Store losses
+                    self.ldata.append(data_loss.item())
+                    self.lres.append(res_loss.item())
+                    self.loss.append(loss.item())
+                    self.n_epoch += 1
+
                     return loss
                 # LBFGS step
                 loss = self.optimizer_lbfgs.step(closure)
-
-                # logging pass
-                loss_log, data_loss, res_loss = self.loss_fn()
-
-                self.ldata.append(data_loss.item())
-                self.lres.append(res_loss.item())
-                self.loss.append(loss_log.item())
 
                 # Print
                 if it % self.io_loss == 0:
@@ -799,14 +803,17 @@ class PhysicsInformedNN(nn.Module):
  
         return xstar, ystar
 
-    def GetDataLoss(self):
+    def get_data_loss(self):
         return self.ldata
 
-    def GetResidualLoss(self):
+    def get_residual_loss(self):
         return self.lres
 
-    def GetTotalLoss(self):
+    def get_total_loss(self):
         return self.loss
+    
+    def get_n_epoch(self):
+        return self.n_epoch
     
     def callback(self, it, loss_value):
         print(f"It: {it}, Loss: {loss_value:.3e}")
