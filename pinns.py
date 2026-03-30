@@ -196,6 +196,16 @@ class PhysicsInformedNN(nn.Module):
             # Scheduler
             self.scheduler = torch.optim.lr_scheduler.StepLR(
                 self.optimizer_adam, step_size=scheduler_size, gamma=scheduler_gamma)
+            
+            # Plateau approach
+            #self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            #    self.optimizer_adam,
+            #    mode='min',
+            #    factor=0.5,
+            #    patience=20,
+            #    threshold=1e-4,
+            #    min_lr=1e-5
+            #)
         else:
             self.n_adam_iter = 0
 
@@ -209,7 +219,7 @@ class PhysicsInformedNN(nn.Module):
             # Optimizer
             self.optimizer_lbfgs = torch.optim.LBFGS(
                 self.parameters(),
-                max_iter=params.get("lbfgs_maxiter", 25),
+                max_iter=params.get("lbfgs_maxiter", 20),
                 history_size=params.get("lbfgs_history", 45),
                 line_search_fn="strong_wolfe",
                 tolerance_grad=params.get("lbfgs_tol_grad", 1e-7),
@@ -591,24 +601,24 @@ class PhysicsInformedNN(nn.Module):
             if self.verbose:
                 print("----------------------------------")
                 print("L-BFGS optimization")
-            
+                    
             for it in range(1, self.n_lbfgs_iter + 1):
                 def closure():
                     self.optimizer_lbfgs.zero_grad()
-                    # Loss function
-                    loss, data_loss, res_loss = self.loss_fn()
-                    # Backward propagation
+                    loss, _, _ = self.loss_fn()
                     loss.backward()
-                    
-                    #Store losses
-                    self.ldata.append(data_loss.item())
-                    self.lres.append(res_loss.item())
-                    self.loss.append(loss.item())
-                    self.n_epoch += 1
-
                     return loss
-                # LBFGS step
-                loss = self.optimizer_lbfgs.step(closure)
+
+                self.optimizer_lbfgs.step(closure)
+
+                # recompute once for logging
+                loss, data_loss, res_loss = self.loss_fn()
+
+                self.ldata.append(data_loss.item())
+                self.lres.append(res_loss.item())
+                self.loss.append(loss.item())
+
+                self.n_epoch += 1   # increment once per LBFGS outer step
 
                 # Print
                 if it % self.io_loss == 0:
