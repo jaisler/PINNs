@@ -236,6 +236,7 @@ class PhysicsInformedNN(nn.Module):
             print(f"  Device                : {self.device}")
             print(f"  Model                 : {self.model}")
             print(f"  Equation              : {self.eq}")
+            print(f"  MLP                   : {self.layers}")
             print(f"  Activation function   : {self.activation}")
             print(f"  Data points           : {Xdata.shape[0]}")
             if Xf is not None:
