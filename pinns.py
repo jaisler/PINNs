@@ -219,7 +219,7 @@ class PhysicsInformedNN(nn.Module):
             # Optimizer
             self.optimizer_lbfgs = torch.optim.LBFGS(
                 self.parameters(),
-                max_iter=params.get("lbfgs_maxiter", 20),
+                max_iter=params.get("maxiter_lbfgs", 20),
                 history_size=params.get("lbfgs_history", 45),
                 line_search_fn="strong_wolfe",
                 tolerance_grad=params.get("lbfgs_tol_grad", 1e-7),

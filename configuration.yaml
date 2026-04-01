@@ -6,6 +6,7 @@ pathFlow: ''
 pathMesh: ''
 pathRes: ''
 pathData: ''
+pathModel: ''
 
 # Flow field file
 flowfield: 'flow.vtu'
@@ -70,7 +71,7 @@ loss:
 io_loss: 1
 N_train_data: 1000
 N_train_coll: 1000
-layers: [2, 16, 16, 32, 32, 64, 64, 96, 96, 4]
+layers: [2, 32, 32, 32, 4]
 
 # Adam Optimizer
 use_adam: False
@@ -81,7 +82,8 @@ scheduler_gamma: 0.8
 
 # LBFGS: start after adam optimizer finish
 use_lbfgs: True
-n_lbfgs_iter: 50
+n_lbfgs_iter: 100
+maxiter_lbfgs: 25
 
 # Activation function: 
 # Option: tahn, sigmoid, sin, softplus, silu/swish and gelu
