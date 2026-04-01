@@ -10,6 +10,7 @@ pathModel: ''
 
 # Flow field file
 flowfield: 'flow.vtu'
+
 # Geometry 
 mesh: 'afrl2d.geo'
 
@@ -21,6 +22,9 @@ device: cuda
 
 # Model: supervised or pinn
 model: pinn
+
+# Save model 
+model_name: model_pinn
 
 # Verbose
 verbose: True
@@ -74,16 +78,16 @@ N_train_coll: 1000
 layers: [2, 32, 32, 32, 4]
 
 # Adam Optimizer
-use_adam: False
-n_adam_iter: 100
+use_adam: True
+n_adam_iter: 2
 learning_rate: 4e-4
 scheduler_size: 2000
 scheduler_gamma: 0.8
 
 # LBFGS: start after adam optimizer finish
 use_lbfgs: True
-n_lbfgs_iter: 100
-maxiter_lbfgs: 25
+n_lbfgs_iter: 2
+maxi_ter_lbfgs: 20
 
 # Activation function: 
 # Option: tahn, sigmoid, sin, softplus, silu/swish and gelu

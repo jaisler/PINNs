@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import os
 
 torch.manual_seed(1234)
 np.random.seed(1234)
@@ -215,11 +216,14 @@ class PhysicsInformedNN(nn.Module):
             self.n_lbfgs_iter = int(params.get('n_lbfgs_iter', 10000))
             if self.n_lbfgs_iter <= 0:
                 raise ValueError("n_adam_iter must be greater than zero")
+            max_iter_lbfgs = int(params.get('max_iter_lbfgs', 20))
+            if self.n_lbfgs_iter <= 0:
+                raise ValueError("max_iter_lbfgs must be greater than zero")
 
             # Optimizer
             self.optimizer_lbfgs = torch.optim.LBFGS(
                 self.parameters(),
-                max_iter=params.get("maxiter_lbfgs", 20),
+                max_iter=max_iter_lbfgs,
                 history_size=params.get("lbfgs_history", 45),
                 line_search_fn="strong_wolfe",
                 tolerance_grad=params.get("lbfgs_tol_grad", 1e-7),
@@ -231,21 +235,27 @@ class PhysicsInformedNN(nn.Module):
         self.verbose = params.get("verbose", False)
         # PhysicsInformedNN setup
         if self.verbose:
-            print("----------------------------------")
+            print("---------------------------------------")
             print("PhysicsInformedNN initialized")
-            print(f"  Device                : {self.device}")
-            print(f"  Model                 : {self.model}")
-            print(f"  Equation              : {self.eq}")
-            print(f"  MLP                   : {self.layers}")
-            print(f"  Activation function   : {self.activation}")
-            print(f"  Data points           : {Xdata.shape[0]}")
+            print(f"  Device                       : {self.device}")
+            print(f"  Model                        : {self.model}")
+            print(f"  Equation                     : {self.eq}")
+            print(f"  MLP                          : {self.layers}")
+            print(f"  Activation function          : {self.activation}")
+            print(f"  Training data points         : {Xdata.shape[0]}")
             if Xf is not None:
-                print(f"  Collocation points    : {Xf.shape[0]}")
-            print(f"  Use Adam              : {self.use_adam}") 
+                print(f"  Training collocation points  : {Xf.shape[0]}")
+            print(f"  Use Adam                     : {self.use_adam}") 
             if self.use_adam:
-                print(f"  Adam learning rate    : {learning_rate}")
-            print(f"  Use L-BFGS            : {self.use_lbfgs}")
-
+                print(f"    Number of Adam iteration   : {self.n_adam_iter}")
+                print(f"    Adam learning rate         : {learning_rate}")
+                print(f"    Scheduler size             : {scheduler_size}")
+                print(f"    Learning Reduction rate    : {scheduler_gamma}")
+            print(f"  Use L-BFGS                   : {self.use_lbfgs}")
+            if self.use_adam:
+                print(f"    Number of L-BFGS iteration : {self.n_lbfgs_iter}")
+                print(f"    Max iterration for L-BFGS  : {max_iter_lbfgs}")
+             
     def initialise_nn(self):
         
         # Fully connected layers
@@ -573,7 +583,7 @@ class PhysicsInformedNN(nn.Module):
         if self.use_adam:
             # Adam loop
             if self.verbose:
-                print("----------------------------------")
+                print("---------------------------------------")
                 print("Adam optimization")
             
             for it in range(1, self.n_adam_iter + 1):
@@ -600,7 +610,7 @@ class PhysicsInformedNN(nn.Module):
         if self.use_lbfgs:
             # L-BFGS loop
             if self.verbose:
-                print("----------------------------------")
+                print("---------------------------------------")
                 print("L-BFGS optimization")
                     
             for it in range(1, self.n_lbfgs_iter + 1):
@@ -813,6 +823,47 @@ class PhysicsInformedNN(nn.Module):
         ystar = y / self.Lref
  
         return xstar, ystar
+
+    def save_model(self, filepath, filename):
+
+        optimizer_adam_state = (
+            self.optimizer_adam.state_dict()
+            if hasattr(self, "optimizer_adam")
+            else None
+        )
+
+        optimizer_lbfgs_state = (
+            self.optimizer_lbfgs.state_dict()
+            if hasattr(self, "optimizer_lbfgs")
+            and self.optimizer_lbfgs is not None
+            else None
+        )
+
+        scheduler_state = (
+            self.scheduler.state_dict()
+            if hasattr(self, "scheduler")
+            and self.scheduler is not None
+            else None
+        )
+
+        checkpoint = {
+            "model_state_dict": self.state_dict(),
+            "optimizer_adam_state_dict": optimizer_adam_state,
+            "optimizer_lbfgs_state_dict": optimizer_lbfgs_state,
+            "scheduler_state_dict": scheduler_state,
+            "n_epoch": getattr(self, "n_epoch", 0),
+            "loss": getattr(self, "loss", []),
+            "ldata": getattr(self, "ldata", []),
+            "lres": getattr(self, "lres", []),
+            "params": self.params if hasattr(self, "params") else None,
+            "lb": self.lb.detach().cpu() if torch.is_tensor(self.lb) else self.lb,
+            "ub": self.ub.detach().cpu() if torch.is_tensor(self.ub) else self.ub,
+        }
+
+        fullpath = os.path.join(filepath, filename)
+        torch.save(checkpoint, fullpath)
+        print("---------------------------------------")                
+        print(f"Model saved to: {fullpath}")
 
     def get_data_loss(self):
         return self.ldata

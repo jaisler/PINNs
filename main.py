@@ -26,6 +26,10 @@ def main():
     if not os.path.isdir(params['pathData']):
         os.makedirs(params['pathData'], exist_ok=True)
 
+    # Check if folder exists: model
+    if not os.path.isdir(params['pathModel']):
+        os.makedirs(params['pathModel'], exist_ok=True)
+
     # Plot flow fields to be analysed
     if (params['routine']['plotflow']):
         flowfield = pv.read(os.path.join(params['pathFlow'], params['flowfield']))
@@ -126,8 +130,11 @@ def main():
         start_time = time.time()                
         model.fit()
         elapsed = time.time() - start_time
-        print("----------------------------------")                
+        print("---------------------------------------")                
         print('Training time: %.4f' % (elapsed))
+
+        # Save model
+        model.save_model(params['pathModel'], params['model_name'])
 
         # Get losses
         ldata = model.get_data_loss()
@@ -162,7 +169,7 @@ def main():
         err_v = rel_l2(v_pred, v)
         err_p = rel_l2(p_pred, p)
 
-        print("----------------------------------")
+        print("---------------------------------------")
         print("Relative L2 errors:")
         print(f"  rho: {err_rho:.3e}")
         print(f"  u  : {err_u:.3e}")
