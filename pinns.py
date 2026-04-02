@@ -174,9 +174,6 @@ class PhysicsInformedNN(nn.Module):
         self.lb = torch.tensor(Xall.min(0), dtype=torch.float32, device=self.device)  # (2,)
         self.ub = torch.tensor(Xall.max(0), dtype=torch.float32, device=self.device)  # (2,)
         
-        # Move the whole module to the selected device
-        self.to(self.device)
-
 		# Optimizers
         # Adam
         self.use_adam = params.get('use_adam', False)
@@ -184,15 +181,15 @@ class PhysicsInformedNN(nn.Module):
             self.n_adam_iter = int(params.get('n_adam_iter', 50000))
             if self.n_adam_iter <= 0:
                 raise ValueError("n_adam_iter must be greater than zero")
-            learning_rate = float(params.get('learning_rate', 5e-4))
-            if learning_rate <= 0:
+            learning_rate_adam = float(params.get('lr_adam', 5e-4))
+            if learning_rate_adam <= 0:
                 raise ValueError("learning rate must be greater than zero")        
             scheduler_size = int(params.get('scheduler_size', 10000))
             scheduler_gamma = float(params.get('scheduler_gamma', 0.5))
              
             # Optimizer
             self.optimizer_adam = torch.optim.Adam(self.parameters(), 
-                lr=learning_rate)
+                lr=learning_rate_adam)
 
             # Scheduler
             self.scheduler = torch.optim.lr_scheduler.StepLR(
@@ -219,12 +216,16 @@ class PhysicsInformedNN(nn.Module):
             max_iter_lbfgs = int(params.get('max_iter_lbfgs', 20))
             if self.n_lbfgs_iter <= 0:
                 raise ValueError("max_iter_lbfgs must be greater than zero")
+            learning_rate_lbfgs = int(params.get('lr_lbfgs', 1.0))
+            if learning_rate_lbfgs <= 0:
+                raise ValueError("L-BFGS learning rate must be greater than zero")
 
             # Optimizer
             self.optimizer_lbfgs = torch.optim.LBFGS(
                 self.parameters(),
+                lr=learning_rate_lbfgs,
                 max_iter=max_iter_lbfgs,
-                history_size=params.get("lbfgs_history", 45),
+                history_size=params.get("lbfgs_history", 50),
                 line_search_fn="strong_wolfe",
                 tolerance_grad=params.get("lbfgs_tol_grad", 1e-7),
                 tolerance_change=params.get("lbfgs_tol_change", 1e-9))
@@ -248,14 +249,18 @@ class PhysicsInformedNN(nn.Module):
             print(f"  Use Adam                     : {self.use_adam}") 
             if self.use_adam:
                 print(f"    Number of Adam iteration   : {self.n_adam_iter}")
-                print(f"    Adam learning rate         : {learning_rate}")
+                print(f"    Adam learning rate         : {learning_rate_adam}")
                 print(f"    Scheduler size             : {scheduler_size}")
                 print(f"    Learning Reduction rate    : {scheduler_gamma}")
             print(f"  Use L-BFGS                   : {self.use_lbfgs}")
             if self.use_adam:
                 print(f"    Number of L-BFGS iteration : {self.n_lbfgs_iter}")
                 print(f"    Max iterration for L-BFGS  : {max_iter_lbfgs}")
-             
+                print(f"    L-BFGS learning rate       : {learning_rate_lbfgs}")
+
+        # Move the whole module to the selected device
+        self.to(self.device)
+
     def initialise_nn(self):
         
         # Fully connected layers
@@ -826,26 +831,28 @@ class PhysicsInformedNN(nn.Module):
 
     def save_model(self, filepath, filename):
 
+        # Save adam optimzer
         optimizer_adam_state = (
             self.optimizer_adam.state_dict()
             if hasattr(self, "optimizer_adam")
             else None
         )
 
+        # Save lbfgs optimizer
         optimizer_lbfgs_state = (
             self.optimizer_lbfgs.state_dict()
-            if hasattr(self, "optimizer_lbfgs")
-            and self.optimizer_lbfgs is not None
+            if hasattr(self, "optimizer_lbfgs") and self.optimizer_lbfgs is not None
             else None
         )
 
+        # Save scheduler for adam optimizer
         scheduler_state = (
             self.scheduler.state_dict()
-            if hasattr(self, "scheduler")
-            and self.scheduler is not None
+            if hasattr(self, "scheduler") and self.scheduler is not None
             else None
         )
 
+        # Create checkpoint
         checkpoint = {
             "model_state_dict": self.state_dict(),
             "optimizer_adam_state_dict": optimizer_adam_state,
@@ -860,10 +867,45 @@ class PhysicsInformedNN(nn.Module):
             "ub": self.ub.detach().cpu() if torch.is_tensor(self.ub) else self.ub,
         }
 
+        # I should load the same dataset, do not sample again!
+
+        # Path
         fullpath = os.path.join(filepath, filename)
+        # Save model
         torch.save(checkpoint, fullpath)
         print("---------------------------------------")                
         print(f"Model saved to: {fullpath}")
+
+    def load_model(self, filepath, map_location=None):
+        # Load checkpoint
+        checkpoint = torch.load(filepath, map_location=map_location)
+
+        self.load_state_dict(checkpoint["model_state_dict"])
+
+        if checkpoint.get("optimizer_adam_state_dict") is not None and hasattr(self, "optimizer_adam"):
+            self.optimizer_adam.load_state_dict(checkpoint["optimizer_adam_state_dict"])
+
+        if (checkpoint.get("optimizer_lbfgs_state_dict") is not None 
+            and hasattr(self, "optimizer_lbfgs") 
+            and self.optimizer_lbfgs is not None):
+            self.optimizer_lbfgs.load_state_dict(checkpoint["optimizer_lbfgs_state_dict"])
+
+        if (checkpoint.get("scheduler_state_dict") is not None 
+            and hasattr(self, "scheduler") 
+            and self.scheduler is not None):
+            self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+
+        self.n_epoch = checkpoint.get("n_epoch", 0)
+        self.loss = checkpoint.get("loss", [])
+        self.ldata = checkpoint.get("ldata", [])
+        self.lres = checkpoint.get("lres", [])
+
+        if "lb" in checkpoint:
+            self.lb = checkpoint["lb"].to(self.device) if torch.is_tensor(checkpoint["lb"]) else checkpoint["lb"]
+        if "ub" in checkpoint:
+            self.ub = checkpoint["ub"].to(self.device) if torch.is_tensor(checkpoint["ub"]) else checkpoint["ub"]
+
+        print(f"Model loaded from: {filepath}")
 
     def get_data_loss(self):
         return self.ldata

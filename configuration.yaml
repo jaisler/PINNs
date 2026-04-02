@@ -15,7 +15,7 @@ flowfield: 'flow.vtu'
 mesh: 'afrl2d.geo'
 
 # Solver: Euler or RANS
-equation: 'Euler'  
+equation: 'RANS'  
 
 # Device: cpu or cuda
 device: cuda
@@ -75,18 +75,19 @@ loss:
 io_loss: 1
 N_train_data: 1000
 N_train_coll: 1000
-layers: [2, 32, 32, 32, 4]
+layers: [2, 32, 32, 32, 5]
 
 # Adam Optimizer
 use_adam: True
-n_adam_iter: 2
-learning_rate: 4e-4
+n_adam_iter: 100
+lr_adam: 4e-4
 scheduler_size: 2000
 scheduler_gamma: 0.8
 
 # LBFGS: start after adam optimizer finish
 use_lbfgs: True
-n_lbfgs_iter: 2
+n_lbfgs_iter: 100
+lr_lbfgs: 1.0
 maxi_ter_lbfgs: 20
 
 # Activation function: 
