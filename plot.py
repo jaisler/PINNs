@@ -74,55 +74,91 @@ def PlotTargetPoints(x, y, xf, yf, params, training=False):
         fig.savefig(params['pathRes']+'/'+params['sampling']['plall']+'.pdf')
     plt.close(fig)
 
-def PlotPredictedFlow(x, y, u_pred, params, perc=95, mult=1.8):
-    
+def plot_predicted_flow(x, y, u_pred, ifield, params, perc=98, mult=1.8):
+    """
+    Plot one predicted field using only information stored in params['plotflow'].
+
+    Parameters
+    ----------
+    x, y : array_like
+        Coordinates of the points.
+    u_pred : array_like
+        Predicted scalar field to plot.
+    ifield : int
+        Index of the field inside params['plotflow'].
+    params : dict
+        Dictionary containing plotting options.
+    perc, mult : float
+        Parameters used to mask large triangles.
+    """
+
+    pf = params["plotflow"]
+
+    field = pf["fields"][ifield]
+    comp  = pf["comp"][ifield]
+    cmap  = pf["cmap"][ifield]
+    clabel = pf["latex"][ifield]
+
+    scale = np.asarray(pf["scale"][ifield], dtype=float)
+    vmin, vmax = scale[0], scale[1]
+
+    nlevels = pf.get("nlevels", 201)
+    levels = np.linspace(vmin, vmax, nlevels)
+
+    if "ticks" in pf:
+        ticks = np.asarray(pf["ticks"][ifield], dtype=float)
+    else:
+        ticks = scale
+
+    # Triangulation
     tri = mtri.Triangulation(x, y)
     tris = tri.triangles
-    
+
     xtri = x[tris]
     ytri = y[tris]
 
-    e0 = np.hypot(xtri[:,1]-xtri[:,0], ytri[:,1]-ytri[:,0])
-    e1 = np.hypot(xtri[:,2]-xtri[:,1], ytri[:,2]-ytri[:,1])
-    e2 = np.hypot(xtri[:,0]-xtri[:,2], ytri[:,0]-ytri[:,2])
+    e0 = np.hypot(xtri[:, 1] - xtri[:, 0], ytri[:, 1] - ytri[:, 0])
+    e1 = np.hypot(xtri[:, 2] - xtri[:, 1], ytri[:, 2] - ytri[:, 1])
+    e2 = np.hypot(xtri[:, 0] - xtri[:, 2], ytri[:, 0] - ytri[:, 2])
     emax = np.maximum.reduce([e0, e1, e2])
 
     thr = np.percentile(emax, perc) * mult
     tri.set_mask(emax > thr)
 
-    fig, ax = plt.subplots(1, 1, num=2, figsize=(12, 4), sharey=True)
-    
-    # Scale
-    vmin, vmax = 0.0, 1.3
-    levels = np.linspace(vmin, vmax, 201) 
+    # Figure
+    fig, ax = plt.subplots(1, 1, figsize=(12, 4), sharey=True)
+
     cs = ax.tricontourf(
-        tri, 
-        u_pred.ravel(), 
-        cmap="bwr",
-        levels=levels, 
-        vmin=vmin, 
-        vmax=vmax, 
+        tri,
+        np.asarray(u_pred).ravel(),
+        cmap=cmap,
+        levels=levels,
+        vmin=vmin,
+        vmax=vmax,
         extend="both"
     )
 
     cbar = fig.colorbar(
-        cs, ax=ax,
-        shrink=0.42,       # length of the bar (0-1)
-        fraction=0.1,      # thickness (relative to axes)
-        pad=0.02,          # gap between plot and colorbar
-        aspect=10,         # also affects thickness vs length
-        ticks=[0.0, 0.5, 1.0, 1.3]
+        cs,
+        ax=ax,
+        shrink=0.42,
+        fraction=0.1,
+        pad=0.02,
+        aspect=10,
+        ticks=ticks
     )
-    cbar.set_label(r"$\rho$ $[kg/m^{3}]$", fontsize=18)
+    cbar.set_label(clabel, fontsize=18)
     cbar.ax.tick_params(labelsize=16)
 
     ax.tick_params(labelsize=18)
-    ax.set_xlabel(r'$x$ $[m]$', fontsize=18)
-    ax.set_ylabel(r'$y$ $[m]$', fontsize=18)
+    ax.set_xlabel(r"$x$ $[m]$", fontsize=18)
+    ax.set_ylabel(r"$y$ $[m]$", fontsize=18)
     ax.set_aspect("equal", adjustable="box")
 
     fig.tight_layout()
-    fig.savefig(params['pathRes'] + '/predict_flow.pdf')
+    fname = f"{field.lower()}_{comp}_predict_flow.pdf"
+    fig.savefig(f"{params['pathRes']}/{fname}")
+
     plt.show()
     plt.close(fig)
 
