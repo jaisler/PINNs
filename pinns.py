@@ -558,10 +558,27 @@ class PhysicsInformedNN(nn.Module):
             w_f1, w_f2, w_f3, w_f4 = 1.0, 1.0, 1.0, 1.0
             w_mut = 1.0        
 
+        # data weights
+        w_rho = 1.0
+        w_u   = 1.0
+        w_v   = 8.0
+        w_p   = 1.0
+
         # Data loss
-        data_loss = l_rho + l_u + l_v + l_p + w_mut * l_mut
+        data_loss = (
+            w_rho * l_rho +
+            w_u   * l_u   +
+            w_v   * l_v   +
+            w_p   * l_p   +
+            w_mut * l_mut
+        )
         # Residual loss
-        res_loss = w_f1 * l_f1 + w_f2 * l_f2 + w_f3 * l_f3 + w_f4 * l_f4
+        res_loss = (
+            w_f1 * l_f1 + 
+            w_f2 * l_f2 + 
+            w_f3 * l_f3 + 
+            w_f4 * l_f4
+        )
         # Total loss
         loss = data_loss + res_loss  
 
