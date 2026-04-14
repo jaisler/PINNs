@@ -152,10 +152,13 @@ def main():
         xall = Xall[:,0]
         yall = Xall[:,1]
         rhoall_pred, uall_pred, vall_pred, pall_pred = model.predict(xall, yall) 
-        # Plot inference
-        pl.PlotPredictedFlow(xall, yall, rhoall_pred, params)
 
-        # Predition for the data points (error calculation)
+        # Plot Prediction
+        pred_list = [rhoall_pred, pall_pred, uall_pred, vall_pred]
+        for ifield, pred in enumerate(pred_list):
+            pl.plot_predicted_flow(xall, yall, pred, ifield, params)
+
+        # Prediction for the data points (error calculation)
         rho_pred, u_pred, v_pred, p_pred = model.predict(x, y) 
 
         # compute relative L2 errors if you have ground truth at these points
