@@ -210,10 +210,13 @@ def PlotLosses(ldata, lres, ltotal, nepoch, params):
     epochs = np.arange(0, nepoch, 1)
 
     p0, = ax.semilogy(epochs, ldata, '-', color='b', linewidth=2)
-    p1, = ax.semilogy(epochs, lres, '-', color='r', linewidth=2)
-    p2, = ax.semilogy(epochs, ltotal, '-', color='k', linewidth=2)
+    if params['model'] == 'pinns': 
+        p1, = ax.semilogy(epochs, lres, '-', color='r', linewidth=2)
+        p2, = ax.semilogy(epochs, ltotal, '-', color='k', linewidth=2)
+        ax.legend([p0,p1,p2], [r'Data loss',r'Residual loss',r'Total loss'], loc='best')
+    else:
+        ax.legend([p0], [r'Data loss'], loc='best')
 
-    ax.legend([p0,p1,p2], [r'Data loss',r'Residual loss',r'Total loss'], loc='best')
     ax.tick_params(direction="in", which='both')
     fig.subplots_adjust(left=0.127, right=0.97, bottom=0.117, top=0.97)
     ax.grid(color='0.5', linestyle=':', linewidth=0.5, which='both')
