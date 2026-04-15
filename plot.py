@@ -74,7 +74,7 @@ def PlotTargetPoints(x, y, xf, yf, params, training=False):
         fig.savefig(params['pathRes']+'/'+params['sampling']['plall']+'.pdf')
     plt.close(fig)
 
-def plot_predicted_flow(x, y, u_pred, ifield, params, perc=98, mult=1.8):
+def plot_predicted_flow(x, y, u_pred, ifield, params, perc=95, mult=1.8):
     """
     Plot one predicted field using only information stored in params['plotflow'].
 
