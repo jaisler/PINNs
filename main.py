@@ -37,6 +37,8 @@ def main():
 
     # Initialisation
     Xf = None
+    xf = None
+    yf = None
     xftrain = None
     yftrain = None
 
