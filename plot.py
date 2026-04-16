@@ -36,9 +36,9 @@ def PlotSamplingPoints(pall, pin, pbc, pgrad, params, collpts=False):
     ax.set_aspect("equal", adjustable="box")
     fig.subplots_adjust(left=0.08, right=0.99, bottom=0.15, top=0.97)
     if collpts:
-        fig.savefig(params['pathRes']+'/'+params['sampling']['pldata']+'.pdf')
-    else:
         fig.savefig(params['pathRes']+'/'+params['sampling']['plcoll']+'.pdf')
+    else:
+        fig.savefig(params['pathRes']+'/'+params['sampling']['pldata']+'.pdf')
 
     plt.close(fig)
 
