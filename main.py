@@ -46,24 +46,24 @@ def main():
     if (params['routine']['sampling']):
         # Create data set
         objSampleData = smp.SamplingData(params, False) 
-        objSampleData.WriteDataToCSV(params, False)
-        objSampleData.PlotSamplingPoints(params, False)
+        objSampleData.write_data_to_csv(params, False)
+        objSampleData.plot_sampling_points(params, False)
 
         # Get sampling ponits and fields. Data points
-        X = objSampleData.GetX() # N x 3
-        U = objSampleData.GetU() # N x 3
-        rho = objSampleData.GetRHO() # N
-        p = objSampleData.GetP() # N
+        X = objSampleData.get_x() # N x 3
+        U = objSampleData.get_u() # N x 3
+        rho = objSampleData.get_rho() # N
+        p = objSampleData.get_p() # N
         # Note that if Euler equations are used it return an array
         # of zeros
-        mut = objSampleData.GetMut()
+        mut = objSampleData.get_mut()
 
         # Collocation points (PDE residuals)
         if params['model'] == 'pinn':  
             objSampleColl = smp.SamplingData(params, True) 
-            objSampleColl.WriteDataToCSV(params, True)
-            objSampleColl.PlotSamplingPoints(params, True)
-            Xf = objSampleColl.GetX()
+            objSampleColl.write_data_to_csv(params, True)
+            objSampleColl.plot_sampling_points(params, True)
+            Xf = objSampleColl.get_x()
         
     else:
         # Read data points
@@ -119,9 +119,9 @@ def main():
             yftrain = yf[idxc,None]
         
         # Plot traning ponts
-        pl.PlotTargetPoints(xtrain, ytrain, xftrain, yftrain, params, True)
+        pl.plot_target_points(xtrain, ytrain, xftrain, yftrain, params, True)
         # Plot all points
-        pl.PlotTargetPoints(x, y, xf, yf, params)
+        pl.plot_target_points(x, y, xf, yf, params)
         
         # Training - note that model is a object of the class
         # Note that model is a object of the class
@@ -144,7 +144,7 @@ def main():
         ltotal = model.get_total_loss()
         nepoch = model.get_n_epoch()
         # Plot losses
-        pl.PlotLosses(ldata, lres, ltotal, nepoch, params)
+        pl.plot_losses(ldata, lres, ltotal, nepoch, params)
 
         # Prediction for plotting (data, collocation)
         if Xf is not None:

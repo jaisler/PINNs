@@ -8,7 +8,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 rc('text', usetex=True)
 
-def PlotSamplingPoints(pall, pin, pbc, pgrad, params, collpts=False):
+def plot_sampling_points(pall, pin, pbc, pgrad, params, collpts=False):
 
     fig, ax = plt.subplots(1, 1, num=1, figsize=(12, 4), sharey=True)
     plt.rc('legend', **{'fontsize': 14})
@@ -42,7 +42,7 @@ def PlotSamplingPoints(pall, pin, pbc, pgrad, params, collpts=False):
 
     plt.close(fig)
 
-def PlotTargetPoints(x, y, xf, yf, params, training=False):
+def plot_target_points(x, y, xf, yf, params, training=False):
 
     fig, ax = plt.subplots(1, 1, num=1, figsize=(12, 4), sharey=True)
     plt.rc('legend', **{'fontsize': 14})
@@ -200,7 +200,7 @@ def plot_flow_field(flowfield, params):
         pl.save_graphic(os.path.join(out_dir, f"{f}"+str(k)+".pdf"))
         pl.close()
 
-def PlotLosses(ldata, lres, ltotal, nepoch, params):
+def plot_losses(ldata, lres, ltotal, nepoch, params):
 
     fig = plt.figure()
     ax = fig.add_subplot(1,1,1)

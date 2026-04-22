@@ -37,7 +37,7 @@ class SamplingData:
         # Sample points
         xmin, xmax, ymin, ymax, zmin, zmax = mesh.bounds
         # Get base sampler function 
-        base_sampler = self.GetBaseSampler(params['sampling']['type'])
+        base_sampler = self.get_base_sampler(params['sampling']['type'])
 
         if npinner > 0:
             # Call chosen sampler 
@@ -58,7 +58,7 @@ class SamplingData:
         # Add extra points in regions detected by a sensor
         # Extra points based on gradient |grad(rho)|
         if npgrad > 0:
-            pts_grad = self.SampleBasedOnGrad(
+            pts_grad = self.sample_based_on_grad(
                 mesh=mesh, npoin_grad=npgrad,
                 xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, zmin=zmin, zmax=zmax,
                 base_sampler=base_sampler,
@@ -74,8 +74,8 @@ class SamplingData:
         bc_poin = npbc #params['sampling']['nspoin_bc']
         for phys_name, n_bc in zip(bc_names, bc_poin):
             if n_bc > 0:
-                pts_bc = self.SampleBoundaryCondition(phys_name, n_bc, params)                
-                pts_bc = self.NudgeBCPoints(pts_bc, phys_name, xmin, xmax, ymin, ymax)
+                pts_bc = self.sample_boundary_condition(phys_name, n_bc, params)                
+                pts_bc = self.nudge_bc_points(pts_bc, phys_name, xmin, xmax, ymin, ymax)
                 self.pts_bc = np.vstack([self.pts_bc, pts_bc])
                 self.pts = np.vstack([self.pts, pts_bc])
 
@@ -115,22 +115,22 @@ class SamplingData:
                 # Otherwise return zero
                 self.mut = np.zeros((self.X.shape[0], 1), dtype=float)
 
-    def GetBaseSampler(self, sampling_type: str):
+    def get_base_sampler(self, sampling_type: str):
         if sampling_type == "random":
-            return self.SampleRandomPoints
+            return self.sample_random_points
         elif sampling_type == "lhs":
-            return self.SampleLatinHypercube
+            return self.sample_latin_hypercube
         else:
             raise ValueError("sampling type must be 'random' or 'lhs'")
 
-    def SampleRandomPoints(self, npoin, xmin, xmax, ymin, ymax):
+    def sample_random_points(self, npoin, xmin, xmax, ymin, ymax):
         pts = np.column_stack([
             np.random.uniform(xmin, xmax, npoin),
             np.random.uniform(ymin, ymax, npoin),
             ])
         return pts 
     
-    def SampleLatinHypercube(self, npoin, xmin, xmax, ymin, ymax):
+    def sample_latin_hypercube(self, npoin, xmin, xmax, ymin, ymax):
         try:
             from scipy.stats import qmc
             sampler = qmc.LatinHypercube(d=self.dims)   # use d=2 for 2D
@@ -149,7 +149,7 @@ class SamplingData:
         
         return pts
     
-    def SampleBoundaryCondition(self, phys_name, npoin_bc, params):
+    def sample_boundary_condition(self, phys_name, npoin_bc, params):
         """
         Sample boundary points from a Physical Group in a .geo file.
         phys_name: physical group name in the .geo, e.g. "inlet", "outlet", 
@@ -230,7 +230,7 @@ class SamplingData:
         finally:
             gmsh.finalize()                
 
-    def SampleBasedOnGrad(self, mesh, npoin_grad,
+    def sample_based_on_grad(self, mesh, npoin_grad,
         xmin, xmax, ymin, ymax, zmin, zmax, base_sampler,
         var_name="Density",
         pool_factor=8,
@@ -307,7 +307,7 @@ class SamplingData:
 
         return pts_grad
         
-    def NudgeBCPoints(self, pts_bc, name, xmin, xmax, ymin, ymax):
+    def nudge_bc_points(self, pts_bc, name, xmin, xmax, ymin, ymax):
         pts = pts_bc.copy()
 
         # scale-aware eps (tiny fraction of domain size)
@@ -326,22 +326,22 @@ class SamplingData:
 
         return pts
     
-    def GetX(self):       
+    def get_x(self):       
         return self.X
 
-    def GetRHO(self):
+    def get_rho(self):
         return self.rho
 
-    def GetU(self):       
+    def get_u(self):       
         return self.U
 
-    def GetP(self):
+    def get_p(self):
         return self.p
     
-    def GetMut(self):
+    def get_mut(self):
         return self.mut
 
-    def WriteDataToCSV(self, params, collpts=False):
+    def write_data_to_csv(self, params, collpts=False):
         if collpts:
             out = self.X 
             np.savetxt(
@@ -358,7 +358,7 @@ class SamplingData:
                 header="x,y,z,rho,u,v,w,p,mut", 
                 comments="")
 
-    def PlotSamplingPoints(self, params, collpts=False):
-        pl.PlotSamplingPoints(self.X, self.pts_in, self.pts_bc, \
+    def plot_sampling_points(self, params, collpts=False):
+        pl.plot_sampling_points(self.X, self.pts_in, self.pts_bc, \
                               self.pts_grad, params, collpts)
 
