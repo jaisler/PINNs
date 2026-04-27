@@ -136,7 +136,8 @@ def main():
         print('Training time: %.4f' % (elapsed))
 
         # Save model
-        model.save_model(params['pathModel'], params['model_name'])
+        if params['save_model']:
+            model.save_model(params['pathModel'], params['model_name'])
 
         # Get losses
         ldata = model.get_data_loss()

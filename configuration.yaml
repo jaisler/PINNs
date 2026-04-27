@@ -18,13 +18,15 @@ mesh: 'afrl2d.geo'
 equation: 'Euler'  
 
 # Model: supervised or pinn
-model: 'supervised'
+model: 'pinn'
 
 # Device: cpu or cuda
 device: cuda
 
 # Save model 
 model_name: model_pinn
+load_model: True
+save_model: True
 
 # Verbose
 verbose: True
@@ -35,6 +37,7 @@ routine:
   sampling: True
   inference: True
   identification: False
+
 
 plotflow:
   fields: ["Density", "Pressure", "Velocity", "Velocity"]
@@ -79,14 +82,14 @@ layers: [2, 32, 32, 32, 4]
 
 # Adam Optimizer
 use_adam: True
-n_adam_iter: 100
+n_adam_iter: 200
 lr_adam: 4e-4
 scheduler_size: 2000
 scheduler_gamma: 0.8
 
 # LBFGS: start after adam optimizer finish
-use_lbfgs: True
-n_lbfgs_iter: 100
+use_lbfgs: False
+n_lbfgs_iter: 200
 lr_lbfgs: 1.0
 maxi_ter_lbfgs: 20
 

@@ -232,6 +232,10 @@ class PhysicsInformedNN(nn.Module):
         else:
             self.n_lbfgs_iter = 0
 
+        # Load model
+        if params['load_model']:
+            self.load_model(params['pathModel'], params['model_name'])
+
         # Verbose
         self.verbose = params.get("verbose", False)
         # PhysicsInformedNN setup
@@ -253,7 +257,7 @@ class PhysicsInformedNN(nn.Module):
                 print(f"    Scheduler size             : {scheduler_size}")
                 print(f"    Learning Reduction rate    : {scheduler_gamma}")
             print(f"  Use L-BFGS                   : {self.use_lbfgs}")
-            if self.use_adam:
+            if self.use_lbfgs:
                 print(f"    Number of L-BFGS iteration : {self.n_lbfgs_iter}")
                 print(f"    Max iterration for L-BFGS  : {max_iter_lbfgs}")
                 print(f"    L-BFGS learning rate       : {learning_rate_lbfgs}")
@@ -884,18 +888,20 @@ class PhysicsInformedNN(nn.Module):
             "ub": self.ub.detach().cpu() if torch.is_tensor(self.ub) else self.ub,
         }
 
-        # I should load the same dataset, do not sample again!
-
         # Path
         fullpath = os.path.join(filepath, filename)
         # Save model
-        torch.save(checkpoint, fullpath)
+        torch.save(checkpoint, fullpath + ".pth")
         print("---------------------------------------")                
         print(f"Model saved to: {fullpath}")
 
-    def load_model(self, filepath, map_location=None):
+    def load_model(self, filepath, filename):
+        
+        # Path
+        fullpath = os.path.join(filepath, filename)
         # Load checkpoint
-        checkpoint = torch.load(filepath, map_location=map_location)
+        checkpoint = torch.load(fullpath + '.pth',
+                                map_location=self.device)
 
         self.load_state_dict(checkpoint["model_state_dict"])
 
