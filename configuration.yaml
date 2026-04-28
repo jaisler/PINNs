@@ -59,14 +59,18 @@ sampling:
   # Sampling type for inner points
   type: 'lhs' # random, lhs
   bc: ['inlet','bottom','outlet','top']
+  # Seed
+  seed: 1234
+  # Sampling parameters
   grad_type_var: 'Density'
   pool_factor: 8
   alpha_grad_rho: 1.4
-  seed: 1234
+  # Plotting filename
   pldata: 'pl_data'
   plcoll: 'pl_coll'
   plall: 'pl_all'
   pltrain: 'pl_taining'
+  # Data filename
   fdata: 'sampling_data'
   fcoll: 'sampling_coll'
 

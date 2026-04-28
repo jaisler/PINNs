@@ -46,8 +46,7 @@ def main():
     if (params['routine']['sampling']):
         # Create data set
         objSampleData = smp.SamplingData(params, False) 
-        objSampleData.write_data_to_csv(params, False)
-        objSampleData.plot_sampling_points(params, False)
+        objSampleData.write_data_to_npz(params, False)
 
         # Get sampling ponits and fields. Data points
         X = objSampleData.get_x() # N x 3
@@ -58,13 +57,29 @@ def main():
         # of zeros
         mut = objSampleData.get_mut()
 
+        # Get domain points
+        pts_in_data = objSampleData.get_pts_in()
+        pts_bc_data = objSampleData.get_pts_bc()
+        pts_grad_data = objSampleData.get_pts_grad()
+
+        # Plot sampling points (data)
+        pl.plot_sampling_points(X, pts_in_data, pts_bc_data, pts_grad_data,
+                                params, False)
+
         # Collocation points (PDE residuals)
         if params['model'] == 'pinn':  
             objSampleColl = smp.SamplingData(params, True) 
-            objSampleColl.write_data_to_csv(params, True)
-            objSampleColl.plot_sampling_points(params, True)
-            Xf = objSampleColl.get_x()
-        
+            objSampleColl.write_data_to_npz(params, True)
+            Xf = objSampleColl.get_x()  
+
+            # Get domain points
+            pts_in_coll = objSampleColl.get_pts_in()
+            pts_bc_coll = objSampleColl.get_pts_bc()
+            pts_grad_coll = objSampleColl.get_pts_grad()
+
+            # Plot sampling points (collocation)
+            pl.plot_sampling_points(Xf, pts_in_coll, pts_bc_coll, pts_grad_coll,
+                                    params, True)
     else:
         # Read data points
         df = pd.read_csv(os.path.join(params['pathData'], 

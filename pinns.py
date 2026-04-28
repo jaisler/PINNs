@@ -26,6 +26,7 @@ class PhysicsInformedNN(nn.Module):
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         else:
             if "cuda" in device_str and not torch.cuda.is_available():
+                print("---------------------------------------")
                 print("CUDA requested but not available. Falling back to CPU")
                 self.device = torch.device("cpu")
             else:
@@ -928,6 +929,7 @@ class PhysicsInformedNN(nn.Module):
         if "ub" in checkpoint:
             self.ub = checkpoint["ub"].to(self.device) if torch.is_tensor(checkpoint["ub"]) else checkpoint["ub"]
 
+        print("---------------------------------------")
         print(f"Model loaded from: {filepath}")
 
     def get_data_loss(self):

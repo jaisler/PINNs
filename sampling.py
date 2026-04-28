@@ -325,21 +325,6 @@ class SamplingData:
             pts[:, 1] -= epsy
 
         return pts
-    
-    def get_x(self):       
-        return self.X
-
-    def get_rho(self):
-        return self.rho
-
-    def get_u(self):       
-        return self.U
-
-    def get_p(self):
-        return self.p
-    
-    def get_mut(self):
-        return self.mut
 
     def write_data_to_csv(self, params, collpts=False):
         if collpts:
@@ -358,7 +343,100 @@ class SamplingData:
                 header="x,y,z,rho,u,v,w,p,mut", 
                 comments="")
 
-    def plot_sampling_points(self, params, collpts=False):
-        pl.plot_sampling_points(self.X, self.pts_in, self.pts_bc, \
-                              self.pts_grad, params, collpts)
+    def write_data_to_npz(self, params, collpts=False):
+        """
+        Save sampling data to a compressed NumPy .npz file.
+        """
 
+        path_data = Path(params["pathData"])
+        path_data.mkdir(parents=True, exist_ok=True)
+
+        if collpts:
+            filename = path_data / f"{params['sampling']['fcoll']}.npz"
+
+            np.savez_compressed(
+                filename,
+                X=self.X,
+                pts_in=self.pts_in,
+                pts_bc=self.pts_bc,
+                pts_grad=self.pts_grad,
+                pts=self.pts,
+                collpts=np.array(True),
+            )
+
+        else:
+            filename = path_data / f"{params['sampling']['fdata']}.npz"
+
+            np.savez_compressed(
+                filename,
+                X=self.X,
+                U=self.U,
+                rho=self.rho,
+                p=self.p,
+                mut=self.mut,
+                pts_in=self.pts_in,
+                pts_bc=self.pts_bc,
+                pts_grad=self.pts_grad,
+                pts=self.pts,
+                collpts=np.array(False),
+            )
+
+        print("---------------------------------------")
+        print(f"Saved data points to: {filename}")
+
+    def load_data_from_npz(self, params, collpts=False):
+        """
+        Load sampling data from a compressed NumPy .npz file.
+        """
+
+        path_data = Path(params["pathData"])
+
+        if collpts:
+            filename = path_data / f"{params['sampling']['fdata']}.npz"
+        else:
+            filename = path_data / f"{params['sampling']['fcoll']}.npz"
+
+        data = np.load(filename)
+
+        X = data["X"]
+        pts_in = data["pts_in"]
+        pts_bc = data["pts_bc"]
+        pts_grad = data["pts_grad"]
+        pts = data["pts"]
+
+        if "U" in data.files:
+            U = data["U"]
+            rho = data["rho"]
+            p = data["p"]
+            mut = data["mut"]
+        else:
+            U = None
+            rho = None
+            p = None
+            mut = None
+
+        return X, U, rho, p, mut, pts_in, pts_bc, pts_grad, pts
+
+    def get_pts_in(self):       
+        return self.pts_in
+    
+    def get_pts_bc(self):       
+        return self.pts_bc
+
+    def get_pts_grad(self):       
+        return self.pts_grad
+
+    def get_x(self):       
+        return self.X
+
+    def get_rho(self):
+        return self.rho
+
+    def get_u(self):       
+        return self.U
+
+    def get_p(self):
+        return self.p
+    
+    def get_mut(self):
+        return self.mut
