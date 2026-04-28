@@ -159,7 +159,7 @@ def plot_predicted_flow(x, y, u_pred, ifield, params, perc=95, mult=1.8):
     fname = f"{field.lower()}_{comp}_predict_flow.pdf"
     fig.savefig(f"{params['pathRes']}/{fname}")
 
-    plt.show()
+    #plt.show()
     plt.close(fig)
 
 def plot_flow_field(flowfield, params):

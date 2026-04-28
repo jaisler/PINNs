@@ -23,10 +23,10 @@ model: 'pinn'
 # Device: cpu or cuda
 device: cuda
 
-# Save model 
+# Save and load model 
 model_name: model_pinn
-load_model: True
-save_model: True
+load_model: False
+save_model: False
 
 # Verbose
 verbose: True
@@ -73,6 +73,8 @@ sampling:
   # Data filename
   fdata: 'sampling_data'
   fcoll: 'sampling_coll'
+  # File format for loading and saving
+  file_format: npz # csv or npz
 
 # Losses
 loss:

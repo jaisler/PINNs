@@ -1,6 +1,5 @@
 import os
 import yaml
-import pandas as pd
 import numpy as np
 import time
 import pyvista as pv
@@ -44,10 +43,18 @@ def main():
 
     # Sampling points - Data points
     if (params['routine']['sampling']):
+        flag = False # Data points
         # Create data set
-        objSampleData = smp.SamplingData(params, False) 
-        objSampleData.write_data_to_npz(params, False)
-
+        objSampleData = smp.SamplingData(params)
+        objSampleData.sample(flag) 
+        # Write data to file
+        if params['sampling']['file_format'] == 'csv':
+            objSampleData.write_data_to_csv()
+        elif params['sampling']['file_format'] == 'npz': 
+            objSampleData.write_data_to_npz()
+        else:
+            ValueError(f"unknown format {params['sampling']['file_format']}")
+        
         # Get sampling ponits and fields. Data points
         X = objSampleData.get_x() # N x 3
         U = objSampleData.get_u() # N x 3
@@ -63,13 +70,22 @@ def main():
         pts_grad_data = objSampleData.get_pts_grad()
 
         # Plot sampling points (data)
-        pl.plot_sampling_points(X, pts_in_data, pts_bc_data, pts_grad_data,
-                                params, False)
+        pl.plot_sampling_points(X, pts_in_data, pts_bc_data, 
+                                pts_grad_data, params, flag)
 
         # Collocation points (PDE residuals)
         if params['model'] == 'pinn':  
-            objSampleColl = smp.SamplingData(params, True) 
-            objSampleColl.write_data_to_npz(params, True)
+            flag = True # collocation points
+            objSampleColl = smp.SamplingData(params)
+            objSampleColl.sample(flag) 
+            # Write data to file
+            if params['sampling']['file_format'] == 'csv':
+                objSampleColl.write_data_to_csv()
+            elif params['sampling']['file_format'] == 'npz': 
+                objSampleColl.write_data_to_npz()
+            else:
+                ValueError(f"unknown format {params['sampling']['file_format']}")
+
             Xf = objSampleColl.get_x()  
 
             # Get domain points
@@ -78,24 +94,12 @@ def main():
             pts_grad_coll = objSampleColl.get_pts_grad()
 
             # Plot sampling points (collocation)
-            pl.plot_sampling_points(Xf, pts_in_coll, pts_bc_coll, pts_grad_coll,
-                                    params, True)
+            pl.plot_sampling_points(Xf, pts_in_coll, pts_bc_coll, 
+                                    pts_grad_coll, params, flag)
     else:
-        # Read data points
-        df = pd.read_csv(os.path.join(params['pathData'], 
-            params['sampling']['fdata'] + '.csv'))
-        X = df[['x', 'y', 'z']].to_numpy(dtype=float)
-        U = df[['u', 'v', 'w']].to_numpy(dtype=float)
-        rho = df['rho'].to_numpy(dtype=float)
-        p = df['p'].to_numpy(dtype=float)
-        mut = df['mut'].to_numpy(dtype=float) 
-        
-        # Collocation points (PDE residuals)
-        if params['model'] == 'pinn':   
-            dff = pd.read_csv(os.path.join(params['pathData'], 
-                params['sampling']['fcoll'] + '.csv'))
-            Xf = df[['xf', 'yf', 'zf']].to_numpy(dtype=float)
-         
+        flag = False 
+
+
     if(params['routine']['inference']):
         # Number of points inside the geometry. This is not the same
         # number of the points provided in the configureation file.
