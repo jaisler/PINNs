@@ -353,50 +353,6 @@ class SamplingData:
 
         return pts
 
-    def write_data_to_csv(self):
-        
-        if self.collpts:
-            out = np.column_stack([self.X, self.pts_in, self.pts_bc,
-                                   self.pts_grad]) 
-            np.savetxt(
-                self.params['pathData']+'/'+self.params['sampling']['fcoll']+'.csv', 
-                out, delimiter=",", 
-                header="xf,yf,zf,pts_in,pts_bc,pts_grad", 
-                comments="")
-        else:     
-            out = np.column_stack([self.X, self.rho, self.U[:,0], self.U[:,1], 
-                                   self.U[:,2], self.p, self.mut, 
-                                   self.pts_in, self.pts_bc, self.pts_grad]) 
-            np.savetxt(
-                self.params['pathData']+'/'+self.params['sampling']['fdata']+'.csv', 
-                out, delimiter=",", 
-                header="x,y,z,rho,u,v,w,p,mut,pts_in,pts_bc,pts_grad", 
-                comments="")
-
-    def read_data_from_csv(self):
-        
-        if self.collpts:
-            # Collocation points (PDE residuals)
-            df = pd.read_csv(os.path.join(self.params['pathData'], 
-                self.params['sampling']['fcoll'] + '.csv'))
-            X = df[['xf', 'yf', 'zf']].to_numpy(dtype=float)
-            U = None
-            rho = None
-            p = None
-            mut = None
-
-        else:
-            # Read data points 
-            df = pd.read_csv(os.path.join(self.params['pathData'], 
-                self.params['sampling']['fdata'] + '.csv'))
-            X = df[['x', 'y', 'z']].to_numpy(dtype=float)
-            U = df[['u', 'v', 'w']].to_numpy(dtype=float)
-            rho = df['rho'].to_numpy(dtype=float)
-            p = df['p'].to_numpy(dtype=float)
-            mut = df['mut'].to_numpy(dtype=float) 
-            
-        return X, U, rho, p, mut
-
     def write_data_to_npz(self):
         """
         Save sampling data to a compressed NumPy .npz file.
