@@ -365,12 +365,12 @@ class SamplingData:
                 comments="")
         else:     
             out = np.column_stack([self.X, self.rho, self.U[:,0], self.U[:,1], 
-                                   self.U[:,2], self.p,self.mut, 
+                                   self.U[:,2], self.p, self.mut, 
                                    self.pts_in, self.pts_bc, self.pts_grad]) 
             np.savetxt(
                 self.params['pathData']+'/'+self.params['sampling']['fdata']+'.csv', 
                 out, delimiter=",", 
-                header="x,y,z,rho,u,v,w,p,mut,pts,pts_in,pts_bc,pts_grad", 
+                header="x,y,z,rho,u,v,w,p,mut,pts_in,pts_bc,pts_grad", 
                 comments="")
 
     def read_data_from_csv(self):

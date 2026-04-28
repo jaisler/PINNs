@@ -25,8 +25,8 @@ device: cuda
 
 # Save and load model 
 model_name: model_pinn
-load_model: False
-save_model: False
+load_model: True
+save_model: True
 
 # Verbose
 verbose: True
@@ -34,10 +34,9 @@ verbose: True
 # Routines
 routine:
   plotflow: False
-  sampling: True
+  sampling: False
   inference: True
   identification: False
-
 
 plotflow:
   fields: ["Density", "Pressure", "Velocity", "Velocity"]
@@ -73,8 +72,6 @@ sampling:
   # Data filename
   fdata: 'sampling_data'
   fcoll: 'sampling_coll'
-  # File format for loading and saving
-  file_format: npz # csv or npz
 
 # Losses
 loss:
@@ -94,7 +91,7 @@ scheduler_size: 2000
 scheduler_gamma: 0.8
 
 # LBFGS: start after adam optimizer finish
-use_lbfgs: False
+use_lbfgs: True
 n_lbfgs_iter: 200
 lr_lbfgs: 1.0
 maxi_ter_lbfgs: 20

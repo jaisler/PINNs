@@ -48,12 +48,7 @@ def main():
         objSampleData = smp.SamplingData(params)
         objSampleData.sample(flag) 
         # Write data to file
-        if params['sampling']['file_format'] == 'csv':
-            objSampleData.write_data_to_csv()
-        elif params['sampling']['file_format'] == 'npz': 
-            objSampleData.write_data_to_npz()
-        else:
-            ValueError(f"unknown format {params['sampling']['file_format']}")
+        objSampleData.write_data_to_npz()
         
         # Get sampling ponits and fields. Data points
         X = objSampleData.get_x() # N x 3
@@ -79,12 +74,7 @@ def main():
             objSampleColl = smp.SamplingData(params)
             objSampleColl.sample(flag) 
             # Write data to file
-            if params['sampling']['file_format'] == 'csv':
-                objSampleColl.write_data_to_csv()
-            elif params['sampling']['file_format'] == 'npz': 
-                objSampleColl.write_data_to_npz()
-            else:
-                ValueError(f"unknown format {params['sampling']['file_format']}")
+            objSampleColl.write_data_to_npz()
 
             Xf = objSampleColl.get_x()  
 
