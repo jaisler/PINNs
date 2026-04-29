@@ -392,14 +392,15 @@ class SamplingData:
         print("---------------------------------------")
         print(f"Saved data points to: {filename}")
 
-    def read_data_from_npz(self):
+    def read_data_from_npz(self, collpts):
         """
         Load sampling data from a compressed NumPy .npz file.
         """
 
         path_data = Path(self.params["pathData"])
 
-        if self.collpts:
+        # Note that, here, the collpts was sent as argument from main
+        if not collpts:
             filename = path_data / f"{self.params['sampling']['fdata']}.npz"
         else:
             filename = path_data / f"{self.params['sampling']['fcoll']}.npz"
@@ -411,7 +412,7 @@ class SamplingData:
         pts_bc = data["pts_bc"]
         pts_grad = data["pts_grad"]
 
-        if "U" in data.files:
+        if not collpts:
             U = data["U"]
             rho = data["rho"]
             p = data["p"]
@@ -422,7 +423,7 @@ class SamplingData:
             p = None
             mut = None
 
-        return X, U, rho, p, mut, pts_in, pts_bc, pts_grad
+        return X, pts_in, pts_bc, pts_grad, U, rho, p, mut
 
     def get_pts_in(self):       
         return self.pts_in

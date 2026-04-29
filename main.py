@@ -45,50 +45,59 @@ def main():
     if (params['routine']['sampling']):
         flag = False # Data points
         # Create data set
-        objSampleData = smp.SamplingData(params)
-        objSampleData.sample(flag) 
+        sample_data = smp.SamplingData(params)
+        sample_data.sample(flag) 
         # Write data to file
-        objSampleData.write_data_to_npz()
+        sample_data.write_data_to_npz()
         
         # Get sampling ponits and fields. Data points
-        X = objSampleData.get_x() # N x 3
-        U = objSampleData.get_u() # N x 3
-        rho = objSampleData.get_rho() # N
-        p = objSampleData.get_p() # N
+        X = sample_data.get_x() # N x 3
+        U = sample_data.get_u() # N x 3
+        rho = sample_data.get_rho() # N
+        p = sample_data.get_p() # N
         # Note that if Euler equations are used it return an array
         # of zeros
-        mut = objSampleData.get_mut()
+        mut = sample_data.get_mut()
 
         # Get domain points
-        pts_in_data = objSampleData.get_pts_in()
-        pts_bc_data = objSampleData.get_pts_bc()
-        pts_grad_data = objSampleData.get_pts_grad()
-
-        # Plot sampling points (data)
-        pl.plot_sampling_points(X, pts_in_data, pts_bc_data, 
-                                pts_grad_data, params, flag)
+        pts_in_data = sample_data.get_pts_in()
+        pts_bc_data = sample_data.get_pts_bc()
+        pts_grad_data = sample_data.get_pts_grad()
 
         # Collocation points (PDE residuals)
         if params['model'] == 'pinn':  
             flag = True # collocation points
-            objSampleColl = smp.SamplingData(params)
-            objSampleColl.sample(flag) 
+            sample_coll = smp.SamplingData(params)
+            sample_coll.sample(flag) 
             # Write data to file
-            objSampleColl.write_data_to_npz()
+            sample_coll.write_data_to_npz()
 
-            Xf = objSampleColl.get_x()  
+            Xf = sample_coll.get_x()  
 
             # Get domain points
-            pts_in_coll = objSampleColl.get_pts_in()
-            pts_bc_coll = objSampleColl.get_pts_bc()
-            pts_grad_coll = objSampleColl.get_pts_grad()
+            pts_in_coll = sample_coll.get_pts_in()
+            pts_bc_coll = sample_coll.get_pts_bc()
+            pts_grad_coll = sample_coll.get_pts_grad()
 
-            # Plot sampling points (collocation)
-            pl.plot_sampling_points(Xf, pts_in_coll, pts_bc_coll, 
-                                    pts_grad_coll, params, flag)
     else:
-        flag = False 
+        flag = False        
+        read_data = smp.SamplingData(params)    
+        X, pts_in_data, pts_bc_data, pts_grad_data, U, rho, p, mut = \
+            read_data.read_data_from_npz(flag)
 
+        if params['model'] == 'pinn':  
+            flag = True
+            Xf, pts_in_coll, pts_bc_coll, pts_grad_coll, _, _, _, _ = \
+                read_data.read_data_from_npz(flag)
+
+    # Plot sampling points (data)
+    pl.plot_sampling_points(X, pts_in_data, pts_bc_data, 
+                            pts_grad_data, params, False)
+
+    if params['model'] == 'pinn':  
+        # Plot sampling points (collocation)
+        pl.plot_sampling_points(Xf, pts_in_coll, pts_bc_coll, 
+                                pts_grad_coll, params, True)
 
     if(params['routine']['inference']):
         # Number of points inside the geometry. This is not the same
