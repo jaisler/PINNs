@@ -16,7 +16,14 @@ class PhysicsInformedNN(nn.Module):
         xdata, ydata, rhodata, udata, vdata, pdata, # data points
         xf, yf, # Collocation points (only coordinates)
         params,
-        mutdata=None # for RANS
+        mutdata=None, # for RANS
+        xval=None,
+        yval=None,
+        rhoval=None,
+        uval=None,
+        vval=None,
+        pval=None,
+        mutval=None,
     ):
         super().__init__()
 
@@ -174,7 +181,7 @@ class PhysicsInformedNN(nn.Module):
             Xall = Xdata.copy()
         self.lb = torch.tensor(Xall.min(0), dtype=torch.float32, device=self.device)  # (2,)
         self.ub = torch.tensor(Xall.max(0), dtype=torch.float32, device=self.device)  # (2,)
-        
+
 		# Optimizers
         # Adam
         self.use_adam = params.get('use_adam', False)
@@ -232,6 +239,25 @@ class PhysicsInformedNN(nn.Module):
                 tolerance_change=params.get("lbfgs_tol_change", 1e-9))
         else:
             self.n_lbfgs_iter = 0
+
+        # Validation
+        self.has_validation = xval is not None
+        self.lval = [] # loss
+
+        if self.has_validation:
+            self.xval = torch.tensor(xval, dtype=torch.float32, device=self.device)
+            self.yval = torch.tensor(yval, dtype=torch.float32, device=self.device)
+            self.rhoval = torch.tensor(rhoval, dtype=torch.float32, device=self.device)
+            self.uval = torch.tensor(uval, dtype=torch.float32, device=self.device)
+            self.vval = torch.tensor(vval, dtype=torch.float32, device=self.device)
+            self.pval = torch.tensor(pval, dtype=torch.float32, device=self.device)
+
+            if mutval is not None:
+                self.mutval = torch.tensor(
+                    mutval, dtype=torch.float32, device=self.device
+                )
+            else:
+                self.mutval = None
 
         # Load model
         if params['load_model']:

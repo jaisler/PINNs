@@ -233,8 +233,20 @@ def main():
         
         # Training - note that model is a object of the class
         # Note that model is a object of the class
-        model = pinns.PhysicsInformedNN(xtrain, ytrain, rhotrain, utrain, 
-            vtrain, ptrain, xftrain, yftrain, params, muttrain)
+        model = pinns.PhysicsInformedNN(
+            xtrain, ytrain,
+            rhotrain, utrain, vtrain, ptrain,
+            xftrain, yftrain,
+            params,
+            muttrain,
+            xval,
+            yval,
+            rhoval,
+            uval,
+            vval,
+            pval,
+            mutval
+        )
 
         # Train
         start_time = time.time()                
