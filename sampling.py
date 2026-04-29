@@ -90,8 +90,7 @@ class SamplingData:
                 base_sampler=base_sampler,
                 var_name=self.params['sampling'].get('grad_type_var', 'Density'),
                 pool_factor=self.params['sampling'].get('pool_factor', 8),
-                alpha=self.params['sampling'].get('alpha_grad_rho', 1.5),
-                seed=self.params['sampling'].get('seed', 1234))
+                alpha=self.params['sampling'].get('alpha_grad_rho', 1.5))
             self.pts_grad = np.vstack([self.pts_grad, pts_grad])
             self.pts = np.vstack([self.pts, pts_grad])
 
@@ -183,7 +182,7 @@ class SamplingData:
         Returns: 
         """
 
-        rng = np.random.default_rng(self.params['sampling']['seed'])
+        rng = np.random.default_rng(self.params.get('seed', 1234))
         if npoin_bc <= 0:
             raise ValueError("params['sampling']['nspoin_bc'] must be > 0")
 
@@ -262,10 +261,9 @@ class SamplingData:
         var_name="Density",
         pool_factor=8,
         alpha=1.5,
-        eps=1e-12,
-        seed=1234):
+        eps=1e-12):
 
-        rng = np.random.default_rng(seed)
+        rng = np.random.default_rng(self.params.get('seed', 1234))
 
         # Compute grad(var) on the mesh
         if var_name not in mesh.array_names:

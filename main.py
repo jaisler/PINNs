@@ -4,6 +4,7 @@ import numpy as np
 import time
 import pyvista as pv
 from scipy.interpolate import griddata
+from pathlib import Path
 
 import pinns
 import sampling as smp
@@ -113,28 +114,117 @@ def main():
         v = U[:,1]   # N
         p = p[:]     # N
         mut = mut[:] # N: eddy viscosity
-        
-        # Training Data - noiseless data
-        N_train_data = min(params['N_train_data'], N)    
-        idx = np.random.choice(N, N_train_data, replace=False)
-        xtrain = x[idx,None]
-        ytrain = y[idx,None]
-        rhotrain = rho[idx,None]
-        utrain = u[idx,None]
-        vtrain = v[idx,None]
-        ptrain = p[idx,None]
-        muttrain = mut[idx,None]
+                
+        # Data points
+        # Train / validation / test split
+        N_train_data = min(params['N_train_data'], N)
+
+        N_val_data = min(
+            params.get('N_val_data', 0),
+            N - N_train_data
+        )
+
+        N_test_data = min(
+            params.get('N_test_data', N - N_train_data - N_val_data),
+            N - N_train_data - N_val_data
+        )
+
+        # Path for the dataset split
+        idx_file = Path(params["pathData"]) / "idx_split_data.npz"
+
+        if idx_file.exists() and not params['routine']['sampling']:
+            split = np.load(idx_file)
+
+            idx_train = split["idx_train"]
+            idx_val = split["idx_val"]
+            idx_test = split["idx_test"]
+
+            if np.max(idx_train) >= N or np.max(idx_val) >= N or np.max(idx_test) >= N:
+                raise ValueError(
+                    "Loaded split indices are not compatible with the current data."
+                )
+
+        else:
+            rng = np.random.default_rng(params.get("seed", 1234))
+
+            idx_all = rng.permutation(N)
+
+            idx_train = idx_all[:N_train_data]
+
+            idx_val = idx_all[
+                N_train_data:N_train_data + N_val_data
+            ]
+
+            idx_test = idx_all[
+                N_train_data + N_val_data:
+                N_train_data + N_val_data + N_test_data
+            ]
+
+            np.savez(
+                idx_file,
+                idx_train=idx_train,
+                idx_val=idx_val,
+                idx_test=idx_test
+            )
+
+        # Training data
+        xtrain = x[idx_train, None]
+        ytrain = y[idx_train, None]
+        rhotrain = rho[idx_train, None]
+        utrain = u[idx_train, None]
+        vtrain = v[idx_train, None]
+        ptrain = p[idx_train, None]
+        muttrain = mut[idx_train, None]
+
+        # Validation data
+        xval = x[idx_val, None]
+        yval = y[idx_val, None]
+        rhoval = rho[idx_val, None]
+        uval = u[idx_val, None]
+        vval = v[idx_val, None]
+        pval = p[idx_val, None]
+        mutval = mut[idx_val, None]
+
+        # Test data
+        xtest = x[idx_test, None]
+        ytest = y[idx_test, None]
+        rhotest = rho[idx_test, None]
+        utest = u[idx_test, None]
+        vtest = v[idx_test, None]
+        ptest = p[idx_test, None]
+        muttest = mut[idx_test, None]
 
         if Xf is not None:  
             # Collocation points
             Ncoll = Xf.shape[0]
             xf = Xf[:,0]   # N 
             yf = Xf[:,1]   # N
-            # Training data
-            N_train_coll = min(params['N_train_coll'], Ncoll)    
-            idxc = np.random.choice(Ncoll, N_train_coll, replace=False)
-            xftrain = xf[idxc,None]
-            yftrain = yf[idxc,None]
+            # For training data
+            N_train_coll = min(params['N_train_coll'], Ncoll)
+            # File for loading collocation ponts
+            idxc_file = Path(params["pathData"]) / "idx_train_coll.npy"
+
+            if idxc_file.exists() and not params['routine']['sampling']:
+                idxc = np.load(idxc_file)
+
+                if idxc.shape[0] != N_train_coll:
+                    raise ValueError(
+                        "Loaded collocation indices have a different size from "
+                        f"N_train_coll. Expected {N_train_coll}, got {idxc.shape[0]}."
+                    )
+
+                if np.max(idxc) >= Ncoll:
+                    raise ValueError(
+                        "Loaded collocation indices are not compatible with Xf."
+                    )
+
+            else:
+                rng = np.random.default_rng(params.get("seed", 1234))
+                idxc = rng.choice(Ncoll, N_train_coll, replace=False)
+                np.save(idxc_file, idxc)
+
+            xftrain = xf[idxc, None]
+            yftrain = yf[idxc, None]        
         
         # Plot traning ponts
         pl.plot_target_points(xtrain, ytrain, xftrain, yftrain, params, True)
@@ -158,12 +248,12 @@ def main():
             model.save_model(params['pathModel'], params['model_name'])
 
         # Get losses
-        ldata = model.get_data_loss()
-        lres = model.get_residual_loss()
-        ltotal = model.get_total_loss()
-        nepoch = model.get_n_epoch()
+        l_data = model.get_data_loss()
+        l_res = model.get_residual_loss()
+        l_total = model.get_total_loss()
+        n_epoch = model.get_n_epoch()
         # Plot losses
-        pl.plot_losses(ldata, lres, ltotal, nepoch, params)
+        pl.plot_losses(l_data, l_res, l_total, n_epoch, params)
 
         # Prediction for plotting (data, collocation)
         if Xf is not None:
