@@ -131,7 +131,7 @@ def main():
 
         # Path for the dataset split
         idx_file = Path(params["pathData"]) / "idx_split_data.npz"
-
+        # Get data from file
         if idx_file.exists() and not params['routine']['sampling']:
             split = np.load(idx_file)
 
@@ -146,15 +146,15 @@ def main():
 
         else:
             rng = np.random.default_rng(params.get("seed", 1234))
-
+            # Shuffle index
             idx_all = rng.permutation(N)
-
+            # Training data
             idx_train = idx_all[:N_train_data]
-
+            # Validation data
             idx_val = idx_all[
                 N_train_data:N_train_data + N_val_data
             ]
-
+            # Test data
             idx_test = idx_all[
                 N_train_data + N_val_data:
                 N_train_data + N_val_data + N_test_data
@@ -234,12 +234,12 @@ def main():
         # Training - note that model is a object of the class
         # Note that model is a object of the class
         model = pinns.PhysicsInformedNN(
-            xtrain, ytrain,
-            rhotrain, utrain, vtrain, ptrain,
-            xftrain, yftrain,
+            xtrain, ytrain, # training data
+            rhotrain, utrain, vtrain, ptrain, # training data
+            xftrain, yftrain, # collocation data
             params,
-            muttrain,
-            xval,
+            muttrain, # RANS eq.
+            xval, # validation data
             yval,
             rhoval,
             uval,
@@ -263,9 +263,13 @@ def main():
         l_data = model.get_data_loss()
         l_res = model.get_residual_loss()
         l_total = model.get_total_loss()
+        l_val = model.get_validation_data_loss()
         n_epoch = model.get_n_epoch()
+        
         # Plot losses
         pl.plot_losses(l_data, l_res, l_total, n_epoch, params)
+        # Plot validation loss
+        pl.plot_validation_loss(l_data, l_val, n_epoch, params)
 
         # Prediction for plotting (data, collocation)
         if Xf is not None:

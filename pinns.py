@@ -158,6 +158,8 @@ class PhysicsInformedNN(nn.Module):
         self.p = torch.tensor(pstar, dtype=torch.float32, device=self.device)
         if self.eq == 'RANS': 
             self.mut = torch.tensor(muthat, dtype=torch.float32, device=self.device)        
+        else:
+            self.mut = None
 
         if xf is not None and yf is not None and self.model == 'pinn':
             # Non-dimensional coordiantes (collocation points for PINNs)
@@ -203,15 +205,6 @@ class PhysicsInformedNN(nn.Module):
             self.scheduler = torch.optim.lr_scheduler.StepLR(
                 self.optimizer_adam, step_size=scheduler_size, gamma=scheduler_gamma)
             
-            # Plateau approach
-            #self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            #    self.optimizer_adam,
-            #    mode='min',
-            #    factor=0.5,
-            #    patience=20,
-            #    threshold=1e-4,
-            #    min_lr=1e-5
-            #)
         else:
             self.n_adam_iter = 0
 
@@ -245,16 +238,40 @@ class PhysicsInformedNN(nn.Module):
         self.lval = [] # loss
 
         if self.has_validation:
-            self.xval = torch.tensor(xval, dtype=torch.float32, device=self.device)
-            self.yval = torch.tensor(yval, dtype=torch.float32, device=self.device)
-            self.rhoval = torch.tensor(rhoval, dtype=torch.float32, device=self.device)
-            self.uval = torch.tensor(uval, dtype=torch.float32, device=self.device)
-            self.vval = torch.tensor(vval, dtype=torch.float32, device=self.device)
-            self.pval = torch.tensor(pval, dtype=torch.float32, device=self.device)
+            # Non-dimensional data (data points)
+            (
+                x_valstar, y_valstar, rho_valstar,
+                u_valstar, v_valstar, p_valstar,
+                mut_valstar,
+            ) = self.get_nondimensional_data(
+                xval, yval, rhoval,uval, vval, pval, mutval,
+            )
+            # Rescaling mut (turbulent viscosity for marchine learning)
+            if self.eq == 'RANS':
+                if mut_valstar is None:
+                    raise ValueError("For equation='RANS', mut must be provided.")
 
-            if mutval is not None:
+                # Second scaling for ML only
+                #self.mut_valstarscale = float(np.percentile(mut_valstar, 95.0))
+                #if self.mut_valstarscale <= 0.0:
+                #    self.mut_valstarscale = 1.0
+
+                # Scaled target used in the supervised loss
+                mut_valhat = mut_valstar / self.mut_scale   
+
+            # Data coordiantes
+            Xval = np.concatenate([x_valstar, y_valstar], 1)
+            # Spatial coordinates
+            self.Xval = torch.tensor(Xval, dtype=torch.float32, device=self.device)
+            self.xval = self.Xval[:,0:1]
+            self.yval = self.Xval[:,1:2]
+            self.rhoval = torch.tensor(rho_valstar, dtype=torch.float32, device=self.device)
+            self.uval = torch.tensor(u_valstar, dtype=torch.float32, device=self.device)
+            self.vval = torch.tensor(v_valstar, dtype=torch.float32, device=self.device)
+            self.pval = torch.tensor(p_valstar, dtype=torch.float32, device=self.device)
+            if self.eq == 'RANS':
                 self.mutval = torch.tensor(
-                    mutval, dtype=torch.float32, device=self.device
+                    mut_valhat, dtype=torch.float32, device=self.device
                 )
             else:
                 self.mutval = None
@@ -618,6 +635,67 @@ class PhysicsInformedNN(nn.Module):
 
         return loss, data_loss, res_loss
 
+    def validation_loss_fn(self):
+        """
+        Validation data loss function based only on supervised data.
+
+        The validation set should not be used to update the weights.
+        It is only used to decide when to stop training.
+        """
+
+        if not self.has_validation:
+            return None
+
+        # Use the model in prediction/evaluation mode
+        self.eval()
+
+        # Do not compute gradients
+        with torch.no_grad():
+            # compute validation data loss only
+            if self.eq == 'Euler': 
+                # Data
+                rho_val_pred, u_val_pred, v_val_pred, p_val_pred = \
+                    self.net_fields(self.xval, self.yval)        
+                # is not RANS
+                l_val_mut = torch.tensor(0.0, device=self.device)
+                w_mut = 0.0
+
+            elif self.eq == 'RANS':
+                # Data        
+                rho_val_pred, u_val_pred, v_val_pred, p_val_pred, mut_val_pred \
+                    = self.net_fields(self.xval, self.yval)
+    
+                if self.mutval is None:
+                    raise ValueError("For RANS, mut_t must be provided in loss_fn.")
+                # turbulent viscosity data loss       
+                l_val_mut = torch.mean((self.mutval - mut_val_pred) ** 2)
+                w_mut = 1.0
+
+            # Data losses
+            l_val_rho = torch.mean((self.rhoval - rho_val_pred) ** 2)
+            l_val_u   = torch.mean((self.uval   - u_val_pred)   ** 2)
+            l_val_v   = torch.mean((self.vval   - v_val_pred)   ** 2)
+            l_val_p   = torch.mean((self.pval   - p_val_pred)   ** 2)
+
+            # data weights
+            w_rho = 1.0
+            w_u   = 1.0
+            w_v   = 8.0
+            w_p   = 1.0
+
+            l_val = (
+                w_rho * l_val_rho +
+                w_u   * l_val_u   +
+                w_v   * l_val_v   +
+                w_p   * l_val_p   +
+                w_mut * l_val_mut
+            )
+
+        # Return to training mode
+        self.train()
+
+        return l_val
+
     def fit(self):
         """
         Train the Physics-Informed Neural Network (PINN) parameters using Adam,
@@ -656,6 +734,10 @@ class PhysicsInformedNN(nn.Module):
                 self.loss.append(loss.item())
                 self.n_epoch += 1
 
+                # validation data loss function
+                if self.has_validation:
+                    self.lval.append(self.validation_loss_fn().item())
+
                 # Print
                 if it % self.io_loss == 0:
                     self.print_loss_fn(it)
@@ -677,12 +759,16 @@ class PhysicsInformedNN(nn.Module):
 
                 # recompute once for logging
                 loss, data_loss, res_loss = self.loss_fn()
-
+                            
                 self.ldata.append(data_loss.item())
                 self.lres.append(res_loss.item())
                 self.loss.append(loss.item())
 
                 self.n_epoch += 1   # increment once per LBFGS outer step
+
+                # validation data loss function
+                if self.has_validation:
+                    self.lval.append(self.validation_loss_fn().item())
 
                 # Print
                 if it % self.io_loss == 0:
@@ -966,6 +1052,9 @@ class PhysicsInformedNN(nn.Module):
 
     def get_total_loss(self):
         return self.loss
+    
+    def get_validation_data_loss(self):
+        return self.lval
     
     def get_n_epoch(self):
         return self.n_epoch

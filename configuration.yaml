@@ -71,10 +71,6 @@ sampling:
   fdata: 'data_points'
   fcoll: 'collocation_points'
 
-# Losses
-loss:
-  plloss: 'losses'
-
 # NN setup
 io_loss: 10
 N_train_data: 1000
@@ -85,14 +81,14 @@ layers: [2, 32, 32, 32, 4]
 
 # Adam Optimizer
 use_adam: True
-n_adam_iter: 1000
-lr_adam: 2e-4
+n_adam_iter: 5000
+lr_adam: 4e-4
 scheduler_size: 2000
 scheduler_gamma: 0.8
 
 # LBFGS: start after adam optimizer finish
-use_lbfgs: False
-n_lbfgs_iter: 80
+use_lbfgs: True
+n_lbfgs_iter: 200
 lr_lbfgs: 1.0
 maxi_ter_lbfgs: 20
 
