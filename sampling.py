@@ -8,11 +8,12 @@ from pathlib import Path
 
 class SamplingData:
     # Initialize the class
-    def __init__(self, params):
+    def __init__(self, params, collpts=False):
         """
         Initialize the SamplingData object without performing sampling.
         """
 
+        self.collpts = collpts
         self.params = params
         self.dims = params["dims"]
 
@@ -27,9 +28,21 @@ class SamplingData:
         self.p = None
         self.mut = None
 
-        self.collpts = None
+        print("---------------------------------------")
+        print("Sample data initialized")
+        print(f"  Sampling                       : {params['routine']['sampling']}")
+        if params['routine']['sampling']:
+            if self.collpts:
+                print("Sampling collocation points ...")
+            else:
+                print("Sampling data points...")
+        else:
+            if self.collpts:
+                print("Loading collocation points ...")
+            else:
+                print("Loading data points ...")
 
-    def sample(self, collpts=False):
+    def sample(self):
         """
         Perform the sampling procedure.
 
@@ -37,15 +50,13 @@ class SamplingData:
         interpolates the solution, and stores the sampled arrays.
         """
 
-        self.collpts = collpts
-
         # Reset arrays before sampling
         self.pts_in = np.empty((0, 3), dtype=float)
         self.pts_bc = np.empty((0, 3), dtype=float)
         self.pts_grad = np.empty((0, 3), dtype=float)
         self.pts = np.empty((0, 3), dtype=float)
 
-        if collpts:
+        if self.collpts:
             # Collocation points
             npinner = self.params['sampling']['nspoin_coll']
             npgrad = self.params['sampling']['nspoin_coll_grad']
@@ -119,7 +130,7 @@ class SamplingData:
         self.pts = self.pts[mask]
         self.X = sampled.points[mask]        # (N,3) or (N,2)
 
-        if collpts:
+        if self.collpts:
             self.U = sampled.points[mask] * 0.0  
             self.rho = sampled.points[mask] * 0.0  
             self.p = sampled.points[mask] * 0.0
@@ -390,7 +401,7 @@ class SamplingData:
         print("---------------------------------------")
         print(f"Saved data points to: {filename}")
 
-    def read_data_from_npz(self, collpts):
+    def read_data_from_npz(self):
         """
         Load sampling data from a compressed NumPy .npz file.
         """
@@ -398,7 +409,7 @@ class SamplingData:
         path_data = Path(self.params["pathData"])
 
         # Note that, here, the collpts was sent as argument from main
-        if not collpts:
+        if not self.collpts:
             filename = path_data / f"{self.params['sampling']['fdata']}.npz"
         else:
             filename = path_data / f"{self.params['sampling']['fcoll']}.npz"
@@ -410,7 +421,7 @@ class SamplingData:
         pts_bc = data["pts_bc"]
         pts_grad = data["pts_grad"]
 
-        if not collpts:
+        if not self.collpts:
             U = data["U"]
             rho = data["rho"]
             p = data["p"]

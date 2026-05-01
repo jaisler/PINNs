@@ -46,8 +46,8 @@ def main():
     if (params['routine']['sampling']):
         flag = False # Data points
         # Create data set
-        sample_data = smp.SamplingData(params)
-        sample_data.sample(flag) 
+        sample_data = smp.SamplingData(params, flag)
+        sample_data.sample() 
         # Write data to file
         sample_data.write_data_to_npz()
         
@@ -68,8 +68,8 @@ def main():
         # Collocation points (PDE residuals)
         if params['model'] == 'pinn':  
             flag = True # collocation points
-            sample_coll = smp.SamplingData(params)
-            sample_coll.sample(flag) 
+            sample_coll = smp.SamplingData(params, flag)
+            sample_coll.sample() 
             # Write data to file
             sample_coll.write_data_to_npz()
 
@@ -82,14 +82,15 @@ def main():
 
     else:
         flag = False        
-        read_data = smp.SamplingData(params)    
+        read_data = smp.SamplingData(params, flag)    
         X, pts_in_data, pts_bc_data, pts_grad_data, U, rho, p, mut = \
-            read_data.read_data_from_npz(flag)
+            read_data.read_data_from_npz()
 
         if params['model'] == 'pinn':  
             flag = True
+            read_coll = smp.SamplingData(params, flag)    
             Xf, pts_in_coll, pts_bc_coll, pts_grad_coll, _, _, _, _ = \
-                read_data.read_data_from_npz(flag)
+                read_coll.read_data_from_npz()
 
     # Plot sampling points (data)
     pl.plot_sampling_points(X, pts_in_data, pts_bc_data, 
@@ -231,7 +232,6 @@ def main():
         # Plot all points
         pl.plot_target_points(x, y, xf, yf, params)
         
-        # Training - note that model is a object of the class
         # Note that model is a object of the class
         model = pinns.PhysicsInformedNN(
             xtrain, ytrain, # training data
@@ -284,7 +284,7 @@ def main():
         pred_list = [rhoall_pred, pall_pred, uall_pred, vall_pred]
         for ifield, pred in enumerate(pred_list):
             pl.plot_predicted_flow(xall, yall, pred, ifield, params)
-
+ 
         # Prediction for the data points (error calculation)
         rho_pred, u_pred, v_pred, p_pred = model.predict(x, y) 
 

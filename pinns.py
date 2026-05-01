@@ -251,6 +251,10 @@ class PhysicsInformedNN(nn.Module):
             print(f"  Training data points         : {Xdata.shape[0]}")
             if Xf is not None:
                 print(f"  Training collocation points  : {Xf.shape[0]}")
+            if self.has_validation:
+                print(f"  Validation data points         : {xval.shape[0]}")
+            print(f"  Load model                   : {params['load_model']}")
+            print(f"  Save model                   : {params['save_model']}")
             print(f"  Use Adam                     : {self.use_adam}") 
             if self.use_adam:
                 print(f"    Number of Adam iteration   : {self.n_adam_iter}")
