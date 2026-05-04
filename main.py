@@ -1,10 +1,12 @@
 import os
 import yaml
-import pandas as pd
 import numpy as np
 import time
 import pyvista as pv
 from scipy.interpolate import griddata
+from pathlib import Path
+import torch
+import torch.nn as nn
 
 import pinns
 import sampling as smp
@@ -44,43 +46,63 @@ def main():
 
     # Sampling points - Data points
     if (params['routine']['sampling']):
+        flag = False # Data points
         # Create data set
-        objSampleData = smp.SamplingData(params, False) 
-        objSampleData.write_data_to_csv(params, False)
-        objSampleData.plot_sampling_points(params, False)
-
+        sample_data = smp.SamplingData(params, flag)
+        sample_data.sample() 
+        # Write data to file
+        sample_data.write_data_to_npz()
+        
         # Get sampling ponits and fields. Data points
-        X = objSampleData.get_x() # N x 3
-        U = objSampleData.get_u() # N x 3
-        rho = objSampleData.get_rho() # N
-        p = objSampleData.get_p() # N
+        X = sample_data.get_x() # N x 3
+        U = sample_data.get_u() # N x 3
+        rho = sample_data.get_rho() # N
+        p = sample_data.get_p() # N
         # Note that if Euler equations are used it return an array
         # of zeros
-        mut = objSampleData.get_mut()
+        mut = sample_data.get_mut()
+
+        # Get domain points
+        pts_in_data = sample_data.get_pts_in()
+        pts_bc_data = sample_data.get_pts_bc()
+        pts_grad_data = sample_data.get_pts_grad()
 
         # Collocation points (PDE residuals)
         if params['model'] == 'pinn':  
-            objSampleColl = smp.SamplingData(params, True) 
-            objSampleColl.write_data_to_csv(params, True)
-            objSampleColl.plot_sampling_points(params, True)
-            Xf = objSampleColl.get_x()
-        
+            flag = True # collocation points
+            sample_coll = smp.SamplingData(params, flag)
+            sample_coll.sample() 
+            # Write data to file
+            sample_coll.write_data_to_npz()
+
+            Xf = sample_coll.get_x()  
+
+            # Get domain points
+            pts_in_coll = sample_coll.get_pts_in()
+            pts_bc_coll = sample_coll.get_pts_bc()
+            pts_grad_coll = sample_coll.get_pts_grad()
+
     else:
-        # Read data points
-        df = pd.read_csv(os.path.join(params['pathData'], 
-            params['sampling']['fdata'] + '.csv'))
-        X = df[['x', 'y', 'z']].to_numpy(dtype=float)
-        U = df[['u', 'v', 'w']].to_numpy(dtype=float)
-        rho = df['rho'].to_numpy(dtype=float)
-        p = df['p'].to_numpy(dtype=float)
-        mut = df['mut'].to_numpy(dtype=float) 
-        
-        # Collocation points (PDE residuals)
-        if params['model'] == 'pinn':   
-            dff = pd.read_csv(os.path.join(params['pathData'], 
-                params['sampling']['fcoll'] + '.csv'))
-            Xf = df[['xf', 'yf', 'zf']].to_numpy(dtype=float)
-         
+        flag = False        
+        read_data = smp.SamplingData(params, flag)    
+        X, pts_in_data, pts_bc_data, pts_grad_data, U, rho, p, mut = \
+            read_data.read_data_from_npz()
+
+        if params['model'] == 'pinn':  
+            flag = True
+            read_coll = smp.SamplingData(params, flag)    
+            Xf, pts_in_coll, pts_bc_coll, pts_grad_coll, _, _, _, _ = \
+                read_coll.read_data_from_npz()
+
+    # Plot sampling points (data)
+    pl.plot_sampling_points(X, pts_in_data, pts_bc_data, 
+                            pts_grad_data, params, False)
+
+    if params['model'] == 'pinn':  
+        # Plot sampling points (collocation)
+        pl.plot_sampling_points(Xf, pts_in_coll, pts_bc_coll, 
+                                pts_grad_coll, params, True)
+
     if(params['routine']['inference']):
         # Number of points inside the geometry. This is not the same
         # number of the points provided in the configureation file.
@@ -95,38 +117,138 @@ def main():
         v = U[:,1]   # N
         p = p[:]     # N
         mut = mut[:] # N: eddy viscosity
-        
-        # Training Data - noiseless data
-        N_train_data = min(params['N_train_data'], N)    
-        idx = np.random.choice(N, N_train_data, replace=False)
-        xtrain = x[idx,None]
-        ytrain = y[idx,None]
-        rhotrain = rho[idx,None]
-        utrain = u[idx,None]
-        vtrain = v[idx,None]
-        ptrain = p[idx,None]
-        muttrain = mut[idx,None]
+                
+        # Data points
+        # Train / validation / test split
+        N_train_data = min(params['N_train_data'], N)
+
+        N_val_data = min(
+            params.get('N_val_data', 0),
+            N - N_train_data
+        )
+
+        N_test_data = min(
+            params.get('N_test_data', N - N_train_data - N_val_data),
+            N - N_train_data - N_val_data
+        )
+
+        # Path for the dataset split
+        idx_file = Path(params["pathData"]) / "idx_split_data.npz"
+        # Get data from file
+        if idx_file.exists() and not params['routine']['sampling']:
+            split = np.load(idx_file)
+
+            idx_train = split["idx_train"]
+            idx_val = split["idx_val"]
+            idx_test = split["idx_test"]
+
+            if np.max(idx_train) >= N or np.max(idx_val) >= N or np.max(idx_test) >= N:
+                raise ValueError(
+                    "Loaded split indices are not compatible with the current data."
+                )
+
+        else:
+            rng = np.random.default_rng(params.get("seed", 1234))
+            # Shuffle index
+            idx_all = rng.permutation(N)
+            # Training data
+            idx_train = idx_all[:N_train_data]
+            # Validation data
+            idx_val = idx_all[
+                N_train_data:N_train_data + N_val_data
+            ]
+            # Test data
+            idx_test = idx_all[
+                N_train_data + N_val_data:
+                N_train_data + N_val_data + N_test_data
+            ]
+
+            np.savez(
+                idx_file,
+                idx_train=idx_train,
+                idx_val=idx_val,
+                idx_test=idx_test
+            )
+
+        # Training data
+        xtrain = x[idx_train, None]
+        ytrain = y[idx_train, None]
+        rhotrain = rho[idx_train, None]
+        utrain = u[idx_train, None]
+        vtrain = v[idx_train, None]
+        ptrain = p[idx_train, None]
+        muttrain = mut[idx_train, None]
+
+        # Validation data
+        xval = x[idx_val, None]
+        yval = y[idx_val, None]
+        rhoval = rho[idx_val, None]
+        uval = u[idx_val, None]
+        vval = v[idx_val, None]
+        pval = p[idx_val, None]
+        mutval = mut[idx_val, None]
+
+        # Test data
+        xtest = x[idx_test, None]
+        ytest = y[idx_test, None]
+        rhotest = rho[idx_test, None]
+        utest = u[idx_test, None]
+        vtest = v[idx_test, None]
+        ptest = p[idx_test, None]
+        muttest = mut[idx_test, None]
 
         if Xf is not None:  
             # Collocation points
             Ncoll = Xf.shape[0]
             xf = Xf[:,0]   # N 
             yf = Xf[:,1]   # N
-            # Training data
-            N_train_coll = min(params['N_train_coll'], Ncoll)    
-            idxc = np.random.choice(Ncoll, N_train_coll, replace=False)
-            xftrain = xf[idxc,None]
-            yftrain = yf[idxc,None]
+            # For training data
+            N_train_coll = min(params['N_train_coll'], Ncoll)
+            # File for loading collocation ponts
+            idxc_file = Path(params["pathData"]) / "idx_train_coll.npy"
+
+            if idxc_file.exists() and not params['routine']['sampling']:
+                idxc = np.load(idxc_file)
+
+                if idxc.shape[0] != N_train_coll:
+                    raise ValueError(
+                        "Loaded collocation indices have a different size from "
+                        f"N_train_coll. Expected {N_train_coll}, got {idxc.shape[0]}."
+                    )
+
+                if np.max(idxc) >= Ncoll:
+                    raise ValueError(
+                        "Loaded collocation indices are not compatible with Xf."
+                    )
+
+            else:
+                rng = np.random.default_rng(params.get("seed", 1234))
+                idxc = rng.choice(Ncoll, N_train_coll, replace=False)
+                np.save(idxc_file, idxc)
+
+            xftrain = xf[idxc, None]
+            yftrain = yf[idxc, None]        
         
         # Plot traning ponts
         pl.plot_target_points(xtrain, ytrain, xftrain, yftrain, params, True)
         # Plot all points
         pl.plot_target_points(x, y, xf, yf, params)
         
-        # Training - note that model is a object of the class
         # Note that model is a object of the class
-        model = pinns.PhysicsInformedNN(xtrain, ytrain, rhotrain, utrain, 
-            vtrain, ptrain, xftrain, yftrain, params, muttrain)
+        model = pinns.PhysicsInformedNN(
+            xtrain, ytrain, # training data
+            rhotrain, utrain, vtrain, ptrain, # training data
+            xftrain, yftrain, # collocation data
+            params,
+            muttrain, # RANS eq.
+            xval, # validation data
+            yval,
+            rhoval,
+            uval,
+            vval,
+            pval,
+            mutval
+        )
 
         # Train
         start_time = time.time()                
@@ -136,50 +258,41 @@ def main():
         print('Training time: %.4f' % (elapsed))
 
         # Save model
-        model.save_model(params['pathModel'], params['model_name'])
+        if params['save_model']:
+            model.save_model(params['pathModel'], params['model_name'])
 
         # Get losses
-        ldata = model.get_data_loss()
-        lres = model.get_residual_loss()
-        ltotal = model.get_total_loss()
-        nepoch = model.get_n_epoch()
+        l_data = model.get_data_loss()
+        l_res = model.get_residual_loss()
+        l_total = model.get_total_loss()
+        l_val = model.get_validation_data_loss()
+        n_epoch = model.get_n_epoch()
+        
         # Plot losses
-        pl.plot_losses(ldata, lres, ltotal, nepoch, params)
+        pl.plot_losses(l_data, l_res, l_total, n_epoch, params)
+        # Plot validation loss
+        pl.plot_validation_loss(l_data, l_val, n_epoch, params)
 
         # Prediction for plotting (data, collocation)
+        # It uses the training and validation datasets
         if Xf is not None:
             Xall = np.concatenate([X, Xf], axis=0)
         else:
             Xall = X.copy()
         xall = Xall[:,0]
         yall = Xall[:,1]
-        rhoall_pred, uall_pred, vall_pred, pall_pred = model.predict(xall, yall) 
-
+        #rhoall_pred, uall_pred, vall_pred, pall_pred = model.predict(xall, yall) 
+        
         # Plot Prediction
-        pred_list = [rhoall_pred, pall_pred, uall_pred, vall_pred]
-        for ifield, pred in enumerate(pred_list):
-            pl.plot_predicted_flow(xall, yall, pred, ifield, params)
+        #pred_list = [rhoall_pred, pall_pred, uall_pred, vall_pred]
+        #for ifield, pred in enumerate(pred_list):
+        #    pl.plot_predicted_flow(xall, yall, pred, ifield, params)
 
-        # Prediction for the data points (error calculation)
-        rho_pred, u_pred, v_pred, p_pred = model.predict(x, y) 
-
-        # compute relative L2 errors if you have ground truth at these points
-        def rel_l2(pred, true):
-            pred = np.asarray(pred).reshape(-1)
-            true = np.asarray(true).reshape(-1)
-            return np.linalg.norm(pred - true) / (np.linalg.norm(true) + 1e-12)
-
-        err_rho = rel_l2(rho_pred, rho)
-        err_u = rel_l2(u_pred, u)
-        err_v = rel_l2(v_pred, v)
-        err_p = rel_l2(p_pred, p)
-
-        print("---------------------------------------")
-        print("Relative L2 errors:")
-        print(f"  rho: {err_rho:.3e}")
-        print(f"  u  : {err_u:.3e}")
-        print(f"  v  : {err_v:.3e}")
-        print(f"  p  : {err_p:.3e}")
+        # Evaluate data        
+        test_metrics = model.evaluate_data(xtest, ytest, rhotest, utest,
+                                           vtest, ptest, muttest)
+        # Print metrics of the test dataset
+        model.print_metrics_table(test_metrics)
 
 if __name__ == "__main__":
     main()

@@ -16,7 +16,14 @@ class PhysicsInformedNN(nn.Module):
         xdata, ydata, rhodata, udata, vdata, pdata, # data points
         xf, yf, # Collocation points (only coordinates)
         params,
-        mutdata=None # for RANS
+        mutdata=None, # for RANS
+        xval=None,
+        yval=None,
+        rhoval=None,
+        uval=None,
+        vval=None,
+        pval=None,
+        mutval=None,
     ):
         super().__init__()
 
@@ -26,6 +33,7 @@ class PhysicsInformedNN(nn.Module):
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         else:
             if "cuda" in device_str and not torch.cuda.is_available():
+                print("---------------------------------------")
                 print("CUDA requested but not available. Falling back to CPU")
                 self.device = torch.device("cpu")
             else:
@@ -79,6 +87,24 @@ class PhysicsInformedNN(nn.Module):
         if self.io_loss < 0:
             raise ValueError(f"io_loss must be non-negative")
 
+        # Loss weights
+        loss_weights = params.get("loss_weights", {})
+        # Data
+        self.w_rho = float(loss_weights.get("w_rho", 1.0))
+        self.w_u   = float(loss_weights.get("w_u", 1.0))
+        self.w_v   = float(loss_weights.get("w_v", 1.0))
+        self.w_p   = float(loss_weights.get("w_p", 1.0))
+        # Residual
+        self.w_f1  = float(loss_weights.get("w_f1", 1.0))
+        self.w_f2  = float(loss_weights.get("w_f2", 1.0))
+        self.w_f3  = float(loss_weights.get("w_f3", 1.0))
+        self.w_f4  = float(loss_weights.get("w_f4", 1.0))
+        # Equation
+        if self.eq == "Euler":
+            self.w_mut = 0.0
+        elif self.eq == "RANS":
+            self.w_mut = float(loss_weights.get("w_mut", 1.0))
+
         # Initialisation: 
         # Collocation points
         Xf = None
@@ -118,39 +144,23 @@ class PhysicsInformedNN(nn.Module):
             self.Sstar  = float(params["S"]) / self.Tref
             self.mu0star = float(params["mu0"]) / self.muref
 
-        # Non-dimensional data (data points)
-        xstar, ystar, rhostar, ustar, vstar, pstar, mutstar = \
-            self.get_nondimensional_data(xdata, ydata, rhodata, udata, vdata, pdata,
-                                       mutdata)
-        
-        # Rescaling mut (turbulent viscosity for marchine learning)
-        if self.eq == 'RANS':
-            if mutstar is None:
-                raise ValueError("For equation='RANS', mut must be provided.")
+        # Training data
+        Xdata, self.x, self.y, self.rho, self.u, self.v, self.p, self.mut = \
+            self.prepare_torch_supervised_data(xdata, ydata, rhodata, udata, 
+                                               vdata, pdata, mutdata, True)
 
-            # Second scaling for ML only
-            self.mut_scale = float(np.percentile(mutstar, 95.0))
-            if self.mut_scale <= 0.0:
-                self.mut_scale = 1.0
+        # Validation
+        self.has_validation = xval is not None
+        if self.has_validation:
+            self.lval = [] # loss
+            (
+                _, self.xval, self.yval, 
+                self.rhoval, self.uval, self.vval, 
+                self.pval, self.mutval
+            ) = self.prepare_torch_supervised_data(xval, yval, rhoval, uval, 
+                                                   vval, pval, mutval, False)
 
-            # Scaled target used in the supervised loss
-            muthat = mutstar / self.mut_scale   
-
-        # Data points
-        # Data coordiantes
-        Xdata = np.concatenate([xstar, ystar], 1)
-        # Spatial coordinates
-        self.Xdata = torch.tensor(Xdata, dtype=torch.float32, device=self.device)
-        self.x = self.Xdata[:,0:1]
-        self.y = self.Xdata[:,1:2]
-        # Physical variables points (training physical information)
-        self.u = torch.tensor(ustar, dtype=torch.float32, device=self.device)
-        self.v = torch.tensor(vstar, dtype=torch.float32, device=self.device)
-        self.rho = torch.tensor(rhostar, dtype=torch.float32, device=self.device)
-        self.p = torch.tensor(pstar, dtype=torch.float32, device=self.device)
-        if self.eq == 'RANS': 
-            self.mut = torch.tensor(muthat, dtype=torch.float32, device=self.device)        
-
+        # Collocation
         if xf is not None and yf is not None and self.model == 'pinn':
             # Non-dimensional coordiantes (collocation points for PINNs)
             xfstar, yfstar = self.get_nondimensional_coord(xf, yf)
@@ -173,7 +183,7 @@ class PhysicsInformedNN(nn.Module):
             Xall = Xdata.copy()
         self.lb = torch.tensor(Xall.min(0), dtype=torch.float32, device=self.device)  # (2,)
         self.ub = torch.tensor(Xall.max(0), dtype=torch.float32, device=self.device)  # (2,)
-        
+
 		# Optimizers
         # Adam
         self.use_adam = params.get('use_adam', False)
@@ -195,15 +205,6 @@ class PhysicsInformedNN(nn.Module):
             self.scheduler = torch.optim.lr_scheduler.StepLR(
                 self.optimizer_adam, step_size=scheduler_size, gamma=scheduler_gamma)
             
-            # Plateau approach
-            #self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            #    self.optimizer_adam,
-            #    mode='min',
-            #    factor=0.5,
-            #    patience=20,
-            #    threshold=1e-4,
-            #    min_lr=1e-5
-            #)
         else:
             self.n_adam_iter = 0
 
@@ -216,7 +217,7 @@ class PhysicsInformedNN(nn.Module):
             max_iter_lbfgs = int(params.get('max_iter_lbfgs', 20))
             if self.n_lbfgs_iter <= 0:
                 raise ValueError("max_iter_lbfgs must be greater than zero")
-            learning_rate_lbfgs = int(params.get('lr_lbfgs', 1.0))
+            learning_rate_lbfgs = float(params.get('lr_lbfgs', 1.0))
             if learning_rate_lbfgs <= 0:
                 raise ValueError("L-BFGS learning rate must be greater than zero")
 
@@ -232,6 +233,10 @@ class PhysicsInformedNN(nn.Module):
         else:
             self.n_lbfgs_iter = 0
 
+        # Load model
+        if params['load_model']:
+            self.load_model(params['pathModel'], params['model_name'])
+
         # Verbose
         self.verbose = params.get("verbose", False)
         # PhysicsInformedNN setup
@@ -246,6 +251,10 @@ class PhysicsInformedNN(nn.Module):
             print(f"  Training data points         : {Xdata.shape[0]}")
             if Xf is not None:
                 print(f"  Training collocation points  : {Xf.shape[0]}")
+            if self.has_validation:
+                print(f"  Validation data points         : {xval.shape[0]}")
+            print(f"  Load model                   : {params['load_model']}")
+            print(f"  Save model                   : {params['save_model']}")
             print(f"  Use Adam                     : {self.use_adam}") 
             if self.use_adam:
                 print(f"    Number of Adam iteration   : {self.n_adam_iter}")
@@ -253,10 +262,20 @@ class PhysicsInformedNN(nn.Module):
                 print(f"    Scheduler size             : {scheduler_size}")
                 print(f"    Learning Reduction rate    : {scheduler_gamma}")
             print(f"  Use L-BFGS                   : {self.use_lbfgs}")
-            if self.use_adam:
+            if self.use_lbfgs:
                 print(f"    Number of L-BFGS iteration : {self.n_lbfgs_iter}")
                 print(f"    Max iterration for L-BFGS  : {max_iter_lbfgs}")
                 print(f"    L-BFGS learning rate       : {learning_rate_lbfgs}")
+            print(f"  Loss weights:")
+            print(f"    w_rho                      : {self.w_rho}")
+            print(f"    w_u                        : {self.w_u}")
+            print(f"    w_v                        : {self.w_v}")
+            print(f"    w_p                        : {self.w_p}")
+            print(f"    w_mut                      : {self.w_mut}")
+            print(f"    w_f1                       : {self.w_f1}")
+            print(f"    w_f2                       : {self.w_f2}")
+            print(f"    w_f3                       : {self.w_f3}")
+            print(f"    w_f4                       : {self.w_f4}")
 
         # Move the whole module to the selected device
         self.to(self.device)
@@ -418,7 +437,8 @@ class PhysicsInformedNN(nn.Module):
         Tstar = p / rho
 
         # Dynamic viscosity (Sutherland)
-        mustar = self.mu0star * (Tstar / self.T0star) ** 1.5 * ((self.T0star + self.Sstar) \
+        mustar = self.mu0star * (Tstar / self.T0star) \
+            ** 1.5 * ((self.T0star + self.Sstar) \
             / (Tstar + self.Sstar))
         
         # Effective viscosity
@@ -549,35 +569,20 @@ class PhysicsInformedNN(nn.Module):
         l_v   = torch.mean((self.v   - v_pred)   ** 2)
         l_p   = torch.mean((self.p   - p_pred)   ** 2)
 
-        # weights: chosen based on residuals
-        if self.eq == 'Euler':
-            w_f1, w_f2, w_f3, w_f4 = 1.0, 1.0, 1.0, 1.0
-            w_mut = 0.0
-            
-        elif self.eq == 'RANS':
-            w_f1, w_f2, w_f3, w_f4 = 1.0, 1.0, 1.0, 1.0
-            w_mut = 1.0        
-
-        # data weights
-        w_rho = 1.0
-        w_u   = 1.0
-        w_v   = 8.0
-        w_p   = 1.0
-
         # Data loss
         data_loss = (
-            w_rho * l_rho +
-            w_u   * l_u   +
-            w_v   * l_v   +
-            w_p   * l_p   +
-            w_mut * l_mut
+            self.w_rho * l_rho +
+            self.w_u   * l_u   +
+            self.w_v   * l_v   +
+            self.w_p   * l_p   +
+            self.w_mut * l_mut
         )
         # Residual loss
         res_loss = (
-            w_f1 * l_f1 + 
-            w_f2 * l_f2 + 
-            w_f3 * l_f3 + 
-            w_f4 * l_f4
+            self.w_f1 * l_f1 + 
+            self.w_f2 * l_f2 + 
+            self.w_f3 * l_f3 + 
+            self.w_f4 * l_f4
         )
         # Total loss
         loss = data_loss + res_loss  
@@ -586,6 +591,59 @@ class PhysicsInformedNN(nn.Module):
             return loss, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4
 
         return loss, data_loss, res_loss
+
+    def validation_loss_fn(self):
+        """
+        Validation data loss function based only on supervised data.
+
+        The validation set should not be used to update the weights.
+        It is only used to decide when to stop training.
+        """
+
+        if not self.has_validation:
+            return None
+
+        # Use the model in prediction/evaluation mode
+        self.eval()
+
+        # Do not compute gradients
+        with torch.no_grad():
+            # compute validation data loss only
+            if self.eq == 'Euler': 
+                # Data
+                rho_val_pred, u_val_pred, v_val_pred, p_val_pred = \
+                    self.net_fields(self.xval, self.yval)        
+                # is not RANS
+                l_val_mut = torch.tensor(0.0, device=self.device)
+
+            elif self.eq == 'RANS':
+                # Data        
+                rho_val_pred, u_val_pred, v_val_pred, p_val_pred, mut_val_pred \
+                    = self.net_fields(self.xval, self.yval)
+    
+                if self.mutval is None:
+                    raise ValueError("For RANS, mut_t must be provided in loss_fn.")
+                # turbulent viscosity data loss       
+                l_val_mut = torch.mean((self.mutval - mut_val_pred) ** 2)
+                
+            # Data losses
+            l_val_rho = torch.mean((self.rhoval - rho_val_pred) ** 2)
+            l_val_u   = torch.mean((self.uval   - u_val_pred)   ** 2)
+            l_val_v   = torch.mean((self.vval   - v_val_pred)   ** 2)
+            l_val_p   = torch.mean((self.pval   - p_val_pred)   ** 2)
+
+            l_val = (
+                self.w_rho * l_val_rho +
+                self.w_u   * l_val_u   +
+                self.w_v   * l_val_v   +
+                self.w_p   * l_val_p   +
+                self.w_mut * l_val_mut
+            )
+
+        # Return to training mode
+        self.train()
+
+        return l_val
 
     def fit(self):
         """
@@ -625,6 +683,10 @@ class PhysicsInformedNN(nn.Module):
                 self.loss.append(loss.item())
                 self.n_epoch += 1
 
+                # validation data loss function
+                if self.has_validation:
+                    self.lval.append(self.validation_loss_fn().item())
+
                 # Print
                 if it % self.io_loss == 0:
                     self.print_loss_fn(it)
@@ -646,12 +708,16 @@ class PhysicsInformedNN(nn.Module):
 
                 # recompute once for logging
                 loss, data_loss, res_loss = self.loss_fn()
-
+                            
                 self.ldata.append(data_loss.item())
                 self.lres.append(res_loss.item())
                 self.loss.append(loss.item())
 
                 self.n_epoch += 1   # increment once per LBFGS outer step
+
+                # validation data loss function
+                if self.has_validation:
+                    self.lval.append(self.validation_loss_fn().item())
 
                 # Print
                 if it % self.io_loss == 0:
@@ -795,10 +861,74 @@ class PhysicsInformedNN(nn.Module):
                 ud.cpu().numpy(),
                 vd.cpu().numpy(),
                 pd.cpu().numpy(),
-                # Change to also return mutd
-                #mutd.cpu().numpy()
+                mutd.cpu().numpy()
             )
 
+    def prepare_torch_supervised_data(
+        self,
+        xdata,
+        ydata,
+        rhodata,
+        udata,
+        vdata,
+        pdata,
+        mutdata=None,
+        fit_scale=False,
+    ):
+        """
+        Non-dimensionalise physical data, scale mut if needed,
+        and convert data to PyTorch tensors.
+
+        If fit_scale=True, compute self.mut_scale from this dataset.
+        If fit_scale=False, reuse the existing self.mut_scale.
+        """
+
+        # Non-dimensional data
+        xstar, ystar, rhostar, ustar, vstar, pstar, mutstar = (
+            self.get_nondimensional_data(
+                xdata, ydata, rhodata,
+                udata, vdata, pdata,
+                mutdata,
+            )
+        )
+
+        # Turbulent viscosity scaling
+        if self.eq == "RANS":
+            if mutstar is None:
+                raise ValueError("For equation='RANS', mut must be provided.")
+
+            if fit_scale:
+                self.mut_scale = float(np.percentile(mutstar, 95.0))
+
+                if self.mut_scale <= 0.0:
+                    self.mut_scale = 1.0
+
+            elif not hasattr(self, "mut_scale"):
+                raise ValueError(
+                    "mut_scale has not been defined. "
+                    "Call this method first with fit_scale=True using the training data."
+                )
+            muthat = mutstar / self.mut_scale
+        else:
+            muthat = None
+
+        # Coordinates
+        Xdata = np.concatenate([xstar, ystar], axis=1)
+        Xdata = torch.tensor(Xdata, dtype=torch.float32, device=self.device)
+        x = Xdata[:, 0:1]
+        y = Xdata[:, 1:2]
+        # Physical variables
+        rho = torch.tensor(rhostar, dtype=torch.float32, device=self.device)
+        u = torch.tensor(ustar, dtype=torch.float32, device=self.device)
+        v = torch.tensor(vstar, dtype=torch.float32, device=self.device)
+        p = torch.tensor(pstar, dtype=torch.float32, device=self.device)
+        if self.eq == "RANS":
+            mut = torch.tensor(muthat, dtype=torch.float32, device=self.device)
+        else:
+            mut = None
+
+        return Xdata, x, y, rho, u, v, p, mut
+    
     def get_dimensional_data(self, rho, u, v, p, mut=None):
         """
         Make the data dimensional
@@ -884,18 +1014,20 @@ class PhysicsInformedNN(nn.Module):
             "ub": self.ub.detach().cpu() if torch.is_tensor(self.ub) else self.ub,
         }
 
-        # I should load the same dataset, do not sample again!
-
         # Path
         fullpath = os.path.join(filepath, filename)
         # Save model
-        torch.save(checkpoint, fullpath)
+        torch.save(checkpoint, fullpath + ".pth")
         print("---------------------------------------")                
         print(f"Model saved to: {fullpath}")
 
-    def load_model(self, filepath, map_location=None):
+    def load_model(self, filepath, filename):
+        
+        # Path
+        fullpath = os.path.join(filepath, filename)
         # Load checkpoint
-        checkpoint = torch.load(filepath, map_location=map_location)
+        checkpoint = torch.load(fullpath + '.pth',
+                                map_location=self.device)
 
         self.load_state_dict(checkpoint["model_state_dict"])
 
@@ -922,6 +1054,7 @@ class PhysicsInformedNN(nn.Module):
         if "ub" in checkpoint:
             self.ub = checkpoint["ub"].to(self.device) if torch.is_tensor(checkpoint["ub"]) else checkpoint["ub"]
 
+        print("---------------------------------------")
         print(f"Model loaded from: {filepath}")
 
     def get_data_loss(self):
@@ -933,8 +1066,154 @@ class PhysicsInformedNN(nn.Module):
     def get_total_loss(self):
         return self.loss
     
+    def get_validation_data_loss(self):
+        return self.lval
+    
     def get_n_epoch(self):
         return self.n_epoch
     
     def callback(self, it, loss_value):
         print(f"It: {it}, Loss: {loss_value:.3e}")
+
+    def evaluate_data(self, xdata, ydata, rhodata,
+                      udata, vdata, pdata, mutdata=None):
+        """
+        Evaluate prediction errors on an external dataset.
+
+        This method can be used for validation or test data.
+        It does not update the neural network weights.
+        """
+
+        self.eval()
+
+        # Non-dimensionalize data using the same scaling as training
+        xstar, ystar, rhostar, ustar, vstar, pstar, mutstar = \
+            self.get_nondimensional_data(xdata, ydata, rhodata, udata,
+                                         vdata, pdata, mutdata)
+
+        # Coordinates
+        X = np.column_stack((xstar, ystar))
+
+        X = torch.tensor(X, dtype=torch.float32, device=self.device)
+
+        rho_true = torch.tensor(rhostar, dtype=torch.float32,
+                                device=self.device).reshape(-1, 1)
+
+        u_true = torch.tensor(ustar, dtype=torch.float32,
+                              device=self.device,).reshape(-1, 1)
+
+        v_true = torch.tensor(vstar, dtype=torch.float32,
+                              device=self.device).reshape(-1, 1)
+
+        p_true = torch.tensor(pstar, dtype=torch.float32,
+                              device=self.device,).reshape(-1, 1)
+
+        if self.eq == "RANS":
+            if mutstar is None:
+                raise ValueError("For RANS evaluation, mutdata must be provided.")
+
+            mut_true = torch.tensor(mutstar, dtype=torch.float32, 
+                                    device=self.device).reshape(-1, 1)
+
+        with torch.no_grad():
+            Y_pred = self.neural_net(X)
+
+            rho_pred = Y_pred[:,0:1]
+            u_pred   = Y_pred[:,1:2]
+            v_pred   = Y_pred[:,2:3]
+            p_pred   = Y_pred[:,3:4]
+
+            if self.eq == "RANS":
+                mut_pred = Y_pred[:,4:5]
+
+                # If your network predicts muthat, recover mutstar
+                mut_pred = self.mut_scale * mut_pred
+
+        metrics = {}
+
+        metrics["rho"] = self.compute_metrics(rho_pred, rho_true)
+        metrics["u"]   = self.compute_metrics(u_pred,   u_true)
+        metrics["v"]   = self.compute_metrics(v_pred,   v_true)
+        metrics["p"]   = self.compute_metrics(p_pred,   p_true)
+
+        if self.eq == "RANS":
+            metrics["mut"] = self.compute_metrics(mut_pred, mut_true)
+
+        return metrics
+    
+    def compute_metrics(self, y_pred, y_true, eps=1.0e-12):
+        """
+        Compute RMSE, relative L2 error and R2 score.
+        """
+
+        error = y_pred - y_true
+
+        mse = torch.mean(error**2)
+        rmse = torch.sqrt(mse)
+
+        rel_l2 = (
+            torch.linalg.norm(error)
+            /
+            (torch.linalg.norm(y_true) + eps)
+        )
+
+        ss_res = torch.sum(error**2)
+        ss_tot = torch.sum((y_true - torch.mean(y_true))**2)
+
+        r2 = 1.0 - ss_res / (ss_tot + eps)
+
+        return {
+            "mse": mse.item(),
+            "rmse": rmse.item(),
+            "rel_l2": rel_l2.item(),
+            "r2": r2.item(),
+        }
+    
+    def print_metrics_table(self, metrics, title="Metrics", rel_l2_percent=True):
+        """
+        Pretty-print RMSE, relative L2 error and R2 score.
+        """
+
+        rel_l2_name = "Rel. L2 (%)" if rel_l2_percent else "Rel. L2"
+
+        header = (
+            f"{'Variable':<10}"
+            f"{'MSE':>14}"
+            f"{'RMSE':>14}"
+            f"{rel_l2_name:>16}"
+            f"{'R2':>14}"
+        )
+
+        line_width = len(header)
+
+        print("\n" + "=" * line_width)
+        print(f"{title:}")
+        print("-" * line_width)
+        print(header)
+        print("-" * line_width)
+
+        preferred_order = ["rho", "u", "v", "p", "mut"]
+
+        for var in preferred_order:
+            if var not in metrics:
+                continue
+
+            values = metrics[var]
+
+            mse = values["mse"]
+            rmse = values["rmse"]
+            rel_l2 = values["rel_l2"]
+            r2 = values["r2"]
+
+            if rel_l2_percent:
+                rel_l2 = 100.0 * rel_l2
+
+            print(
+                f"{var:<10}"
+                f"{mse:>14.4e}"
+                f"{rmse:>14.4e}"
+                f"{rel_l2:>16.4f}"
+                f"{r2:>14.4f}"
+            )
+
+        print("=" * line_width + "\n")

@@ -18,13 +18,15 @@ mesh: 'afrl2d.geo'
 equation: 'Euler'  
 
 # Model: supervised or pinn
-model: 'supervised'
+model: 'pinn'
 
 # Device: cpu or cuda
 device: cuda
 
-# Save model 
+# Save and load model 
 model_name: model_pinn
+load_model: False
+save_model: True
 
 # Verbose
 verbose: True
@@ -56,31 +58,42 @@ sampling:
   # Sampling type for inner points
   type: 'lhs' # random, lhs
   bc: ['inlet','bottom','outlet','top']
+  # Sampling parameters
   grad_type_var: 'Density'
   pool_factor: 8
   alpha_grad_rho: 1.4
-  seed: 1234
+  # Plotting filename
   pldata: 'pl_data'
   plcoll: 'pl_coll'
   plall: 'pl_all'
   pltrain: 'pl_taining'
-  fdata: 'sampling_data'
-  fcoll: 'sampling_coll'
-
-# Losses
-loss:
-  plloss: 'losses'
+  # Data filename
+  fdata: 'data_points'
+  fcoll: 'collocation_points'
 
 # NN setup
 io_loss: 10
-N_train_data: 1000
-N_train_coll: 1000
+N_train_data: 3500
+N_train_coll: 3500
+N_val_data: 500
+N_test_data: 500
 layers: [2, 32, 32, 32, 4]
+
+loss_weights:
+  w_rho: 1.0
+  w_u: 1.0
+  w_v: 10.0
+  w_p: 1.0
+  w_mut: 1.0
+  w_f1: 1.0
+  w_f2: 1.0
+  w_f3: 1.0
+  w_f4: 1.0
 
 # Adam Optimizer
 use_adam: True
-n_adam_iter: 100
-lr_adam: 4e-4
+n_adam_iter: 1000
+lr_adam: 5e-4
 scheduler_size: 2000
 scheduler_gamma: 0.8
 
@@ -88,7 +101,7 @@ scheduler_gamma: 0.8
 use_lbfgs: True
 n_lbfgs_iter: 100
 lr_lbfgs: 1.0
-maxi_ter_lbfgs: 20
+maxi_iter_lbfgs: 20
 
 # Activation function: 
 # Option: tahn, sigmoid, sin, softplus, silu/swish and gelu
@@ -96,6 +109,9 @@ activation: 'tanh'
 
 # General parameters
 dims: 2
+
+# Seed for rng
+seed: 1234
 
 # Physical parameters
 # Heat capacity ratio 

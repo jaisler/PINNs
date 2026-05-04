@@ -1,43 +1,80 @@
 import numpy as np
 import pyvista as pv
 import gmsh
-import re
+import os
+import pandas as pd
 from pathlib import Path
-import plot as pl
+
 
 class SamplingData:
     # Initialize the class
     def __init__(self, params, collpts=False):
+        """
+        Initialize the SamplingData object without performing sampling.
+        """
 
-        # Dimension
-        self.dims = params['dims']
+        self.collpts = collpts
+        self.params = params
+        self.dims = params["dims"]
+
         self.pts_in = np.empty((0, 3), dtype=float)
         self.pts_bc = np.empty((0, 3), dtype=float)
         self.pts_grad = np.empty((0, 3), dtype=float)
         self.pts = np.empty((0, 3), dtype=float)
 
-        if collpts:
+        self.X = None
+        self.U = None
+        self.rho = None
+        self.p = None
+        self.mut = None
+
+        print("---------------------------------------")
+        print("Sample data initialized")
+        print(f"  Sampling                       : {params['routine']['sampling']}")
+        if params['routine']['sampling']:
+            if self.collpts:
+                print("Sampling collocation points ...")
+            else:
+                print("Sampling data points...")
+        else:
+            if self.collpts:
+                print("Loading collocation points ...")
+            else:
+                print("Loading data points ...")
+
+    def sample(self):
+        """
+        Perform the sampling procedure.
+
+        This method reads the CFD solution, generates points,
+        interpolates the solution, and stores the sampled arrays.
+        """
+
+        # Reset arrays before sampling
+        self.pts_in = np.empty((0, 3), dtype=float)
+        self.pts_bc = np.empty((0, 3), dtype=float)
+        self.pts_grad = np.empty((0, 3), dtype=float)
+        self.pts = np.empty((0, 3), dtype=float)
+
+        if self.collpts:
             # Collocation points
-            npinner = params['sampling']['nspoin_coll']
-            npgrad = params['sampling']['nspoin_coll_grad']
-            npbc = params['sampling']['nspoin_coll_bc']
+            npinner = self.params['sampling']['nspoin_coll']
+            npgrad = self.params['sampling']['nspoin_coll_grad']
+            npbc = self.params['sampling']['nspoin_coll_bc']
         else:
             # Data points
-            npinner = params['sampling']['nspoin']
-            npgrad = params['sampling']['nspoin_grad']
-            npbc = params['sampling']['nspoin_bc']
+            npinner = self.params['sampling']['nspoin']
+            npgrad = self.params['sampling']['nspoin_grad']
+            npbc = self.params['sampling']['nspoin_bc']
 
         # Load your solution
         # .vtk, .pvtu, .vtm, ...
-        mesh = pv.read(params['pathFlow']+'/'+params['flowfield'])   
-
-        # Choose fields you want
-        #print(mesh.array_names)  
+        mesh = pv.read(self.params['pathFlow']+'/'+self.params['flowfield'])   
 
         # Sample points
         xmin, xmax, ymin, ymax, zmin, zmax = mesh.bounds
         # Get base sampler function 
-        base_sampler = self.get_base_sampler(params['sampling']['type'])
+        base_sampler = self.get_base_sampler(self.params['sampling']['type'])
 
         if npinner > 0:
             # Call chosen sampler 
@@ -62,19 +99,18 @@ class SamplingData:
                 mesh=mesh, npoin_grad=npgrad,
                 xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, zmin=zmin, zmax=zmax,
                 base_sampler=base_sampler,
-                var_name=params['sampling'].get('grad_type_var', 'Density'),
-                pool_factor=params['sampling'].get('pool_factor', 8),
-                alpha=params['sampling'].get('alpha_grad_rho', 1.5),
-                seed=params['sampling'].get('seed', 1234))
+                var_name=self.params['sampling'].get('grad_type_var', 'Density'),
+                pool_factor=self.params['sampling'].get('pool_factor', 8),
+                alpha=self.params['sampling'].get('alpha_grad_rho', 1.5))
             self.pts_grad = np.vstack([self.pts_grad, pts_grad])
             self.pts = np.vstack([self.pts, pts_grad])
 
         # Points on the boundary condition
-        bc_names = params['sampling']['bc']
+        bc_names = self.params['sampling']['bc']
         bc_poin = npbc #params['sampling']['nspoin_bc']
         for phys_name, n_bc in zip(bc_names, bc_poin):
             if n_bc > 0:
-                pts_bc = self.sample_boundary_condition(phys_name, n_bc, params)                
+                pts_bc = self.sample_boundary_condition(phys_name, n_bc)                
                 pts_bc = self.nudge_bc_points(pts_bc, phys_name, xmin, xmax, ymin, ymax)
                 self.pts_bc = np.vstack([self.pts_bc, pts_bc])
                 self.pts = np.vstack([self.pts, pts_bc])
@@ -94,7 +130,7 @@ class SamplingData:
         self.pts = self.pts[mask]
         self.X = sampled.points[mask]        # (N,3) or (N,2)
 
-        if collpts:
+        if self.collpts:
             self.U = sampled.points[mask] * 0.0  
             self.rho = sampled.points[mask] * 0.0  
             self.p = sampled.points[mask] * 0.0
@@ -107,11 +143,11 @@ class SamplingData:
 
             # Depending on the equations the eddy viscosity returns
             # zero or the value from the CFD
-            if (params['equation'] == 'RANS'):
+            if (self.params['equation'] == 'RANS'):
                 mut = sampled["Eddy_Viscosity"]
                 #self.mut = mut[mask] / params["mu"]
                 self.mut = mut[mask]
-            elif (params['equation'] == 'Euler'):
+            elif (self.params['equation'] == 'Euler'):
                 # Otherwise return zero
                 self.mut = np.zeros((self.X.shape[0], 1), dtype=float)
 
@@ -149,14 +185,15 @@ class SamplingData:
         
         return pts
     
-    def sample_boundary_condition(self, phys_name, npoin_bc, params):
+    def sample_boundary_condition(self, phys_name, npoin_bc):
         """
         Sample boundary points from a Physical Group in a .geo file.
         phys_name: physical group name in the .geo, e.g. "inlet", "outlet", 
         "wall"
         Returns: 
         """
-        rng = np.random.default_rng(params['sampling']['seed'])
+
+        rng = np.random.default_rng(self.params.get('seed', 1234))
         if npoin_bc <= 0:
             raise ValueError("params['sampling']['nspoin_bc'] must be > 0")
 
@@ -164,7 +201,7 @@ class SamplingData:
         # Turn off terminal output from Gmsh
         gmsh.option.setNumber("General.Terminal", 0)
         try:
-            gmsh.open(params['pathMesh']+'/'+params['mesh'])
+            gmsh.open(self.params['pathMesh']+'/'+self.params['mesh'])
             gmsh.model.geo.synchronize()
             #gmsh.model.mesh.generate(self.dims)
             # For 1D mesh generation before 2D
@@ -235,10 +272,9 @@ class SamplingData:
         var_name="Density",
         pool_factor=8,
         alpha=1.5,
-        eps=1e-12,
-        seed=1234):
+        eps=1e-12):
 
-        rng = np.random.default_rng(seed)
+        rng = np.random.default_rng(self.params.get('seed', 1234))
 
         # Compute grad(var) on the mesh
         if var_name not in mesh.array_names:
@@ -325,7 +361,88 @@ class SamplingData:
             pts[:, 1] -= epsy
 
         return pts
+
+    def write_data_to_npz(self):
+        """
+        Save sampling data to a compressed NumPy .npz file.
+        """
+
+        path_data = Path(self.params["pathData"])
+        path_data.mkdir(parents=True, exist_ok=True)
+
+        if self.collpts:
+            filename = path_data / f"{self.params['sampling']['fcoll']}.npz"
+
+            np.savez_compressed(
+                filename,
+                X=self.X,
+                pts_in=self.pts_in,
+                pts_bc=self.pts_bc,
+                pts_grad=self.pts_grad,
+                collpts=np.array(True),
+            )
+
+        else:
+            filename = path_data / f"{self.params['sampling']['fdata']}.npz"
+
+            np.savez_compressed(
+                filename,
+                X=self.X,
+                U=self.U,
+                rho=self.rho,
+                p=self.p,
+                mut=self.mut,
+                pts_in=self.pts_in,
+                pts_bc=self.pts_bc,
+                pts_grad=self.pts_grad,
+                collpts=np.array(False),
+            )
+
+        print("---------------------------------------")
+        print(f"Saved data points to: {filename}")
+
+    def read_data_from_npz(self):
+        """
+        Load sampling data from a compressed NumPy .npz file.
+        """
+
+        path_data = Path(self.params["pathData"])
+
+        # Note that, here, the collpts was sent as argument from main
+        if not self.collpts:
+            filename = path_data / f"{self.params['sampling']['fdata']}.npz"
+        else:
+            filename = path_data / f"{self.params['sampling']['fcoll']}.npz"
+
+        data = np.load(filename)
+
+        X = data["X"]
+        pts_in = data["pts_in"]
+        pts_bc = data["pts_bc"]
+        pts_grad = data["pts_grad"]
+
+        if not self.collpts:
+            U = data["U"]
+            rho = data["rho"]
+            p = data["p"]
+            mut = data["mut"]
+        else:
+            U = None
+            rho = None
+            p = None
+            mut = None
+
+        return X, pts_in, pts_bc, pts_grad, U, rho, p, mut
+
+    def get_pts_in(self):       
+        return self.pts_in
     
+    def get_pts_bc(self):       
+        return self.pts_bc
+
+    def get_pts_grad(self):       
+        return self.pts_grad
+
     def get_x(self):       
         return self.X
 
@@ -340,25 +457,3 @@ class SamplingData:
     
     def get_mut(self):
         return self.mut
-
-    def write_data_to_csv(self, params, collpts=False):
-        if collpts:
-            out = self.X 
-            np.savetxt(
-                params['pathData']+'/'+params['sampling']['fcoll']+'.csv', 
-                out, delimiter=",", 
-                header="xf,yf,zf", 
-                comments="")
-        else:     
-            out = np.column_stack([self.X, self.rho, self.U[:,0], 
-                self.U[:,1], self.U[:,2], self.p,self.mut]) 
-            np.savetxt(
-                params['pathData']+'/'+params['sampling']['fdata']+'.csv', 
-                out, delimiter=",", 
-                header="x,y,z,rho,u,v,w,p,mut", 
-                comments="")
-
-    def plot_sampling_points(self, params, collpts=False):
-        pl.plot_sampling_points(self.X, self.pts_in, self.pts_bc, \
-                              self.pts_grad, params, collpts)
-
