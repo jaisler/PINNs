@@ -5,6 +5,8 @@ import time
 import pyvista as pv
 from scipy.interpolate import griddata
 from pathlib import Path
+import torch
+import torch.nn as nn
 
 import pinns
 import sampling as smp
@@ -272,39 +274,25 @@ def main():
         pl.plot_validation_loss(l_data, l_val, n_epoch, params)
 
         # Prediction for plotting (data, collocation)
+        # It uses the training and validation datasets
         if Xf is not None:
             Xall = np.concatenate([X, Xf], axis=0)
         else:
             Xall = X.copy()
         xall = Xall[:,0]
         yall = Xall[:,1]
-        rhoall_pred, uall_pred, vall_pred, pall_pred = model.predict(xall, yall) 
-
+        #rhoall_pred, uall_pred, vall_pred, pall_pred = model.predict(xall, yall) 
+        
         # Plot Prediction
-        pred_list = [rhoall_pred, pall_pred, uall_pred, vall_pred]
-        for ifield, pred in enumerate(pred_list):
-            pl.plot_predicted_flow(xall, yall, pred, ifield, params)
- 
-        # Prediction for the data points (error calculation)
-        rho_pred, u_pred, v_pred, p_pred = model.predict(x, y) 
+        #pred_list = [rhoall_pred, pall_pred, uall_pred, vall_pred]
+        #for ifield, pred in enumerate(pred_list):
+        #    pl.plot_predicted_flow(xall, yall, pred, ifield, params)
 
-        # compute relative L2 errors if you have ground truth at these points
-        def rel_l2(pred, true):
-            pred = np.asarray(pred).reshape(-1)
-            true = np.asarray(true).reshape(-1)
-            return np.linalg.norm(pred - true) / (np.linalg.norm(true) + 1e-12)
-
-        err_rho = rel_l2(rho_pred, rho)
-        err_u = rel_l2(u_pred, u)
-        err_v = rel_l2(v_pred, v)
-        err_p = rel_l2(p_pred, p)
-
-        print("---------------------------------------")
-        print("Relative L2 errors:")
-        print(f"  rho: {err_rho:.3e}")
-        print(f"  u  : {err_u:.3e}")
-        print(f"  v  : {err_v:.3e}")
-        print(f"  p  : {err_p:.3e}")
+        # Evaluate data        
+        test_metrics = model.evaluate_data(xtest, ytest, rhotest, utest,
+                                           vtest, ptest, muttest)
+        # Print metrics of the test dataset
+        model.print_metrics_table(test_metrics)
 
 if __name__ == "__main__":
     main()

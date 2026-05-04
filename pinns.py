@@ -861,8 +861,7 @@ class PhysicsInformedNN(nn.Module):
                 ud.cpu().numpy(),
                 vd.cpu().numpy(),
                 pd.cpu().numpy(),
-                # Change to also return mutd
-                #mutd.cpu().numpy()
+                mutd.cpu().numpy()
             )
 
     def prepare_torch_supervised_data(
@@ -1075,3 +1074,146 @@ class PhysicsInformedNN(nn.Module):
     
     def callback(self, it, loss_value):
         print(f"It: {it}, Loss: {loss_value:.3e}")
+
+    def evaluate_data(self, xdata, ydata, rhodata,
+                      udata, vdata, pdata, mutdata=None):
+        """
+        Evaluate prediction errors on an external dataset.
+
+        This method can be used for validation or test data.
+        It does not update the neural network weights.
+        """
+
+        self.eval()
+
+        # Non-dimensionalize data using the same scaling as training
+        xstar, ystar, rhostar, ustar, vstar, pstar, mutstar = \
+            self.get_nondimensional_data(xdata, ydata, rhodata, udata,
+                                         vdata, pdata, mutdata)
+
+        # Coordinates
+        X = np.column_stack((xstar, ystar))
+
+        X = torch.tensor(X, dtype=torch.float32, device=self.device)
+
+        rho_true = torch.tensor(rhostar, dtype=torch.float32,
+                                device=self.device).reshape(-1, 1)
+
+        u_true = torch.tensor(ustar, dtype=torch.float32,
+                              device=self.device,).reshape(-1, 1)
+
+        v_true = torch.tensor(vstar, dtype=torch.float32,
+                              device=self.device).reshape(-1, 1)
+
+        p_true = torch.tensor(pstar, dtype=torch.float32,
+                              device=self.device,).reshape(-1, 1)
+
+        if self.eq == "RANS":
+            if mutstar is None:
+                raise ValueError("For RANS evaluation, mutdata must be provided.")
+
+            mut_true = torch.tensor(mutstar, dtype=torch.float32, 
+                                    device=self.device).reshape(-1, 1)
+
+        with torch.no_grad():
+            Y_pred = self.neural_net(X)
+
+            rho_pred = Y_pred[:,0:1]
+            u_pred   = Y_pred[:,1:2]
+            v_pred   = Y_pred[:,2:3]
+            p_pred   = Y_pred[:,3:4]
+
+            if self.eq == "RANS":
+                mut_pred = Y_pred[:,4:5]
+
+                # If your network predicts muthat, recover mutstar
+                mut_pred = self.mut_scale * mut_pred
+
+        metrics = {}
+
+        metrics["rho"] = self.compute_metrics(rho_pred, rho_true)
+        metrics["u"]   = self.compute_metrics(u_pred,   u_true)
+        metrics["v"]   = self.compute_metrics(v_pred,   v_true)
+        metrics["p"]   = self.compute_metrics(p_pred,   p_true)
+
+        if self.eq == "RANS":
+            metrics["mut"] = self.compute_metrics(mut_pred, mut_true)
+
+        return metrics
+    
+    def compute_metrics(self, y_pred, y_true, eps=1.0e-12):
+        """
+        Compute RMSE, relative L2 error and R2 score.
+        """
+
+        error = y_pred - y_true
+
+        mse = torch.mean(error**2)
+        rmse = torch.sqrt(mse)
+
+        rel_l2 = (
+            torch.linalg.norm(error)
+            /
+            (torch.linalg.norm(y_true) + eps)
+        )
+
+        ss_res = torch.sum(error**2)
+        ss_tot = torch.sum((y_true - torch.mean(y_true))**2)
+
+        r2 = 1.0 - ss_res / (ss_tot + eps)
+
+        return {
+            "mse": mse.item(),
+            "rmse": rmse.item(),
+            "rel_l2": rel_l2.item(),
+            "r2": r2.item(),
+        }
+    
+    def print_metrics_table(self, metrics, title="Metrics", rel_l2_percent=True):
+        """
+        Pretty-print RMSE, relative L2 error and R2 score.
+        """
+
+        rel_l2_name = "Rel. L2 (%)" if rel_l2_percent else "Rel. L2"
+
+        header = (
+            f"{'Variable':<10}"
+            f"{'MSE':>14}"
+            f"{'RMSE':>14}"
+            f"{rel_l2_name:>16}"
+            f"{'R2':>14}"
+        )
+
+        line_width = len(header)
+
+        print("\n" + "=" * line_width)
+        print(f"{title:}")
+        print("-" * line_width)
+        print(header)
+        print("-" * line_width)
+
+        preferred_order = ["rho", "u", "v", "p", "mut"]
+
+        for var in preferred_order:
+            if var not in metrics:
+                continue
+
+            values = metrics[var]
+
+            mse = values["mse"]
+            rmse = values["rmse"]
+            rel_l2 = values["rel_l2"]
+            r2 = values["r2"]
+
+            if rel_l2_percent:
+                rel_l2 = 100.0 * rel_l2
+
+            print(
+                f"{var:<10}"
+                f"{mse:>14.4e}"
+                f"{rmse:>14.4e}"
+                f"{rel_l2:>16.4f}"
+                f"{r2:>14.4f}"
+            )
+
+        print("=" * line_width + "\n")
