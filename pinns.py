@@ -1116,18 +1116,18 @@ class PhysicsInformedNN(nn.Module):
                                     device=self.device).reshape(-1, 1)
 
         with torch.no_grad():
-            Y_pred = self.neural_net(X)
+            x_t = X[:, 0:1]
+            y_t = X[:, 1:2]
 
-            rho_pred = Y_pred[:,0:1]
-            u_pred   = Y_pred[:,1:2]
-            v_pred   = Y_pred[:,2:3]
-            p_pred   = Y_pred[:,3:4]
+            if self.eq == "Euler":
+                rho_pred, u_pred, v_pred, p_pred = self.net_fields(x_t, y_t)
 
-            if self.eq == "RANS":
-                mut_pred = Y_pred[:,4:5]
+            elif self.eq == "RANS":
+                rho_pred, u_pred, v_pred, p_pred, muthat_pred = \
+                    self.net_fields(x_t, y_t)
 
-                # If your network predicts muthat, recover mutstar
-                mut_pred = self.mut_scale * mut_pred
+                # Recover mutstar
+                mut_pred = self.mut_scale * muthat_pred
 
         metrics = {}
 
