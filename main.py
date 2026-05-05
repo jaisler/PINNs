@@ -32,11 +32,17 @@ def main():
     if not os.path.isdir(params['pathModel']):
         os.makedirs(params['pathModel'], exist_ok=True)
 
-    # Plot flow fields to be analysed
-    if (params['routine']['plotflow']):
-        flowfield = pv.read(os.path.join(params['pathFlow'], params['flowfield']))
-        pl.plot_flow_field(flowfield, params)
+    # Load CFD mesh/flowfield once
+    # It is used for:
+    #   1. plotting the original simulation fields,
+    #   2. evaluating the PINN prediction on the CFD mesh points.
+    flowfield = None
+    if params["routine"]["inference"]:
+        flowfield = pv.read(os.path.join(params["pathFlow"], params["flowfield"]))
 
+    # Plot CFD/simulation fields using unified PyVista style
+    pl.plot_simulation_flow(flowfield, params)
+    
     # Initialisation
     Xf = None
     xf = None
@@ -163,12 +169,8 @@ def main():
                 N_train_data + N_val_data + N_test_data
             ]
 
-            np.savez(
-                idx_file,
-                idx_train=idx_train,
-                idx_val=idx_val,
-                idx_test=idx_test
-            )
+            # Save index for loading datasets
+            np.savez(idx_file, idx_train=idx_train, idx_val=idx_val, idx_test=idx_test)
 
         # Training data
         xtrain = x[idx_train, None]
@@ -239,15 +241,9 @@ def main():
             xtrain, ytrain, # training data
             rhotrain, utrain, vtrain, ptrain, # training data
             xftrain, yftrain, # collocation data
-            params,
+            params, # general parameters
             muttrain, # RANS eq.
-            xval, # validation data
-            yval,
-            rhoval,
-            uval,
-            vval,
-            pval,
-            mutval
+            xval, yval, rhoval, uval, vval, pval, mutval # validation data
         )
 
         # Train
@@ -273,20 +269,23 @@ def main():
         # Plot validation loss
         pl.plot_validation_loss(l_data, l_val, n_epoch, params)
 
-        # Prediction for plotting (data, collocation)
-        # It uses the training and validation datasets
-        if Xf is not None:
-            Xall = np.concatenate([X, Xf], axis=0)
-        else:
-            Xall = X.copy()
-        xall = Xall[:,0]
-        yall = Xall[:,1]
-        #rhoall_pred, uall_pred, vall_pred, pall_pred = model.predict(xall, yall) 
-        
-        # Plot Prediction
-        #pred_list = [rhoall_pred, pall_pred, uall_pred, vall_pred]
-        #for ifield, pred in enumerate(pred_list):
-        #    pl.plot_predicted_flow(xall, yall, pred, ifield, params)
+        # Prediction on the CFD mesh
+        # This gives high-resolution prediction plots because the PINN is
+        # evaluated at every point of the original CFD mesh.
+        xmesh = flowfield.points[:, 0]
+        ymesh = flowfield.points[:, 1]
+
+        if params['equation'] == 'Euler':
+            rho_pred_mesh, u_pred_mesh, v_pred_mesh, p_pred_mesh = \
+                  model.predict(xmesh, ymesh)
+            pred_list = [rho_pred_mesh, p_pred_mesh, u_pred_mesh, v_pred_mesh]
+        elif params['equation'] == 'RANS':
+            rho_pred_mesh, u_pred_mesh, v_pred_mesh, p_pred_mesh, mut_pred_mesh = \
+                model.predict(xmesh, ymesh)
+            pred_list = [rho_pred_mesh, p_pred_mesh, u_pred_mesh, v_pred_mesh, 
+                         mut_pred_mesh]
+
+        pl.plot_predicted_flow_pyvista(flowfield, pred_list, params)
 
         # Evaluate data        
         test_metrics = model.evaluate_data(xtest, ytest, rhotest, utest,
