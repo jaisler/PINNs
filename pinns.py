@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import os
 
 torch.manual_seed(1234)
@@ -105,6 +106,13 @@ class PhysicsInformedNN(nn.Module):
         elif self.eq == "RANS":
             self.w_mut = float(loss_weights.get("w_mut", 1.0))
 
+        # Dropout probability
+        self.dropout_p = float(params.get("dropout_p", 0.0))
+        if not 0.0 <= self.dropout_p < 1.0:
+            raise ValueError("dropout_p must satisfy 0.0 <= dropout_p < 1.0")
+        # Control data dropout
+        self.enable_data_dropout = False
+        
         # Initialisation: 
         # Collocation points
         Xf = None
@@ -298,12 +306,18 @@ class PhysicsInformedNN(nn.Module):
             if m.bias is not None:
                 nn.init.zeros_(m.bias)    
     
-    def forward(self, X):
+    def forward(self, X, use_dropout=False):
         """
-        Forward pass
-        Normalise input: H = 2*(X-lb)/(ub-lb) - 1
-        for each layer: H = tanh(HW + b)
-        last layer linear
+        Forward pass.
+
+        Input normalization:
+            H = 2*(X - lb)/(ub - lb) - 1
+
+        Dropout:
+            If use_dropout=True, dropout is applied to hidden-layer activations.
+            If use_dropout=False, dropout is disabled.
+
+        Dropout is not applied to the output layer.
         """
 
         # Scale inputs to [-1, 1]
@@ -313,15 +327,15 @@ class PhysicsInformedNN(nn.Module):
         for layer in self.hidden_layers[:-1]:
             H = self.activation(layer(H))
 
+            if self.dropout_p > 0.0:
+                H = F.dropout(H, p=self.dropout_p, training=use_dropout)
+
         # Last layer without activation: linear
         Y = self.hidden_layers[-1](H)
 
         return Y
 
-    def neural_net(self, X):
-        return self.forward(X)
-
-    def net_fields(self, x, y):
+    def net_fields(self, x, y, use_dropout=False):
         """
         Returns:
         Euler -> rho, u, v, p
@@ -331,7 +345,7 @@ class PhysicsInformedNN(nn.Module):
         net_steady_compressible_rans(...)
         """
         X = torch.cat([x, y], dim=1)
-        out = self.neural_net(X)
+        out = self.forward(X, use_dropout)
 
         # Common variables
         raw_rho = out[:,0:1]
@@ -420,7 +434,7 @@ class PhysicsInformedNN(nn.Module):
         y = y.clone().detach().requires_grad_(True)
 
         # Get forward pass: starred fields
-        rho, u, v, p, muthat = self.net_fields(x, y)
+        rho, u, v, p, muthat = self.net_fields(x, y, False)
 
         # Recover physical nondimensional eddy viscosity
         mutstar = self.mut_scale * muthat
@@ -502,6 +516,9 @@ class PhysicsInformedNN(nn.Module):
         Loss function for data and PDE
         """
 
+        # Define dropout
+        use_data_dropout = self.enable_data_dropout
+
         if self.model == 'pinn':
             
             if self.xf is None or self.yf is None:
@@ -509,7 +526,8 @@ class PhysicsInformedNN(nn.Module):
 
             if self.eq == 'Euler':
                 # Data
-                rho_pred, u_pred, v_pred, p_pred = self.net_fields(self.x, self.y)        
+                rho_pred, u_pred, v_pred, p_pred = \
+                    self.net_fields(self.x, self.y, use_data_dropout)        
                 # Residuals
                 _, _, _, _, \
                     f1_res, f2_res, f3_res, f4_res \
@@ -520,7 +538,7 @@ class PhysicsInformedNN(nn.Module):
             elif self.eq == 'RANS':
                 # Data        
                 rho_pred, u_pred, v_pred, p_pred, mut_pred \
-                    = self.net_fields(self.x, self.y)
+                    = self.net_fields(self.x, self.y, use_data_dropout)
                 # Residuals
                 _, _, _, _, _, \
                     f1_res, f2_res, f3_res, f4_res \
@@ -541,14 +559,15 @@ class PhysicsInformedNN(nn.Module):
             
             if self.eq == 'Euler': 
                 # Data
-                rho_pred, u_pred, v_pred, p_pred = self.net_fields(self.x, self.y)        
+                rho_pred, u_pred, v_pred, p_pred = \
+                    self.net_fields(self.x, self.y, use_data_dropout)        
                 # is not RANS
                 l_mut = torch.tensor(0.0, device=self.device)
 
             elif self.eq == 'RANS':
                 # Data        
                 rho_pred, u_pred, v_pred, p_pred, mut_pred \
-                    = self.net_fields(self.x, self.y)
+                    = self.net_fields(self.x, self.y, use_data_dropout)
     
                 if self.mut is None:
                     raise ValueError("For RANS, mut_t must be provided in loss_fn.")
@@ -612,14 +631,14 @@ class PhysicsInformedNN(nn.Module):
             if self.eq == 'Euler': 
                 # Data
                 rho_val_pred, u_val_pred, v_val_pred, p_val_pred = \
-                    self.net_fields(self.xval, self.yval)        
+                    self.net_fields(self.xval, self.yval, False)        
                 # is not RANS
                 l_val_mut = torch.tensor(0.0, device=self.device)
 
             elif self.eq == 'RANS':
                 # Data        
                 rho_val_pred, u_val_pred, v_val_pred, p_val_pred, mut_val_pred \
-                    = self.net_fields(self.xval, self.yval)
+                    = self.net_fields(self.xval, self.yval, False)
     
                 if self.mutval is None:
                     raise ValueError("For RANS, mut_t must be provided in loss_fn.")
@@ -665,7 +684,10 @@ class PhysicsInformedNN(nn.Module):
             if self.verbose:
                 print("---------------------------------------")
                 print("Adam optimization")
-            
+
+            # Use dropout for Adam optimisation
+            self.enable_data_dropout = True
+
             for it in range(1, self.n_adam_iter + 1):
                 self.optimizer_adam.zero_grad()
                 # Loss function
@@ -696,7 +718,10 @@ class PhysicsInformedNN(nn.Module):
             if self.verbose:
                 print("---------------------------------------")
                 print("L-BFGS optimization")
-                    
+
+            # Do not use dropout for L-FBGS optimisation
+            self.enable_data_dropout = False
+
             for it in range(1, self.n_lbfgs_iter + 1):
                 def closure():
                     self.optimizer_lbfgs.zero_grad()
@@ -722,7 +747,11 @@ class PhysicsInformedNN(nn.Module):
                 # Print
                 if it % self.io_loss == 0:
                     self.print_loss_fn(it)
- 
+
+        # After training, disable dropout by default
+        self.enable_data_dropout = False
+        self.eval()
+    
     def print_loss_fn(self, it):
     
         if self.model == 'pinn':
