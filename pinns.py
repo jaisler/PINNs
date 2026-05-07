@@ -112,6 +112,8 @@ class PhysicsInformedNN(nn.Module):
             raise ValueError("dropout_p must satisfy 0.0 <= dropout_p < 1.0")
         # Control data dropout
         self.enable_data_dropout = False
+        # Dropout indices
+        self.dropout_indices = params.get("dropout_indices", [])
         
         # Initialisation: 
         # Collocation points
@@ -251,39 +253,46 @@ class PhysicsInformedNN(nn.Module):
         if self.verbose:
             print("---------------------------------------")
             print("PhysicsInformedNN initialized")
-            print(f"  Device                       : {self.device}")
-            print(f"  Model                        : {self.model}")
-            print(f"  Equation                     : {self.eq}")
-            print(f"  MLP                          : {self.layers}")
-            print(f"  Activation function          : {self.activation}")
-            print(f"  Training data points         : {Xdata.shape[0]}")
+            print(f"  Device                         : {self.device}")
+            print(f"  Learning formulation           : {self.model}")
+            print(f"  Equation                       : {self.eq}")
+            print(f"  MLP                            : {self.layers}")
+            print(f"  Activation function            : {self.activation}")
+            print(f"  Training data points           : {Xdata.shape[0]}")
             if Xf is not None:
-                print(f"  Training collocation points  : {Xf.shape[0]}")
+                print(f"  Training collocation points    : {Xf.shape[0]}")
             if self.has_validation:
                 print(f"  Validation data points         : {xval.shape[0]}")
-            print(f"  Load model                   : {params['load_model']}")
-            print(f"  Save model                   : {params['save_model']}")
-            print(f"  Use Adam                     : {self.use_adam}") 
+            print(f"  Use Adam                       : {self.use_adam}") 
             if self.use_adam:
-                print(f"    Number of Adam iteration   : {self.n_adam_iter}")
-                print(f"    Adam learning rate         : {learning_rate_adam}")
-                print(f"    Scheduler size             : {scheduler_size}")
-                print(f"    Learning Reduction rate    : {scheduler_gamma}")
-            print(f"  Use L-BFGS                   : {self.use_lbfgs}")
+                print(f"    Number of Adam iteration     : {self.n_adam_iter}")
+                print(f"    Adam learning rate           : {learning_rate_adam}")
+                print(f"    Scheduler size               : {scheduler_size}")
+                print(f"    Learning Reduction rate      : {scheduler_gamma}")
+            print(f"  Use L-BFGS                     : {self.use_lbfgs}")
             if self.use_lbfgs:
-                print(f"    Number of L-BFGS iteration : {self.n_lbfgs_iter}")
-                print(f"    Max iterration for L-BFGS  : {max_iter_lbfgs}")
-                print(f"    L-BFGS learning rate       : {learning_rate_lbfgs}")
+                print(f"    Number of L-BFGS iteration   : {self.n_lbfgs_iter}")
+                print(f"    Max iterration for L-BFGS    : {max_iter_lbfgs}")
+                print(f"    L-BFGS learning rate         : {learning_rate_lbfgs}")
+            if self.dropout_p > 0.0:
+                print(f"  Dropout:")
+                print(f"    Probability                  : {self.dropout_p}")
+                print(f"    Hidden layer indices         : {self.dropout_indices}")
             print(f"  Loss weights:")
-            print(f"    w_rho                      : {self.w_rho}")
-            print(f"    w_u                        : {self.w_u}")
-            print(f"    w_v                        : {self.w_v}")
-            print(f"    w_p                        : {self.w_p}")
-            print(f"    w_mut                      : {self.w_mut}")
-            print(f"    w_f1                       : {self.w_f1}")
-            print(f"    w_f2                       : {self.w_f2}")
-            print(f"    w_f3                       : {self.w_f3}")
-            print(f"    w_f4                       : {self.w_f4}")
+            print(f"    w_rho                        : {self.w_rho}")
+            print(f"    w_u                          : {self.w_u}")
+            print(f"    w_v                          : {self.w_v}")
+            print(f"    w_p                          : {self.w_p}")
+            if self.eq == 'RANS':
+                print(f"    w_mut                        : {self.w_mut}")
+            print(f"    w_f1                         : {self.w_f1}")
+            print(f"    w_f2                         : {self.w_f2}")
+            print(f"    w_f3                         : {self.w_f3}")
+            print(f"    w_f4                         : {self.w_f4}")
+            print(f"  Model I/O:")
+            print(f"    Load                         : {params['load_model']}")
+            print(f"    Save                         : {params['save_model']}")
+
 
         # Move the whole module to the selected device
         self.to(self.device)
@@ -324,10 +333,12 @@ class PhysicsInformedNN(nn.Module):
         H = 2.0 * (X - self.lb) / (self.ub - self.lb) - 1.0
         
         # Hidden layers with activation
-        for layer in self.hidden_layers[:-1]:
+        for i, layer in enumerate(self.hidden_layers[:-1]):
+                                  
             H = self.activation(layer(H))
 
-            if self.dropout_p > 0.0:
+            # Apply dropout only in selected hidden layers
+            if i in self.dropout_indices and self.dropout_p > 0.0:
                 H = F.dropout(H, p=self.dropout_p, training=use_dropout)
 
         # Last layer without activation: linear
@@ -893,17 +904,9 @@ class PhysicsInformedNN(nn.Module):
                 mutd.cpu().numpy()
             )
 
-    def prepare_torch_supervised_data(
-        self,
-        xdata,
-        ydata,
-        rhodata,
-        udata,
-        vdata,
-        pdata,
-        mutdata=None,
-        fit_scale=False,
-    ):
+    def prepare_torch_supervised_data(self, xdata, ydata, rhodata, udata,
+                                      vdata, pdata, mutdata=None, 
+                                      fit_scale=False):
         """
         Non-dimensionalise physical data, scale mut if needed,
         and convert data to PyTorch tensors.
@@ -913,14 +916,10 @@ class PhysicsInformedNN(nn.Module):
         """
 
         # Non-dimensional data
-        xstar, ystar, rhostar, ustar, vstar, pstar, mutstar = (
-            self.get_nondimensional_data(
-                xdata, ydata, rhodata,
-                udata, vdata, pdata,
-                mutdata,
-            )
-        )
-
+        xstar, ystar, rhostar, ustar, vstar, pstar, mutstar = \
+            self.get_nondimensional_data(xdata, ydata, rhodata, udata, vdata, 
+                                         pdata, mutdata)
+        
         # Turbulent viscosity scaling
         if self.eq == "RANS":
             if mutstar is None:
