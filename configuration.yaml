@@ -84,7 +84,7 @@ N_test_data: 500
 # Architecture
 layers: [2, 32, 32, 32, 4]
 # Dropout probability
-dropout_p: 0.015
+dropout_p: 0.0
 # Dropout hidden layer indices
 dropout_indices: [1,2]
 
@@ -92,8 +92,8 @@ dropout_indices: [1,2]
 loss_weights:
   w_rho: 1.0
   w_u: 1.0
-  w_v: 10.0
-  w_p: 1.0
+  w_v: 200.0
+  w_p: 2.0
   w_mut: 1.0
   w_f1: 1.0
   w_f2: 1.0
@@ -102,14 +102,14 @@ loss_weights:
 
 # Adam Optimizer
 use_adam: True
-n_adam_iter: 100
+n_adam_iter: 5000
 lr_adam: 4e-4
 scheduler_size: 2000
 scheduler_gamma: 0.8
 
 # LBFGS: start after adam optimizer finish
-use_lbfgs: False
-n_lbfgs_iter: 100
+use_lbfgs: True
+n_lbfgs_iter: 500
 lr_lbfgs: 1.0
 maxi_iter_lbfgs: 30
 

@@ -96,7 +96,7 @@ def plot_losses(l_data, l_res, l_total, n_epoch, params):
     fig.subplots_adjust(left=0.127, right=0.97, bottom=0.117, top=0.97)
     ax.grid(color='0.5', linestyle=':', linewidth=0.5, which='both')
     #ax.set_xlim(0.0, 0.0)
-    ax.set_ylim(0.0001, 2.0)
+    ax.set_ylim(0.0001, 100.0)
     ax.tick_params(labelsize=18)
     ax.set_xlabel(r'$Epochs$', fontsize=18)
     ax.set_ylabel(r'$Losses$', fontsize=18)

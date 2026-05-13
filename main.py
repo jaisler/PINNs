@@ -8,7 +8,7 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
-import pinns
+import pinn.physics_informed_nn as pinn
 import sampling as smp
 import plot as pl
 
@@ -237,7 +237,7 @@ def main():
         pl.plot_target_points(x, y, xf, yf, params)
         
         # Note that model is a object of the class
-        model = pinns.PhysicsInformedNN(
+        model = pinn.PhysicsInformedNN(
             xtrain, ytrain, # training data
             rhotrain, utrain, vtrain, ptrain, # training data
             xftrain, yftrain, # collocation data
