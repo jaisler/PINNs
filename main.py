@@ -8,9 +8,9 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
-import pinn.physics_informed_nn as pinn
-import sampling as smp
-import plot as pl
+import src.pinn.physics_informed_nn as pinn
+import src.sampling.sampling as smp
+import src.utils.plot as pl
 
 def main():
 
