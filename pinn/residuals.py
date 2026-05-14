@@ -145,8 +145,8 @@ def steady_compressible_rans_residuals(pinn, x, y):
     tauxy = (mueffstar / pinn.Re) * (uy + vx)
 
     # Conductivity heat        
-    qx = - (keffstar / pinn.Re) * pinn.grad(Tstar, x)
-    qy = - (keffstar / pinn.Re) * pinn.grad(Tstar, y)
+    qx = - (keffstar / pinn.Re) * grad(Tstar, x)
+    qy = - (keffstar / pinn.Re) * grad(Tstar, y)
 
     # Convective fluxes 
     # Derivative wrt x
@@ -173,9 +173,9 @@ def steady_compressible_rans_residuals(pinn, x, y):
     Gv4 = u * tauxy + v * tauyy - qy
 
     # Residual
-    f1 = pinn.grad(Fc1, x) + pinn.grad(Gc1, y)
-    f2 = pinn.grad(Fc2 - Fv2, x) + pinn.grad(Gc2 - Gv2, y)
-    f3 = pinn.grad(Fc3 - Fv3, x) + pinn.grad(Gc3 - Gv3, y)
-    f4 = pinn.grad(Fc4 - Fv4, x) + pinn.grad(Gc4 - Gv4, y)
+    f1 = grad(Fc1, x) + grad(Gc1, y)
+    f2 = grad(Fc2 - Fv2, x) + grad(Gc2 - Gv2, y)
+    f3 = grad(Fc3 - Fv3, x) + grad(Gc3 - Gv3, y)
+    f4 = grad(Fc4 - Fv4, x) + grad(Gc4 - Gv4, y)
 
     return f1, f2, f3, f4

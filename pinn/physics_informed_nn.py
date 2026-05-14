@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import os
 
-from .residuals import steady_euler_residuals, steady_compressible_rans_residuals
+from .losses import loss_fn, validation_loss_fn
 
 torch.manual_seed(1234)
 np.random.seed(1234)
@@ -379,157 +379,6 @@ class PhysicsInformedNN(nn.Module):
             muthat = torch.nn.functional.softplus(raw_mut) + 1e-8
             return rho, u, v, p, muthat
 
-    def loss_fn(self, return_terms=False):
-        """
-        Loss function for data and PDE
-        """
-
-        # Define dropout
-        use_data_dropout = self.enable_data_dropout
-
-        if self.model == 'pinn':
-            
-            if self.xf is None or self.yf is None:
-                raise ValueError("PINN mode requires collocation points xf and yf.")
-
-            if self.eq == 'Euler':
-                # Data
-                rho_pred, u_pred, v_pred, p_pred = \
-                    self.net_fields(self.x, self.y, use_data_dropout)        
-                # Residuals
-                f1_res, f2_res, f3_res, f4_res \
-                    = steady_euler_residuals(self, self.xf, self.yf)
-                # Loss of the turbulent viscosity is zero for Euler
-                l_mut = torch.tensor(0.0, device=self.device)
-                
-            elif self.eq == 'RANS':
-                # Data        
-                rho_pred, u_pred, v_pred, p_pred, mut_pred \
-                    = self.net_fields(self.x, self.y, use_data_dropout)
-                # Residuals
-                f1_res, f2_res, f3_res, f4_res \
-                    = steady_compressible_rans_residuals(self, self.xf, self.yf)
-                
-                if self.mut is None:
-                    raise ValueError("For RANS, mut_t must be provided in loss_fn.")
-                # Loss of the turbulent viscosity         
-                l_mut = torch.mean((self.mut - mut_pred) ** 2)
-
-            # PDE residual losses
-            l_f1  = torch.mean(f1_res ** 2)
-            l_f2  = torch.mean(f2_res ** 2)
-            l_f3  = torch.mean(f3_res ** 2)
-            l_f4  = torch.mean(f4_res ** 2)
-
-        elif self.model == 'supervised':
-            
-            if self.eq == 'Euler': 
-                # Data
-                rho_pred, u_pred, v_pred, p_pred = \
-                    self.net_fields(self.x, self.y, use_data_dropout)        
-                # is not RANS
-                l_mut = torch.tensor(0.0, device=self.device)
-
-            elif self.eq == 'RANS':
-                # Data        
-                rho_pred, u_pred, v_pred, p_pred, mut_pred \
-                    = self.net_fields(self.x, self.y, use_data_dropout)
-    
-                if self.mut is None:
-                    raise ValueError("For RANS, mut_t must be provided in loss_fn.")
-                # Loss of the turbulent viscosity         
-                l_mut = torch.mean((self.mut - mut_pred) ** 2)
- 
-
-            # PDE residual losses
-            l_f1 = torch.tensor(0.0, device=self.device)
-            l_f2 = torch.tensor(0.0, device=self.device)
-            l_f3 = torch.tensor(0.0, device=self.device)
-            l_f4 = torch.tensor(0.0, device=self.device)
-                
-                
-        # Data losses
-        l_rho = torch.mean((self.rho - rho_pred) ** 2)
-        l_u   = torch.mean((self.u   - u_pred)   ** 2)
-        l_v   = torch.mean((self.v   - v_pred)   ** 2)
-        l_p   = torch.mean((self.p   - p_pred)   ** 2)
-
-        # Data loss
-        data_loss = (
-            self.w_rho * l_rho +
-            self.w_u   * l_u   +
-            self.w_v   * l_v   +
-            self.w_p   * l_p   +
-            self.w_mut * l_mut
-        )
-        # Residual loss
-        res_loss = (
-            self.w_f1 * l_f1 + 
-            self.w_f2 * l_f2 + 
-            self.w_f3 * l_f3 + 
-            self.w_f4 * l_f4
-        )
-        # Total loss
-        loss = data_loss + res_loss  
-
-        if return_terms:
-            return loss, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4
-
-        return loss, data_loss, res_loss
-
-    def validation_loss_fn(self):
-        """
-        Validation data loss function based only on supervised data.
-
-        The validation set should not be used to update the weights.
-        It is only used to decide when to stop training.
-        """
-
-        if not self.has_validation:
-            return None
-
-        # Use the model in prediction/evaluation mode
-        self.eval()
-
-        # Do not compute gradients
-        with torch.no_grad():
-            # compute validation data loss only
-            if self.eq == 'Euler': 
-                # Data
-                rho_val_pred, u_val_pred, v_val_pred, p_val_pred = \
-                    self.net_fields(self.xval, self.yval, False)        
-                # is not RANS
-                l_val_mut = torch.tensor(0.0, device=self.device)
-
-            elif self.eq == 'RANS':
-                # Data        
-                rho_val_pred, u_val_pred, v_val_pred, p_val_pred, mut_val_pred \
-                    = self.net_fields(self.xval, self.yval, False)
-    
-                if self.mutval is None:
-                    raise ValueError("For RANS, mut_t must be provided in loss_fn.")
-                # turbulent viscosity data loss       
-                l_val_mut = torch.mean((self.mutval - mut_val_pred) ** 2)
-                
-            # Data losses
-            l_val_rho = torch.mean((self.rhoval - rho_val_pred) ** 2)
-            l_val_u   = torch.mean((self.uval   - u_val_pred)   ** 2)
-            l_val_v   = torch.mean((self.vval   - v_val_pred)   ** 2)
-            l_val_p   = torch.mean((self.pval   - p_val_pred)   ** 2)
-
-            l_val = (
-                self.w_rho * l_val_rho +
-                self.w_u   * l_val_u   +
-                self.w_v   * l_val_v   +
-                self.w_p   * l_val_p   +
-                self.w_mut * l_val_mut
-            )
-
-        # Return to training mode
-        self.train()
-
-        return l_val
-
     def fit(self):
         """
         Train the Physics-Informed Neural Network (PINN) parameters using Adam,
@@ -557,8 +406,7 @@ class PhysicsInformedNN(nn.Module):
             for it in range(1, self.n_adam_iter + 1):
                 self.optimizer_adam.zero_grad()
                 # Loss function
-                loss, data_loss, res_loss = self.loss_fn()
-                # Backward propagation
+                loss, data_loss, res_loss = loss_fn(self)                # Backward propagation
                 loss.backward()
                 # Adam step
                 self.optimizer_adam.step()
@@ -573,7 +421,7 @@ class PhysicsInformedNN(nn.Module):
 
                 # validation data loss function
                 if self.has_validation:
-                    self.lval.append(self.validation_loss_fn().item())
+                    self.lval.append(validation_loss_fn(self).item())
 
                 # Print
                 if it % self.io_loss == 0:
@@ -591,14 +439,14 @@ class PhysicsInformedNN(nn.Module):
             for it in range(1, self.n_lbfgs_iter + 1):
                 def closure():
                     self.optimizer_lbfgs.zero_grad()
-                    loss, _, _ = self.loss_fn()
+                    loss, _, _ = loss_fn(self)
                     loss.backward()
                     return loss
 
                 self.optimizer_lbfgs.step(closure)
 
                 # recompute once for logging
-                loss, data_loss, res_loss = self.loss_fn()
+                loss, data_loss, res_loss = loss_fn(self)
                             
                 self.ldata.append(data_loss.item())
                 self.lres.append(res_loss.item())
@@ -608,7 +456,7 @@ class PhysicsInformedNN(nn.Module):
 
                 # validation data loss function
                 if self.has_validation:
-                    self.lval.append(self.validation_loss_fn().item())
+                    self.lval.append(validation_loss_fn(self).item())
 
                 # Print
                 if it % self.io_loss == 0:
@@ -624,7 +472,7 @@ class PhysicsInformedNN(nn.Module):
 
             if self.eq == 'Euler':
                 loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
-                    self.loss_fn(return_terms=True)
+                    loss_fn(self, return_terms=True)
 
                 print(
                     f"It: {it:6d} | "
@@ -641,7 +489,7 @@ class PhysicsInformedNN(nn.Module):
 
             elif self.eq == 'RANS':
                 loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
-                    self.loss_fn(return_terms=True)
+                    loss_fn(self, return_terms=True)
 
                 print(
                     f"It: {it:6d} | "
@@ -659,7 +507,7 @@ class PhysicsInformedNN(nn.Module):
         
         elif self.model == 'supervised':
             loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
-                self.loss_fn(return_terms=True)
+                loss_fn(self, return_terms=True)
 
             if self.eq == 'Euler':
 
