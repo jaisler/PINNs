@@ -11,6 +11,7 @@ import torch.nn as nn
 import src.pinn.physics_informed_nn as pinn
 import src.sampling.sampling as smp
 import src.utils.plot as pl
+from src.utils.metrics import print_metrics_table
 
 def main():
 
@@ -291,7 +292,7 @@ def main():
         test_metrics = model.evaluate_data(xtest, ytest, rhotest, utest,
                                            vtest, ptest, muttest)
         # Print metrics of the test dataset
-        model.print_metrics_table(test_metrics)
+        print_metrics_table(test_metrics)
 
 if __name__ == "__main__":
     main()

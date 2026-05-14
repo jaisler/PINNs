@@ -1,6 +1,6 @@
 from ..pinn.losses import loss_fn
 
-def printing_loss(pinn, it):
+def print_loss(pinn, it):
 
     if pinn.model == 'pinn':
 

@@ -5,6 +5,8 @@ import torch.nn.functional as F
 import os
 
 from .losses import loss_fn, validation_loss_fn
+from ..utils.printing_loss import print_loss
+from ..utils.metrics import compute_metrics
 
 torch.manual_seed(1234)
 np.random.seed(1234)
@@ -425,7 +427,7 @@ class PhysicsInformedNN(nn.Module):
 
                 # Print
                 if it % self.io_loss == 0:
-                    self.print_loss_fn(it)
+                    print_loss(self, it)
 
         if self.use_lbfgs:
             # L-BFGS loop
@@ -460,78 +462,12 @@ class PhysicsInformedNN(nn.Module):
 
                 # Print
                 if it % self.io_loss == 0:
-                    self.print_loss_fn(it)
+                    print_loss(self, it)
 
         # After training, disable dropout by default
         self.enable_data_dropout = False
         self.eval()
     
-    def print_loss_fn(self, it):
-    
-        if self.model == 'pinn':
-
-            if self.eq == 'Euler':
-                loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
-                    loss_fn(self, return_terms=True)
-
-                print(
-                    f"It: {it:6d} | "
-                    f"Loss: {loss_val.item():.3e} | "
-                    f"rho: {l_rho.item():.3e} | "
-                    f"u: {l_u.item():.3e} | "
-                    f"v: {l_v.item():.3e} | "
-                    f"p: {l_p.item():.3e} | "
-                    f"f1: {l_f1.item():.3e} | "
-                    f"f2: {l_f2.item():.3e} | "
-                    f"f3: {l_f3.item():.3e} | "
-                    f"f4: {l_f4.item():.3e}"
-                )
-
-            elif self.eq == 'RANS':
-                loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
-                    loss_fn(self, return_terms=True)
-
-                print(
-                    f"It: {it:6d} | "
-                    f"Loss: {loss_val.item():.3e} | "
-                    f"rho: {l_rho.item():.3e} | "
-                    f"u: {l_u.item():.3e} | "
-                    f"v: {l_v.item():.3e} | "
-                    f"p: {l_p.item():.3e} | "
-                    f"mut: {l_mut.item():.3e} | "
-                    f"f1: {l_f1.item():.3e} | "
-                    f"f2: {l_f2.item():.3e} | "
-                    f"f3: {l_f3.item():.3e} | "
-                    f"f4: {l_f4.item():.3e}"
-                )
-        
-        elif self.model == 'supervised':
-            loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
-                loss_fn(self, return_terms=True)
-
-            if self.eq == 'Euler':
-
-                print(
-                    f"It: {it:6d} | "
-                    f"Loss: {loss_val.item():.3e} | "
-                    f"rho: {l_rho.item():.3e} | "
-                    f"u: {l_u.item():.3e} | "
-                    f"v: {l_v.item():.3e} | "
-                    f"p: {l_p.item():.3e} "
-                )
-
-            elif self.eq == 'RANS':
-
-                print(
-                    f"It: {it:6d} | "
-                    f"Loss: {loss_val.item():.3e} | "
-                    f"rho: {l_rho.item():.3e} | "
-                    f"u: {l_u.item():.3e} | "
-                    f"v: {l_v.item():.3e} | "
-                    f"p: {l_p.item():.3e} | "
-                    f"mut: {l_mut.item():.3e}"
-                )
-
     @torch.no_grad()
     def predict(self, x, y):
         """
@@ -862,89 +798,12 @@ class PhysicsInformedNN(nn.Module):
 
         metrics = {}
 
-        metrics["rho"] = self.compute_metrics(rho_pred, rho_true)
-        metrics["u"]   = self.compute_metrics(u_pred,   u_true)
-        metrics["v"]   = self.compute_metrics(v_pred,   v_true)
-        metrics["p"]   = self.compute_metrics(p_pred,   p_true)
+        metrics["rho"] = compute_metrics(rho_pred, rho_true)
+        metrics["u"]   = compute_metrics(u_pred,   u_true)
+        metrics["v"]   = compute_metrics(v_pred,   v_true)
+        metrics["p"]   = compute_metrics(p_pred,   p_true)
 
         if self.eq == "RANS":
-            metrics["mut"] = self.compute_metrics(mut_pred, mut_true)
+            metrics["mut"] = compute_metrics(mut_pred, mut_true)
 
         return metrics
-    
-    def compute_metrics(self, y_pred, y_true, eps=1.0e-12):
-        """
-        Compute RMSE, relative L2 error and R2 score.
-        """
-
-        error = y_pred - y_true
-
-        mse = torch.mean(error**2)
-        rmse = torch.sqrt(mse)
-
-        rel_l2 = (
-            torch.linalg.norm(error)
-            /
-            (torch.linalg.norm(y_true) + eps)
-        )
-
-        ss_res = torch.sum(error**2)
-        ss_tot = torch.sum((y_true - torch.mean(y_true))**2)
-
-        r2 = 1.0 - ss_res / (ss_tot + eps)
-
-        return {
-            "mse": mse.item(),
-            "rmse": rmse.item(),
-            "rel_l2": rel_l2.item(),
-            "r2": r2.item(),
-        }
-    
-    def print_metrics_table(self, metrics, title="Metrics", rel_l2_percent=True):
-        """
-        Pretty-print RMSE, relative L2 error and R2 score.
-        """
-
-        rel_l2_name = "Rel. L2 (%)" if rel_l2_percent else "Rel. L2"
-
-        header = (
-            f"{'Variable':<10}"
-            f"{'MSE':>14}"
-            f"{'RMSE':>14}"
-            f"{rel_l2_name:>16}"
-            f"{'R2':>14}"
-        )
-
-        line_width = len(header)
-
-        print("\n" + "=" * line_width)
-        print(f"{title:}")
-        print("-" * line_width)
-        print(header)
-        print("-" * line_width)
-
-        preferred_order = ["rho", "u", "v", "p", "mut"]
-
-        for var in preferred_order:
-            if var not in metrics:
-                continue
-
-            values = metrics[var]
-
-            mse = values["mse"]
-            rmse = values["rmse"]
-            rel_l2 = values["rel_l2"]
-            r2 = values["r2"]
-
-            if rel_l2_percent:
-                rel_l2 = 100.0 * rel_l2
-
-            print(
-                f"{var:<10}"
-                f"{mse:>14.4e}"
-                f"{rmse:>14.4e}"
-                f"{rel_l2:>16.4f}"
-                f"{r2:>14.4f}"
-            )
-
-        print("=" * line_width + "\n")
