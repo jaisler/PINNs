@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import os
 
 from .losses import loss_fn, validation_loss_fn
-from ..utils.printing_loss import print_loss
+from ..utils.print_loss import print_loss
 from ..utils.metrics import compute_metrics
 
 torch.manual_seed(1234)

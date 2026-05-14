@@ -8,12 +8,6 @@ pathRes: ''
 pathData: ''
 pathModel: ''
 
-pathFlow: '/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/scramjet/afrl/2d/cases/euler/case'
-pathMesh: '/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/scramjet/afrl/2d/meshes/mesh2'
-pathRes: '/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/results'
-pathData: '/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/data'
-pathModel: '/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/model'
-
 # Flow field file
 flowfield: 'flow.vtu'
 
@@ -82,7 +76,7 @@ sampling:
   fcoll: 'collocation_points'
 
 # NN setup
-io_loss: 50
+io_loss: 10
 N_train_data: 3500
 N_train_coll: 3500
 N_val_data: 500
@@ -108,14 +102,14 @@ loss_weights:
 
 # Adam Optimizer
 use_adam: True
-n_adam_iter: 500
+n_adam_iter: 50
 lr_adam: 4e-4
 scheduler_size: 2000
 scheduler_gamma: 0.8
 
 # LBFGS: start after adam optimizer finish
 use_lbfgs: True
-n_lbfgs_iter: 50
+n_lbfgs_iter: 10
 lr_lbfgs: 1.0
 maxi_iter_lbfgs: 30
 
