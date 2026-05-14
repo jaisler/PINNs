@@ -1,7 +1,23 @@
 from ..pinn.losses import loss_fn
 
 def print_loss(pinn, it):
+    """
+    Print the current training loss terms.
 
+    Parameters
+    ----------
+    pinn : PhysicsInformedNN
+        PINN object containing the model type, equation type, loss weights,
+        data tensors, and residual tensors needed by `loss_fn`.
+
+    it : int
+        Current training iteration.
+
+    Returns
+    -------
+    None
+        This function only prints the loss values.
+    """
     if pinn.model == 'pinn':
 
         if pinn.eq == 'Euler':
