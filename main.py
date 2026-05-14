@@ -15,7 +15,7 @@ import src.utils.plot as pl
 def main():
 
     # Configuration file
-    with open(r'configuration.yaml') as file:
+    with open(r'configs/configuration.yaml') as file:
         # The FullLoader parameter handles the conversion from YAML
         # scalar values to Python the dictionary format
         params = yaml.load(file, Loader=yaml.FullLoader)
