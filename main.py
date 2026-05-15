@@ -7,9 +7,10 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
-import src.pinn.physics_informed_nn as pinn
 import src.sampling.sampling as smp
 import src.utils.plot as pl
+#import src.pinn.physics_informed_nn as pinn
+from src.pinn import PhysicsInformedNN
 from src.networks import MLP
 from src.utils.metrics import print_metrics_table
 
@@ -246,7 +247,7 @@ def main():
         )
 
         # Note that model is a object of the class
-        model = pinn.PhysicsInformedNN(
+        model = PhysicsInformedNN(
             xtrain, ytrain, # training data
             rhotrain, utrain, vtrain, ptrain, # training data
             xftrain, yftrain, # collocation data
