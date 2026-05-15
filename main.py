@@ -3,7 +3,6 @@ import yaml
 import numpy as np
 import time
 import pyvista as pv
-from scipy.interpolate import griddata
 from pathlib import Path
 import torch
 import torch.nn as nn
@@ -11,6 +10,7 @@ import torch.nn as nn
 import src.pinn.physics_informed_nn as pinn
 import src.sampling.sampling as smp
 import src.utils.plot as pl
+from src.networks import MLP
 from src.utils.metrics import print_metrics_table
 
 def main():
@@ -237,6 +237,14 @@ def main():
         # Plot all points
         pl.plot_target_points(x, y, xf, yf, params)
         
+        # Network Network model
+        network = MLP(
+            layers=params["layers"],
+            activation=params["activation"],
+            dropout_p=params.get("dropout_p", 0.0),
+            dropout_indices=params.get("dropout_indices", [])
+        )
+
         # Note that model is a object of the class
         model = pinn.PhysicsInformedNN(
             xtrain, ytrain, # training data

@@ -297,7 +297,6 @@ class PhysicsInformedNN(nn.Module):
             print(f"    Load                         : {params['load_model']}")
             print(f"    Save                         : {params['save_model']}")
 
-
         # Move the whole module to the selected device
         self.to(self.device)
 
@@ -408,7 +407,8 @@ class PhysicsInformedNN(nn.Module):
             for it in range(1, self.n_adam_iter + 1):
                 self.optimizer_adam.zero_grad()
                 # Loss function
-                loss, data_loss, res_loss = loss_fn(self)                # Backward propagation
+                loss, data_loss, res_loss = loss_fn(self)                
+                # Backward propagation
                 loss.backward()
                 # Adam step
                 self.optimizer_adam.step()

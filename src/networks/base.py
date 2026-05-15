@@ -1,0 +1,36 @@
+from abc import ABC, abstractmethod
+import torch.nn as nn
+
+
+class BaseNetwork(nn.Module, ABC):
+    """
+    Base class for neural network architectures used by the PINN.
+
+    Every derived network must map input coordinates X to the predicted
+    physical variables.
+    """
+
+    def __init__(self, input_dim, output_dim):
+        super().__init__()
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+
+    @abstractmethod
+    def forward(self, X, use_dropout=False):
+        """
+        Evaluate the neural network.
+
+        Parameters
+        ----------
+        X : torch.Tensor
+            Input coordinates, usually with shape [N, 2].
+
+        use_dropout : bool
+            Whether to activate dropout during the forward pass.
+
+        Returns
+        -------
+        torch.Tensor
+            Network output with shape [N, output_dim].
+        """
+        pass
