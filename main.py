@@ -7,12 +7,11 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
-import src.sampling.sampling as smp
-import src.utils.plot as pl
-#import src.pinn.physics_informed_nn as pinn
-from src.pinn import PhysicsInformedNN
+from src.sampling.sampling import SamplingData
 from src.networks import MLP
-from src.utils.metrics import print_metrics_table
+from src.pinn import PhysicsInformedNN
+from src.utils import print_metrics_table
+import src.utils.plot as pl
 
 def main():
 
@@ -56,7 +55,7 @@ def main():
     if (params['routine']['sampling']):
         flag = False # Data points
         # Create data set
-        sample_data = smp.SamplingData(params, flag)
+        sample_data = SamplingData(params, flag)
         sample_data.sample() 
         # Write data to file
         sample_data.write_data_to_npz()
@@ -78,7 +77,7 @@ def main():
         # Collocation points (PDE residuals)
         if params['model'] == 'pinn':  
             flag = True # collocation points
-            sample_coll = smp.SamplingData(params, flag)
+            sample_coll = SamplingData(params, flag)
             sample_coll.sample() 
             # Write data to file
             sample_coll.write_data_to_npz()
@@ -92,13 +91,13 @@ def main():
 
     else:
         flag = False        
-        read_data = smp.SamplingData(params, flag)    
+        read_data = SamplingData(params, flag)    
         X, pts_in_data, pts_bc_data, pts_grad_data, U, rho, p, mut = \
             read_data.read_data_from_npz()
 
         if params['model'] == 'pinn':  
             flag = True
-            read_coll = smp.SamplingData(params, flag)    
+            read_coll = SamplingData(params, flag)    
             Xf, pts_in_coll, pts_bc_coll, pts_grad_coll, _, _, _, _ = \
                 read_coll.read_data_from_npz()
 
