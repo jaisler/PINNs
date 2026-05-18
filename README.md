@@ -38,6 +38,7 @@ PINNs/
         ├── metrics.py
         ├── print_loss.py
         └── plotting.py
+```
 
 ## License
 
