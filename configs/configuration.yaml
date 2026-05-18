@@ -76,17 +76,21 @@ sampling:
   fcoll: 'collocation_points'
 
 # NN setup
-io_loss: 10
+io_loss: 50
 N_train_data: 3500
 N_train_coll: 3500
 N_val_data: 500
 N_test_data: 500
-# Architecture
-layers: [2, 32, 32, 32, 4]
-# Dropout probability
-dropout_p: 0.0
-# Dropout hidden layer indices
-dropout_indices: [1,2]
+
+# Neural network
+# --------------
+network:
+  layers: [2, 32, 32, 32, 4]
+  activation: "tanh"
+  # Options: tanh, sigmoid, sin, softplus, silu/swish, gelu
+  dropout:
+    probability: 0.0
+    hidden_layer_indices: [1, 2]
 
 # Loss weights
 loss_weights:
@@ -102,14 +106,14 @@ loss_weights:
 
 # Adam Optimizer
 use_adam: True
-n_adam_iter: 50
+n_adam_iter: 2000
 lr_adam: 4e-4
 scheduler_size: 2000
 scheduler_gamma: 0.8
 
 # LBFGS: start after adam optimizer finish
 use_lbfgs: True
-n_lbfgs_iter: 10
+n_lbfgs_iter: 500
 lr_lbfgs: 1.0
 maxi_iter_lbfgs: 30
 
