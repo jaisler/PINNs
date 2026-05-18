@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 import os
 import yaml
 import numpy as np

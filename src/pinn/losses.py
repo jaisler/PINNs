@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 import torch
 
 from .residuals import steady_euler_residuals

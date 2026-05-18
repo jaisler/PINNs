@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 from ..pinn.losses import loss_fn
 
 def print_loss(pinn, it):

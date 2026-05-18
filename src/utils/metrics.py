@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 import torch
 
 def compute_metrics(y_pred, y_true, eps=1.0e-12):

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 import os
 import pyvista as pv
 import matplotlib.pyplot as plt
