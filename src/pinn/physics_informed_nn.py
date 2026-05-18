@@ -18,6 +18,7 @@ class PhysicsInformedNN(nn.Module):
     # Initialize the class (Constructor)
     def __init__(
         self,
+        network,
         xdata, ydata, rhodata, udata, vdata, pdata, # data points
         xf, yf, # Collocation points (only coordinates)
         params,
@@ -44,30 +45,13 @@ class PhysicsInformedNN(nn.Module):
             else:
                 self.device = torch.device(device_str)
 
-        # Architeture
-        self.layers = params["layers"]
-        # Activation function
-        activation = params.get("activation", "tanh").lower()
-        if activation == "tanh":
-            self.activation = nn.Tanh()
-        elif activation == "sigmoid":
-            self.activation = nn.Sigmoid()
-        elif activation == "relu":
-            self.activation = nn.ReLU()
-        elif activation == "gelu":
-            self.activation = nn.GELU()
-        elif activation == "silu":
-            self.activation = nn.SiLU()
-        else:
-            raise ValueError(f"Unknown activation: {activation}")
-
-        # Initialise NN - weights and biases
-        self.initialise_nn()
-
         # Model
         self.model = params['model']
         # Equation
         self.eq = params['equation']
+
+        # Copy network object
+        self.network = network
 
         # Check model
         if self.model not in ('supervised', 'pinn'):
@@ -82,7 +66,7 @@ class PhysicsInformedNN(nn.Module):
             raise ValueError(f"Unknown equation type: {self.eq}")
 
         # Check the output layer
-        if self.layers[-1] != expected_out:
+        if network.layers[-1] != expected_out:
             raise ValueError(
                 f"For equation='{self.eq}', last layer must be {expected_out}, "
                 f"but got {self.layers[-1]}")
@@ -110,15 +94,6 @@ class PhysicsInformedNN(nn.Module):
         elif self.eq == "RANS":
             self.w_mut = float(loss_weights.get("w_mut", 1.0))
 
-        # Dropout probability
-        self.dropout_p = float(params.get("dropout_p", 0.0))
-        if not 0.0 <= self.dropout_p < 1.0:
-            raise ValueError("dropout_p must satisfy 0.0 <= dropout_p < 1.0")
-        # Control data dropout
-        self.enable_data_dropout = False
-        # Dropout indices
-        self.dropout_indices = params.get("dropout_indices", [])
-        
         # Initialisation: 
         # Collocation points
         Xf = None
@@ -212,7 +187,7 @@ class PhysicsInformedNN(nn.Module):
             scheduler_gamma = float(params.get('scheduler_gamma', 0.5))
              
             # Optimizer
-            self.optimizer_adam = torch.optim.Adam(self.parameters(), 
+            self.optimizer_adam = torch.optim.Adam(network.parameters(), 
                 lr=learning_rate_adam)
 
             # Scheduler
@@ -237,7 +212,7 @@ class PhysicsInformedNN(nn.Module):
 
             # Optimizer
             self.optimizer_lbfgs = torch.optim.LBFGS(
-                self.parameters(),
+                network.parameters(),
                 lr=learning_rate_lbfgs,
                 max_iter=max_iter_lbfgs,
                 history_size=params.get("lbfgs_history", 50),
@@ -260,8 +235,8 @@ class PhysicsInformedNN(nn.Module):
             print(f"  Device                         : {self.device}")
             print(f"  Learning formulation           : {self.model}")
             print(f"  Equation                       : {self.eq}")
-            print(f"  MLP                            : {self.layers}")
-            print(f"  Activation function            : {self.activation}")
+            print(f"  MLP                            : {network.layers}")
+            print(f"  Activation function            : {network.activation}")
             print(f"  Training data points           : {Xdata.shape[0]}")
             if Xf is not None:
                 print(f"  Training collocation points    : {Xf.shape[0]}")
@@ -278,10 +253,10 @@ class PhysicsInformedNN(nn.Module):
                 print(f"    Number of L-BFGS iteration   : {self.n_lbfgs_iter}")
                 print(f"    Max iterration for L-BFGS    : {max_iter_lbfgs}")
                 print(f"    L-BFGS learning rate         : {learning_rate_lbfgs}")
-            if self.dropout_p > 0.0:
+            if network.dropout_p > 0.0:
                 print(f"  Dropout:")
-                print(f"    Probability                  : {self.dropout_p}")
-                print(f"    Hidden layer indices         : {self.dropout_indices}")
+                print(f"    Probability                  : {network.dropout_p}")
+                print(f"    Hidden layer indices         : {network.dropout_indices}")
             print(f"  Loss weights:")
             print(f"    w_rho                        : {self.w_rho}")
             print(f"    w_u                          : {self.w_u}")
@@ -300,64 +275,69 @@ class PhysicsInformedNN(nn.Module):
         # Move the whole module to the selected device
         self.to(self.device)
 
-    def initialise_nn(self):
-        
-        # Fully connected layers
-        self.hidden_layers = nn.ModuleList()
-        for i in range(len(self.layers) - 1):
-            self.hidden_layers.append(
-                nn.Linear(self.layers[i], self.layers[i + 1]))
+    def normalize_input(self, X):
+        """
+        Input normalisation between [-1,1]
 
-        self.apply(self._init_weights)
+        Parameters
+        ----------
+        X : torch.Tensor
+            Input coordinates.
+        """
+        return 2.0 * (X - self.lb) / (self.ub - self.lb) - 1.0
 
-    def _init_weights(self, m):
-       
-        if isinstance(m, nn.Linear):
-            # Xavier initialization
-            nn.init.xavier_normal_(m.weight)
-            if m.bias is not None:
-                nn.init.zeros_(m.bias)    
-    
     def forward(self, X, use_dropout=False):
         """
-        Forward pass.
+        Evaluate the neural network inside the PINN.
 
-        Input normalization:
-            H = 2*(X - lb)/(ub - lb) - 1
+        The input coordinates are first normalized using the bounds stored in
+        the PINN class. The normalized coordinates are then passed to the
+        selected network, for example an MLP or GNN.
 
-        Dropout:
-            If use_dropout=True, dropout is applied to hidden-layer activations.
-            If use_dropout=False, dropout is disabled.
+        Parameters
+        ----------
+        X : torch.Tensor
+            Input coordinates with shape (N, input_dim).
 
-        Dropout is not applied to the output layer.
+        use_dropout : bool, optional
+            If True, enables dropout inside the network.
+
+        Returns
+        -------
+        torch.Tensor
+            Raw network output.
         """
+        # Normalised input coordinates
+        X_norm = self.normalize_input(X)
 
-        # Scale inputs to [-1, 1]
-        H = 2.0 * (X - self.lb) / (self.ub - self.lb) - 1.0
-        
-        # Hidden layers with activation
-        for i, layer in enumerate(self.hidden_layers[:-1]):
-                                  
-            H = self.activation(layer(H))
+        # Note that, this is self.network.forward(...)
+        output = self.network(X_norm, use_dropout=use_dropout)
 
-            # Apply dropout only in selected hidden layers
-            if i in self.dropout_indices and self.dropout_p > 0.0:
-                H = F.dropout(H, p=self.dropout_p, training=use_dropout)
-
-        # Last layer without activation: linear
-        Y = self.hidden_layers[-1](H)
-
-        return Y
+        return output
 
     def net_fields(self, x, y, use_dropout=False):
         """
-        Returns:
-        Euler -> rho, u, v, p
-        RANS  -> rho, u, v, p, mut
-        No deriviatives.
-        Used by predict(...) and net_steady_euler(...) and 
-        net_steady_compressible_rans(...)
+        Predict the physical flow variables at the given coordinates.
+
+        The coordinates are combined, normalized in forward(...), and passed
+        through the neural network. Positivity is enforced for density,
+        pressure, and, in the RANS case, turbulent viscosity.
+
+        Parameters
+        ----------
+        x, y : torch.Tensor
+            Coordinate tensors with shape (N, 1).
+
+        use_dropout : bool, optional
+            If True, enables dropout during the network evaluation.
+
+        Returns
+        -------
+        tuple of torch.Tensor
+            For Euler: rho, u, v, p.
+            For RANS: rho, u, v, p, muthat.
         """
+
         X = torch.cat([x, y], dim=1)
         out = self.forward(X, use_dropout)
 
@@ -388,7 +368,8 @@ class PhysicsInformedNN(nn.Module):
         Returns
         -------
         None
-            The function updates model parameters in-place. If L-BFGS is enabled, it prints
+            The function updates model parameters in-place. If L-BFGS is enabled, 
+            it prints
             the final L-BFGS loss.            
         """
 
@@ -698,7 +679,8 @@ class PhysicsInformedNN(nn.Module):
 
         self.load_state_dict(checkpoint["model_state_dict"])
 
-        if checkpoint.get("optimizer_adam_state_dict") is not None and hasattr(self, "optimizer_adam"):
+        if checkpoint.get("optimizer_adam_state_dict") is not None 
+            and hasattr(self, "optimizer_adam"):
             self.optimizer_adam.load_state_dict(checkpoint["optimizer_adam_state_dict"])
 
         if (checkpoint.get("optimizer_lbfgs_state_dict") is not None 
@@ -717,30 +699,14 @@ class PhysicsInformedNN(nn.Module):
         self.lres = checkpoint.get("lres", [])
 
         if "lb" in checkpoint:
-            self.lb = checkpoint["lb"].to(self.device) if torch.is_tensor(checkpoint["lb"]) else checkpoint["lb"]
+            self.lb = checkpoint["lb"].to(self.device) \
+                if torch.is_tensor(checkpoint["lb"]) else checkpoint["lb"]
         if "ub" in checkpoint:
-            self.ub = checkpoint["ub"].to(self.device) if torch.is_tensor(checkpoint["ub"]) else checkpoint["ub"]
+            self.ub = checkpoint["ub"].to(self.device) \
+                if torch.is_tensor(checkpoint["ub"]) else checkpoint["ub"]
 
         print("---------------------------------------")
         print(f"Model loaded from: {filepath}")
-
-    def get_data_loss(self):
-        return self.ldata
-
-    def get_residual_loss(self):
-        return self.lres
-
-    def get_total_loss(self):
-        return self.loss
-    
-    def get_validation_data_loss(self):
-        return self.lval
-    
-    def get_n_epoch(self):
-        return self.n_epoch
-    
-    def callback(self, it, loss_value):
-        print(f"It: {it}, Loss: {loss_value:.3e}")
 
     def evaluate_data(self, xdata, ydata, rhodata,
                       udata, vdata, pdata, mutdata=None):
@@ -807,3 +773,21 @@ class PhysicsInformedNN(nn.Module):
             metrics["mut"] = compute_metrics(mut_pred, mut_true)
 
         return metrics
+    
+    def get_data_loss(self):
+        return self.ldata
+
+    def get_residual_loss(self):
+        return self.lres
+
+    def get_total_loss(self):
+        return self.loss
+    
+    def get_validation_data_loss(self):
+        return self.lval
+    
+    def get_n_epoch(self):
+        return self.n_epoch
+    
+    def callback(self, it, loss_value):
+        print(f"It: {it}, Loss: {loss_value:.3e}")

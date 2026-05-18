@@ -240,14 +240,15 @@ def main():
         
         # Network Network model
         network = MLP(
-            layers=params["layers"],
-            activation=params["activation"],
-            dropout_p=params.get("dropout_p", 0.0),
-            dropout_indices=params.get("dropout_indices", [])
+            layers=params["network"]["layers"],
+            activation=params["network"]["activation"],
+            dropout_p=params["network"]["dropout"].get("probability", 0.0),
+            dropout_indices=params["network"]["dropout"].get("hidden_layer_indices", [])
         )
 
         # Note that model is a object of the class
         model = PhysicsInformedNN(
+            network, # MLP or GNN 
             xtrain, ytrain, # training data
             rhotrain, utrain, vtrain, ptrain, # training data
             xftrain, yftrain, # collocation data
