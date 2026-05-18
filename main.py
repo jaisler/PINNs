@@ -1,21 +1,23 @@
+# SPDX-License-Identifier: MIT
 import os
 import yaml
 import numpy as np
 import time
 import pyvista as pv
-from scipy.interpolate import griddata
 from pathlib import Path
 import torch
 import torch.nn as nn
 
-import pinns
-import sampling as smp
-import plot as pl
+from src.sampling.sampling import SamplingData
+from src.networks import MLP
+from src.pinn import PhysicsInformedNN
+from src.utils import print_metrics_table
+import src.utils.plot as pl
 
 def main():
 
     # Configuration file
-    with open(r'configuration.yaml') as file:
+    with open(r'configs/configuration.yaml') as file:
         # The FullLoader parameter handles the conversion from YAML
         # scalar values to Python the dictionary format
         params = yaml.load(file, Loader=yaml.FullLoader)
@@ -54,7 +56,7 @@ def main():
     if (params['routine']['sampling']):
         flag = False # Data points
         # Create data set
-        sample_data = smp.SamplingData(params, flag)
+        sample_data = SamplingData(params, flag)
         sample_data.sample() 
         # Write data to file
         sample_data.write_data_to_npz()
@@ -76,7 +78,7 @@ def main():
         # Collocation points (PDE residuals)
         if params['model'] == 'pinn':  
             flag = True # collocation points
-            sample_coll = smp.SamplingData(params, flag)
+            sample_coll = SamplingData(params, flag)
             sample_coll.sample() 
             # Write data to file
             sample_coll.write_data_to_npz()
@@ -90,13 +92,13 @@ def main():
 
     else:
         flag = False        
-        read_data = smp.SamplingData(params, flag)    
+        read_data = SamplingData(params, flag)    
         X, pts_in_data, pts_bc_data, pts_grad_data, U, rho, p, mut = \
             read_data.read_data_from_npz()
 
         if params['model'] == 'pinn':  
             flag = True
-            read_coll = smp.SamplingData(params, flag)    
+            read_coll = SamplingData(params, flag)    
             Xf, pts_in_coll, pts_bc_coll, pts_grad_coll, _, _, _, _ = \
                 read_coll.read_data_from_npz()
 
@@ -236,8 +238,16 @@ def main():
         # Plot all points
         pl.plot_target_points(x, y, xf, yf, params)
         
+        # Network Network model
+        network = MLP(
+            layers=params["layers"],
+            activation=params["activation"],
+            dropout_p=params.get("dropout_p", 0.0),
+            dropout_indices=params.get("dropout_indices", [])
+        )
+
         # Note that model is a object of the class
-        model = pinns.PhysicsInformedNN(
+        model = PhysicsInformedNN(
             xtrain, ytrain, # training data
             rhotrain, utrain, vtrain, ptrain, # training data
             xftrain, yftrain, # collocation data
@@ -291,7 +301,7 @@ def main():
         test_metrics = model.evaluate_data(xtest, ytest, rhotest, utest,
                                            vtest, ptest, muttest)
         # Print metrics of the test dataset
-        model.print_metrics_table(test_metrics)
+        print_metrics_table(test_metrics)
 
 if __name__ == "__main__":
     main()
