@@ -1,86 +1,48 @@
 # CONFIGURATION FILE 
 # All paths are to be given without final slash.
 
-# Path 
-pathFlow: ''
-pathMesh: ''
-pathRes: ''
-pathData: ''
-pathModel: ''
+# Paths
+# -----
+paths:
+  flow: ""
+  mesh: ""
+  results: ""
+  data: ""
+  model: ""
 
-# Flow field file
-flowfield: 'flow.vtu'
+# Geometry
+# --------
+geometry:
+  dimension: 2
 
-# Geometry 
-mesh: 'afrl2d.geo'
+# Random number generation
+# ------------------------
+seed: 1234
 
-# Solver: Euler or RANS
-equation: 'Euler'  
+# Files
+# -----
+files:
+  flowfield: "flow.vtu"
+  mesh: "afrl2d.geo"
+  model_name: "pinn_mlp_model"
 
-# Model: supervised or pinn
-model: 'pinn'
+# Run setup
+# ---------
+run:
+  model: "pinn"          # supervised or pinn
+  equation: "Euler"      # Euler or RANS
+  device: "cuda"         # cpu or cuda
 
-# Device: cpu or cuda
-device: cuda
+  routines:
+    sampling: true
+    inference: true
+    identification: false
 
-# Save and load model 
-model_name: model_pinn
-load_model: False
-save_model: True
+  checkpoint:
+    load_model: false
+    save_model: true
 
-# Verbose
-verbose: True
-
-# Routines
-routine:
-  sampling: True
-  inference: True
-  identification: False
-
-plotflow:
-  fields: ["Density", "Pressure", "Velocity", "Velocity"] 
-  #fields: ["Density", "Pressure", "Velocity", "Velocity", "Eddy_Viscosity"]
-  latex: ['$\rho$ $[kg/m^{3}]$', '$p$ $[Pa]$', '$u$ $[m/s]$', '$v$ $[m/s]$']
-  #latex: ['$\rho$ $[kg/m^{3}]$', '$p$ $[Pa]$', '$u$ $[m/s]$', '$v$ $[m/s]$', '$\hat{\mu}_{t}$ $[kg/m \cdot s]$']
-  comp: [0, 0, 0, 1]
-  #comp: [0, 0, 0, 1, 0]
-  cmap: ['bwr', 'bwr', 'bwr', 'bwr']
-  #cmap: ['bwr', 'bwr', 'bwr', 'bwr', 'bwr']
-  scale: [[0,1.3],[1.3e4,1.67e5],[-750, 950],[-315,315]]
-  #scale: [[0,1.3],[1.3e4,1.67e5],[-750, 950],[-315,315],[0.0,0.05]]
-
-# Sampling parameters
-sampling:
-  # Data points
-  nspoin: 2100 # data
-  nspoin_grad: 2300 # data
-  nspoin_bc: [40, 260, 40, 160] # data
-  # Collocation points for PINN
-  nspoin_coll: 2100 # collocation points
-  nspoin_coll_grad: 2300 # collocation points
-  nspoin_coll_bc: [40, 260, 40, 160] # collocation points
-  # Sampling type for inner points
-  type: 'lhs' # random, lhs
-  bc: ['inlet','bottom','outlet','top']
-  # Sampling parameters
-  grad_type_var: 'Density'
-  pool_factor: 8
-  alpha_grad_rho: 1.4
-  # Plotting filename
-  pldata: 'pl_data'
-  plcoll: 'pl_coll'
-  plall: 'pl_all'
-  pltrain: 'pl_taining'
-  # Data filename
-  fdata: 'data_points'
-  fcoll: 'collocation_points'
-
-# NN setup
-io_loss: 50
-N_train_data: 3500
-N_train_coll: 3500
-N_val_data: 500
-N_test_data: 500
+  verbose: True
 
 # Neural network
 # --------------
@@ -88,72 +50,146 @@ network:
   layers: [2, 32, 32, 32, 4]
   activation: "tanh"
   # Options: tanh, sigmoid, sin, softplus, silu/swish, gelu
+  
   dropout:
     probability: 0.0
     hidden_layer_indices: [1, 2]
 
-# Loss weights
-loss_weights:
-  w_rho: 1.0
-  w_u: 1.0
-  w_v: 200.0
-  w_p: 4.0
-  w_mut: 1.0
-  w_f1: 1.0
-  w_f2: 1.0
-  w_f3: 1.0
-  w_f4: 1.0
+# Sampling
+# --------
+sampling:
+  method: "lhs"       # random or lhs
 
-# Adam Optimizer
-use_adam: True
-n_adam_iter: 2000
-lr_adam: 4e-4
-scheduler_size: 2000
-scheduler_gamma: 0.8
+  boundaries:
+    names:
+      - "inlet"
+      - "bottom"
+      - "outlet"
+      - "top"
 
-# LBFGS: start after adam optimizer finish
-use_lbfgs: True
-n_lbfgs_iter: 500
-lr_lbfgs: 1.0
-maxi_iter_lbfgs: 30
+  data_points:
+    interior: 2100
+    gradient: 2300
+    boundary: [40, 260, 40, 160]
 
-# Activation function: 
-# Option: tahn, sigmoid, sin, softplus, silu/swish and gelu
-activation: 'tanh' 
+  collocation_points:
+    interior: 2100
+    gradient: 2300
+    boundary: [40, 260, 40, 160]
 
-# General parameters
-dims: 2
+  gradient_sampling:
+    variable: "Density"
+    pool_factor: 8
+    alpha: 1.4
 
-# Seed for rng
-seed: 1234
+  plot_files:
+    data: "pl_data"
+    collocation: "pl_coll"
+    all: "pl_all"
+    training: "pl_training"
+
+  data_files:
+    data: "data_points"
+    collocation: "collocation_points"
+
+# Dataset split
+# -------------
+dataset:
+  n_train_data: 3500
+  n_train_collocation: 3500
+  n_validation_data: 500
+  n_test_data: 500
+
+# Optimizers
+# ----------
+optimizer:
+  adam:
+    enabled: true
+    iterations: 100
+    learning_rate: 4.0e-4
+
+    scheduler:
+      step_size: 2000
+      gamma: 0.8
+
+  # starts after adam optimizer finishes
+  # if both are enabled.
+  lbfgs:
+    enabled: true
+    iterations: 20
+    learning_rate: 1.0
+    max_iter_per_step: 30
+
+# Loss
+# ----
+loss:
+  print_frequency: 5
+
+  weights:
+    data:
+      rho: 1.0
+      u: 1.0
+      v: 200.0
+      p: 4.0
+      mut: 1.0
+
+    residual:
+      f1: 1.0
+      f2: 1.0
+      f3: 1.0
+      f4: 1.0
 
 # Physical parameters
-# Heat capacity ratio 
-gamma: 1.4
-# Universal gas constant
-R: 287.058 # N.m/kg.K
-# Reference quatities
-H: 0.0508
-Lref: 0.0254 # m
-# Dynamic viscosity - freestream
-mu: 1.97E-5 #N.s/m^2
-# Freestream condition
-U_0: 727.0 # m/s
-T: 327.0   # K
-p: 61700.0   # Pa
-rho: 0.657 # kg/m^3
-# Turbulence modeling
-k: 7884.91         # m^2/s^2
-omega: 2.62957e+07 # 1/s
-# Reynolds number
-Re: 614149.0
-# Mach Number
-Ma: 2.0
-# Prandtl lam.
-Pr: 0.72
-# Prandtl turb.
-Prt: 0.9
-# Sutherland parameters
-T0: 273.15 # K
-mu0: 1.716e-5 # Kg.s/m
-S: 110.4 # K
+# -------------------
+physics:
+  gas:
+    gamma: 1.4        # Heat capacity ratio
+    R: 287.058        # J/(kg K) - Universal gas constant
+
+  reference:
+    Lref: 0.0254      # m
+    U_0: 727.0        # m/s
+    rho: 0.657        # kg/m^3
+    mu: 1.97e-5       # N s / m^2 - Dynamic viscosity - freestream
+
+  turbulence:
+    Pr: 0.72          # Laminar Prandtl number
+    Prt: 0.9          # Turbulent Prandtl number
+
+  sutherland:
+    T0: 273.15        # K
+    mu0: 1.716e-5     # N s / m^2
+    S: 110.4          # K
+
+# Flow-field plotting
+# -------------------
+plot_flow:
+  fields:
+    - "Density"
+    - "Pressure"
+    - "Velocity"
+    - "Velocity"
+    #- "Eddy_Viscosity"
+
+  latex:
+    - "$\\rho$ $[kg/m^{3}]$"
+    - "$p$ $[Pa]$"
+    - "$u$ $[m/s]$"
+    - "$v$ $[m/s]$"
+    #- "$\\hat{\\mu}_{t}$ $[kg/m \\cdot s]$"  
+    
+  components: [0, 0, 0, 1] #, 0
+
+  colormaps:
+    - "bwr"
+    - "bwr"
+    - "bwr"
+    - "bwr"
+    #- "bwr"
+
+  scales:
+    - [0.0, 1.3]
+    - [1.3e4, 1.67e5]
+    - [-750.0, 950.0]
+    - [-315.0, 315.0]
+    #- [0.0,0.05]

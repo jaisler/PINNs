@@ -16,7 +16,7 @@ class SamplingData:
 
         self.collpts = collpts
         self.params = params
-        self.dims = params["dims"]
+        self.dims = params['geometry']['dimension']
 
         self.pts_in = np.empty((0, 3), dtype=float)
         self.pts_bc = np.empty((0, 3), dtype=float)
@@ -31,8 +31,8 @@ class SamplingData:
 
         print("---------------------------------------")
         print("Sample data initialized")
-        print(f"  Sampling                       : {params['routine']['sampling']}")
-        if params['routine']['sampling']:
+        print(f"  Sampling                       : {params['run']['routines']['sampling']}")
+        if params['run']['routines']['sampling']:
             if self.collpts:
                 print("Sampling collocation points ...")
             else:
@@ -58,24 +58,22 @@ class SamplingData:
         self.pts = np.empty((0, 3), dtype=float)
 
         if self.collpts:
-            # Collocation points
-            npinner = self.params['sampling']['nspoin_coll']
-            npgrad = self.params['sampling']['nspoin_coll_grad']
-            npbc = self.params['sampling']['nspoin_coll_bc']
+            point_cfg = self.params['sampling']['collocation_points']
         else:
-            # Data points
-            npinner = self.params['sampling']['nspoin']
-            npgrad = self.params['sampling']['nspoin_grad']
-            npbc = self.params['sampling']['nspoin_bc']
+            point_cfg = self.params['sampling']['data_points']
+
+        npinner = point_cfg['interior']
+        npgrad = point_cfg['gradient']
+        npbc = point_cfg['boundary']
 
         # Load your solution
         # .vtk, .pvtu, .vtm, ...
-        mesh = pv.read(self.params['pathFlow']+'/'+self.params['flowfield'])   
+        mesh = pv.read(self.params['paths']['flow']+'/'+self.params['files']['flowfield'])   
 
         # Sample points
         xmin, xmax, ymin, ymax, zmin, zmax = mesh.bounds
         # Get base sampler function 
-        base_sampler = self.get_base_sampler(self.params['sampling']['type'])
+        base_sampler = self.get_base_sampler(self.params['sampling']['method'])
 
         if npinner > 0:
             # Call chosen sampler 
@@ -96,18 +94,19 @@ class SamplingData:
         # Add extra points in regions detected by a sensor
         # Extra points based on gradient |grad(rho)|
         if npgrad > 0:
+            grad_cfg = self.params["sampling"]["gradient_sampling"]
             pts_grad = self.sample_based_on_grad(
                 mesh=mesh, npoin_grad=npgrad,
                 xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, zmin=zmin, zmax=zmax,
                 base_sampler=base_sampler,
-                var_name=self.params['sampling'].get('grad_type_var', 'Density'),
-                pool_factor=self.params['sampling'].get('pool_factor', 8),
-                alpha=self.params['sampling'].get('alpha_grad_rho', 1.5))
+                var_name=grad_cfg.get("variable", "Density"),
+                pool_factor=grad_cfg.get("pool_factor", 8),
+                alpha=grad_cfg.get("alpha", 1.5))
             self.pts_grad = np.vstack([self.pts_grad, pts_grad])
             self.pts = np.vstack([self.pts, pts_grad])
 
         # Points on the boundary condition
-        bc_names = self.params['sampling']['bc']
+        bc_names = self.params['sampling']['boundaries']['names']
         bc_poin = npbc #params['sampling']['nspoin_bc']
         for phys_name, n_bc in zip(bc_names, bc_poin):
             if n_bc > 0:
@@ -144,11 +143,11 @@ class SamplingData:
 
             # Depending on the equations the eddy viscosity returns
             # zero or the value from the CFD
-            if (self.params['equation'] == 'RANS'):
+            if (self.params['run']['equation'] == 'RANS'):
                 mut = sampled["Eddy_Viscosity"]
                 #self.mut = mut[mask] / params["mu"]
                 self.mut = mut[mask]
-            elif (self.params['equation'] == 'Euler'):
+            elif (self.params['run']['equation'] == 'Euler'):
                 # Otherwise return zero
                 self.mut = np.zeros((self.X.shape[0], 1), dtype=float)
 
@@ -194,15 +193,15 @@ class SamplingData:
         Returns: 
         """
 
-        rng = np.random.default_rng(self.params.get('seed', 1234))
+        rng = np.random.default_rng(1234)
         if npoin_bc <= 0:
-            raise ValueError("params['sampling']['nspoin_bc'] must be > 0")
+            raise ValueError("Number of boundary sampling points must be > 0")
 
         gmsh.initialize()
         # Turn off terminal output from Gmsh
         gmsh.option.setNumber("General.Terminal", 0)
         try:
-            gmsh.open(self.params['pathMesh']+'/'+self.params['mesh'])
+            gmsh.open(self.params['paths']['mesh']+'/'+self.params['files']['mesh'])
             gmsh.model.geo.synchronize()
             #gmsh.model.mesh.generate(self.dims)
             # For 1D mesh generation before 2D
@@ -368,11 +367,11 @@ class SamplingData:
         Save sampling data to a compressed NumPy .npz file.
         """
 
-        path_data = Path(self.params["pathData"])
+        path_data = Path(self.params['paths']['data'])
         path_data.mkdir(parents=True, exist_ok=True)
 
         if self.collpts:
-            filename = path_data / f"{self.params['sampling']['fcoll']}.npz"
+            filename = path_data / f"{self.params['sampling']['data_files']['collocation']}.npz"
 
             np.savez_compressed(
                 filename,
@@ -384,7 +383,7 @@ class SamplingData:
             )
 
         else:
-            filename = path_data / f"{self.params['sampling']['fdata']}.npz"
+            filename = path_data / f"{self.params['sampling']['data_files']['data']}.npz"
 
             np.savez_compressed(
                 filename,
@@ -407,13 +406,13 @@ class SamplingData:
         Load sampling data from a compressed NumPy .npz file.
         """
 
-        path_data = Path(self.params["pathData"])
+        path_data = Path(self.params['paths']['data'])
 
         # Note that, here, the collpts was sent as argument from main
         if not self.collpts:
-            filename = path_data / f"{self.params['sampling']['fdata']}.npz"
+            filename = path_data / f"{self.params['sampling']['data_files']['data']}.npz"
         else:
-            filename = path_data / f"{self.params['sampling']['fcoll']}.npz"
+            filename = path_data / f"{self.params['sampling']['data_files']['collocation']}.npz"
 
         data = np.load(filename)
 
