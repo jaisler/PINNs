@@ -38,9 +38,11 @@ def plot_sampling_points(pall, pin, pbc, pgrad, params, collpts=False):
     ax.set_aspect("equal", adjustable="box")
     fig.subplots_adjust(left=0.08, right=0.99, bottom=0.15, top=0.97)
     if collpts:
-        fig.savefig(params['pathRes']+'/'+params['sampling']['plcoll']+'.pdf')
+        fig.savefig(params['paths']['results']+'/'+
+                    params['sampling']['plot_files']['collocation']+'.pdf')
     else:
-        fig.savefig(params['pathRes']+'/'+params['sampling']['pldata']+'.pdf')
+        fig.savefig(params['paths']['results']+'/'+
+                    params['sampling']['plot_files']['data']+'.pdf')
 
     plt.close(fig)
 
@@ -70,10 +72,11 @@ def plot_target_points(x, y, xf, yf, params, training=False):
     fig.subplots_adjust(left=0.08, right=0.99, bottom=0.15, top=0.97)
     if training:
         ax.set_title("Data and Collocation training points", fontsize=18) 
-        fig.savefig(params['pathRes']+'/'+params['sampling']['pltrain']+'.pdf')
+        fig.savefig(params['paths']['results']+'/'+params['sampling']['plot_files']['training']+'.pdf')
     else:
         ax.set_title("Data and Collocation points", fontsize=18) 
-        fig.savefig(params['pathRes']+'/'+params['sampling']['plall']+'.pdf')
+        fig.savefig(params['paths']['results']+'/'+params['sampling']['plot_files']['all']+'.pdf')
+
     plt.close(fig)
 
 def plot_losses(l_data, l_res, l_total, n_epoch, params):
@@ -86,7 +89,7 @@ def plot_losses(l_data, l_res, l_total, n_epoch, params):
     epochs = np.arange(0, n_epoch, 1)
 
     p0, = ax.semilogy(epochs, l_data, '-', color='b', linewidth=2)
-    if params['model'] == 'pinn': 
+    if params['run']['model'] == 'pinn': 
         p1, = ax.semilogy(epochs, l_res, '-', color='r', linewidth=2)
         p2, = ax.semilogy(epochs, l_total, '-', color='k', linewidth=2)
         ax.legend([p0,p1,p2], [r'Data loss',r'Residual loss',r'Total loss'], loc='best')
@@ -101,7 +104,7 @@ def plot_losses(l_data, l_res, l_total, n_epoch, params):
     ax.tick_params(labelsize=18)
     ax.set_xlabel(r'$Epochs$', fontsize=18)
     ax.set_ylabel(r'$Losses$', fontsize=18)
-    fig.savefig(params['pathRes']+'/training_losses.pdf')
+    fig.savefig(params['paths']['results']+'/training_losses.pdf')
     plt.show()
     plt.close()
 
@@ -126,7 +129,7 @@ def plot_validation_loss(l_train, l_val, n_epoch, params):
     ax.tick_params(labelsize=18)
     ax.set_xlabel(r'$Epochs$', fontsize=18)
     ax.set_ylabel(r'$Losses$', fontsize=18)
-    fig.savefig(params['pathRes']+'/validation_loss.pdf')
+    fig.savefig(params['paths']['results']+'/validation_loss.pdf')
     plt.show()
     plt.close()
 
@@ -141,7 +144,7 @@ def plot_field(x, y, values, ifield, params, suffix="", perc=95, mult=1.8):
     values : array_like
         Scalar values to plot.
     ifield : int
-        Index of the field in params['plotflow'].
+        Index of the field in params['plot_flow'].
     params : dict
         Plot settings.
     suffix : str
@@ -150,14 +153,14 @@ def plot_field(x, y, values, ifield, params, suffix="", perc=95, mult=1.8):
         Parameters used to mask large triangles.
     """
 
-    pf = params["plotflow"]
+    pf = params["plot_flow"]
 
     field  = pf["fields"][ifield]
-    comp   = pf["comp"][ifield]
-    cmap   = pf["cmap"][ifield]
+    comp   = pf["components"][ifield]
+    cmap   = pf["colormaps"][ifield]
     clabel = pf["latex"][ifield]
 
-    scale = np.asarray(pf["scale"][ifield], dtype=float)
+    scale = np.asarray(pf["scales"][ifield], dtype=float)
     vmin, vmax = float(scale[0]), float(scale[1])
 
     nlevels = pf.get("nlevels", 501)
@@ -223,7 +226,7 @@ def plot_field(x, y, values, ifield, params, suffix="", perc=95, mult=1.8):
 
     fig.tight_layout()
 
-    out_dir = params.get("pathRes", ".")
+    out_dir = params['paths']['results']
     os.makedirs(out_dir, exist_ok=True)
 
     fname = f"{field.lower()}_{comp}_{suffix}.pdf" if suffix else f"{field.lower()}_{comp}.pdf"
@@ -241,7 +244,7 @@ def plot_field_pyvista(mesh, ifield, params, values=None, suffix=""):
     mesh : pyvista.DataSet
         Mesh to plot on.
     ifield : int
-        Index of the field in params["plotflow"].
+        Index of the field in params["plot_flow"].
     params : dict
         Configuration dictionary.
     values : array_like or None
@@ -254,24 +257,24 @@ def plot_field_pyvista(mesh, ifield, params, values=None, suffix=""):
         Extra suffix for file naming, e.g. "sim" or "pred".
     """
 
-    pf = params["plotflow"]
+    pf = params["plot_flow"]
 
     field = pf["fields"][ifield]
-    comp = pf["comp"][ifield]
-    cmap = pf["cmap"][ifield]
+    comp = pf["components"][ifield]
+    cmap = pf["colormaps"][ifield]
     clabel = pf["latex"][ifield]
 
-    scale = np.asarray(pf["scale"][ifield], dtype=float)
+    scale = np.asarray(pf["scales"][ifield], dtype=float)
     vmin = float(np.min(scale))
     vmax = float(np.max(scale))
     clim = (vmin, vmax)
 
-    zoom = pf.get("zoom", 1.02)
-    show_edges = pf.get("show_edges", False)
-    edge_color = pf.get("edge_color", "black")
-    line_width = pf.get("line_width", 0.2)
+    zoom = 1.02
+    show_edges = False
+    edge_color = "black"
+    line_width = 0.2
 
-    out_dir = params.get("pathRes", ".")
+    out_dir = params['paths']['results']
     os.makedirs(out_dir, exist_ok=True)
 
     mesh_plot = mesh.copy()
@@ -388,9 +391,9 @@ def plot_field_pyvista(mesh, ifield, params, values=None, suffix=""):
 
 def plot_simulation_flow(mesh, params):
     """
-    Plot all simulation fields defined in params["plotflow"].
+    Plot all simulation fields defined in params["plot_flow"].
     """
-    nfields = len(params["plotflow"]["fields"])
+    nfields = len(params["plot_flow"]["fields"])
     for ifield in range(nfields):
         plot_field_pyvista(mesh, ifield, params, values=None, suffix="sim")
 
@@ -404,7 +407,7 @@ def plot_predicted_flow_pyvista(mesh, pred_list, params):
     mesh : pyvista.DataSet
         Mesh on which the prediction is defined.
     pred_list : list
-        List of predicted arrays in the same order as plotflow fields.
+        List of predicted arrays in the same order as plot_flow fields.
     params : dict
         Configuration dictionary.
     """

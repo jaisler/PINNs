@@ -23,24 +23,25 @@ def main():
         params = yaml.load(file, Loader=yaml.FullLoader)
 
     # Check if folder exists: results
-    if not os.path.isdir(params['pathRes']):
-        os.makedirs(params['pathRes'], exist_ok=True)
+    if not os.path.isdir(params['paths']['results']):
+        os.makedirs(params['paths']['results'], exist_ok=True)
 
     # Check if folder exists: data
-    if not os.path.isdir(params['pathData']):
-        os.makedirs(params['pathData'], exist_ok=True)
+    if not os.path.isdir(params['paths']['data']):
+        os.makedirs(params['paths']['data'], exist_ok=True)
 
     # Check if folder exists: model
-    if not os.path.isdir(params['pathModel']):
-        os.makedirs(params['pathModel'], exist_ok=True)
+    if not os.path.isdir(params['paths']['model']):
+        os.makedirs(params['paths']['model'], exist_ok=True)
 
     # Load CFD mesh/flowfield once
     # It is used for:
     #   1. plotting the original simulation fields,
     #   2. evaluating the PINN prediction on the CFD mesh points.
     flowfield = None
-    if params["routine"]["inference"]:
-        flowfield = pv.read(os.path.join(params["pathFlow"], params["flowfield"]))
+    if params['run']['routines']['inference']:
+        flowfield = pv.read(os.path.join(params['paths']['flow'], 
+                                         params['files']['flowfield']))
 
     # Plot CFD/simulation fields using unified PyVista style
     pl.plot_simulation_flow(flowfield, params)
@@ -53,7 +54,7 @@ def main():
     yftrain = None
 
     # Sampling points - Data points
-    if (params['routine']['sampling']):
+    if (params['run']['routines']['sampling']):
         flag = False # Data points
         # Create data set
         sample_data = SamplingData(params, flag)
@@ -76,7 +77,7 @@ def main():
         pts_grad_data = sample_data.get_pts_grad()
 
         # Collocation points (PDE residuals)
-        if params['model'] == 'pinn':  
+        if params['run']['model'] == 'pinn':  
             flag = True # collocation points
             sample_coll = SamplingData(params, flag)
             sample_coll.sample() 
@@ -96,7 +97,7 @@ def main():
         X, pts_in_data, pts_bc_data, pts_grad_data, U, rho, p, mut = \
             read_data.read_data_from_npz()
 
-        if params['model'] == 'pinn':  
+        if params['run']['model'] == 'pinn':  
             flag = True
             read_coll = SamplingData(params, flag)    
             Xf, pts_in_coll, pts_bc_coll, pts_grad_coll, _, _, _, _ = \
@@ -106,12 +107,12 @@ def main():
     pl.plot_sampling_points(X, pts_in_data, pts_bc_data, 
                             pts_grad_data, params, False)
 
-    if params['model'] == 'pinn':  
+    if params['run']['model'] == 'pinn':  
         # Plot sampling points (collocation)
         pl.plot_sampling_points(Xf, pts_in_coll, pts_bc_coll, 
                                 pts_grad_coll, params, True)
 
-    if(params['routine']['inference']):
+    if(params['run']['routines']['inference']):
         # Number of points inside the geometry. This is not the same
         # number of the points provided in the configureation file.
         # Data points
@@ -128,22 +129,22 @@ def main():
                 
         # Data points
         # Train / validation / test split
-        N_train_data = min(params['N_train_data'], N)
+        N_train_data = min(params['dataset']['n_train_data'], N)
 
         N_val_data = min(
-            params.get('N_val_data', 0),
+            params['dataset'].get('n_validation_data', 0),
             N - N_train_data
         )
 
         N_test_data = min(
-            params.get('N_test_data', N - N_train_data - N_val_data),
+            params['dataset'].get('n_test_data', N - N_train_data - N_val_data),
             N - N_train_data - N_val_data
         )
 
         # Path for the dataset split
-        idx_file = Path(params["pathData"]) / "idx_split_data.npz"
+        idx_file = Path(params['paths']['data']) / "idx_split_data.npz"
         # Get data from file
-        if idx_file.exists() and not params['routine']['sampling']:
+        if idx_file.exists() and not params['run']['routines']['sampling']:
             split = np.load(idx_file)
 
             idx_train = split["idx_train"]
@@ -207,17 +208,17 @@ def main():
             xf = Xf[:,0]   # N 
             yf = Xf[:,1]   # N
             # For training data
-            N_train_coll = min(params['N_train_coll'], Ncoll)
+            N_train_coll = min(params['dataset']['n_train_collocation'], Ncoll)
             # File for loading collocation ponts
-            idxc_file = Path(params["pathData"]) / "idx_train_coll.npy"
+            idxc_file = Path(params['paths']['data']) / "idx_train_coll.npy"
 
-            if idxc_file.exists() and not params['routine']['sampling']:
+            if idxc_file.exists() and not params['run']['routines']['sampling']:
                 idxc = np.load(idxc_file)
 
                 if idxc.shape[0] != N_train_coll:
                     raise ValueError(
                         "Loaded collocation indices have a different size from "
-                        f"N_train_coll. Expected {N_train_coll}, got {idxc.shape[0]}."
+                        f"n_train_collocation. Expected {N_train_coll}, got {idxc.shape[0]}."
                     )
 
                 if np.max(idxc) >= Ncoll:
@@ -265,8 +266,8 @@ def main():
         print('Training time: %.4f' % (elapsed))
 
         # Save model
-        if params['save_model']:
-            model.save_model(params['pathModel'], params['model_name'])
+        if params['run']['checkpoint']['save_model']:
+            model.save_model(params['paths']['model'], params['files']['model_name'])
 
         # Get losses
         l_data = model.get_data_loss()
@@ -286,11 +287,11 @@ def main():
         xmesh = flowfield.points[:, 0]
         ymesh = flowfield.points[:, 1]
 
-        if params['equation'] == 'Euler':
+        if params['run']['equation'] == 'Euler':
             rho_pred_mesh, u_pred_mesh, v_pred_mesh, p_pred_mesh = \
                   model.predict(xmesh, ymesh)
             pred_list = [rho_pred_mesh, p_pred_mesh, u_pred_mesh, v_pred_mesh]
-        elif params['equation'] == 'RANS':
+        elif params['run']['equation'] == 'RANS':
             rho_pred_mesh, u_pred_mesh, v_pred_mesh, p_pred_mesh, mut_pred_mesh = \
                 model.predict(xmesh, ymesh)
             pred_list = [rho_pred_mesh, p_pred_mesh, u_pred_mesh, v_pred_mesh, 

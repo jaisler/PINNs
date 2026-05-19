@@ -34,7 +34,7 @@ class PhysicsInformedNN(nn.Module):
         super().__init__()
 
         # Device selection
-        device_str = params.get("device", None)
+        device_str = params['run'].get("device", None)
         if device_str is None:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         else:
@@ -46,9 +46,9 @@ class PhysicsInformedNN(nn.Module):
                 self.device = torch.device(device_str)
 
         # Model
-        self.model = params['model']
+        self.model = params['run']['model']
         # Equation
-        self.eq = params['equation']
+        self.eq = params['run']['equation']
 
         # Copy network object
         self.network = network
@@ -72,27 +72,27 @@ class PhysicsInformedNN(nn.Module):
                 f"but got {self.layers[-1]}")
 
         # IO loss function
-        self.io_loss = int(params.get('io_loss', 999999))
+        self.io_loss = int(params['loss'].get('print_frequency', 999999))
         if self.io_loss < 0:
-            raise ValueError(f"io_loss must be non-negative")
+            raise ValueError(f"print_frequency must be non-negative")
 
         # Loss weights
-        loss_weights = params.get("loss_weights", {})
+        loss_weights = params['loss'].get("weights", {})
         # Data
-        self.w_rho = float(loss_weights.get("w_rho", 1.0))
-        self.w_u   = float(loss_weights.get("w_u", 1.0))
-        self.w_v   = float(loss_weights.get("w_v", 1.0))
-        self.w_p   = float(loss_weights.get("w_p", 1.0))
+        self.w_rho = float(loss_weights['data'].get("rho", 1.0))
+        self.w_u   = float(loss_weights['data'].get("u", 1.0))
+        self.w_v   = float(loss_weights['data'].get("v", 1.0))
+        self.w_p   = float(loss_weights['data'].get("p", 1.0))
         # Residual
-        self.w_f1  = float(loss_weights.get("w_f1", 1.0))
-        self.w_f2  = float(loss_weights.get("w_f2", 1.0))
-        self.w_f3  = float(loss_weights.get("w_f3", 1.0))
-        self.w_f4  = float(loss_weights.get("w_f4", 1.0))
+        self.w_f1  = float(loss_weights['residual'].get("f1", 1.0))
+        self.w_f2  = float(loss_weights['residual'].get("f2", 1.0))
+        self.w_f3  = float(loss_weights['residual'].get("f3", 1.0))
+        self.w_f4  = float(loss_weights['residual'].get("f4", 1.0))
         # Equation
         if self.eq == "Euler":
             self.w_mut = 0.0
         elif self.eq == "RANS":
-            self.w_mut = float(loss_weights.get("w_mut", 1.0))
+            self.w_mut = float(loss_weights['data'].get("mut", 1.0))
 
         # Initialisation: 
         # Collocation points
@@ -107,31 +107,32 @@ class PhysicsInformedNN(nn.Module):
         self.mut = None 
 
         # Physical parameters
+        phys_cfg = params['physics']
         # Heat capacity ratio
-        self.gamma = float(params["gamma"])
+        self.gamma = float(phys_cfg['gas']['gamma'])
         # Reference parameters (Euler and RANS)
-        self.Lref    = float(params["Lref"])
-        self.rhoref = float(params["rho"])
-        self.Uref   = float(params["U_0"])
+        self.Lref    = float(phys_cfg['reference']['Lref'])
+        self.rhoref = float(phys_cfg['reference']['rho'])
+        self.Uref   = float(phys_cfg['reference']['U_0'])
         self.pref   = self.rhoref * self.Uref * self.Uref
 
         if self.eq == 'RANS':
             # Universal gas constant
-            self.R = float(params["R"])
+            self.R = float(phys_cfg['gas']['R'])
             # Prandtl number
-            self.Pr = float(params["Pr"])
+            self.Pr = float(phys_cfg['turbulence']['Pr'])
             # Turbulent Prandtl number 
-            self.Prt = float(params["Prt"])
+            self.Prt = float(phys_cfg['turbulence']['Prt'])
             # Molecular dynamic viscosity
-            self.muref  = float(params["mu"])
+            self.muref = float(phys_cfg['reference']['mu'])
             # Temperature
             self.Tref = self.Uref**2 / self.R
             # Reynolds number
             self.Re = self.rhoref * self.Uref * self.Lref / self.muref
             # Starred quatities (Sutherland's)
-            self.T0star = float(params["T0"]) / self.Tref
-            self.Sstar  = float(params["S"]) / self.Tref
-            self.mu0star = float(params["mu0"]) / self.muref
+            self.T0star = float(phys_cfg['sutherland']['T0']) / self.Tref
+            self.Sstar  = float(phys_cfg['sutherland']['S']) / self.Tref
+            self.mu0star = float(phys_cfg['sutherland']['mu0']) / self.muref
 
         # Training data
         Xdata, self.x, self.y, self.rho, self.u, self.v, self.p, self.mut = \
@@ -175,16 +176,17 @@ class PhysicsInformedNN(nn.Module):
 
 		# Optimizers
         # Adam
-        self.use_adam = params.get('use_adam', False)
+        adam_cfg = params['optimizer']['adam']
+        self.use_adam = adam_cfg.get('enabled', False)
         if self.use_adam:
-            self.n_adam_iter = int(params.get('n_adam_iter', 50000))
+            self.n_adam_iter = int(adam_cfg.get('iterations', 50000))
             if self.n_adam_iter <= 0:
                 raise ValueError("n_adam_iter must be greater than zero")
-            learning_rate_adam = float(params.get('lr_adam', 5e-4))
+            learning_rate_adam = float(adam_cfg.get('learning_rate', 5e-4))
             if learning_rate_adam <= 0:
                 raise ValueError("learning rate must be greater than zero")        
-            scheduler_size = int(params.get('scheduler_size', 10000))
-            scheduler_gamma = float(params.get('scheduler_gamma', 0.5))
+            scheduler_size = int(adam_cfg['scheduler'].get('step_size', 10000))
+            scheduler_gamma = float(adam_cfg['scheduler'].get('gamma', 0.5))
              
             # Optimizer
             self.optimizer_adam = torch.optim.Adam(network.parameters(), 
@@ -198,15 +200,16 @@ class PhysicsInformedNN(nn.Module):
             self.n_adam_iter = 0
 
         # LBFGS
-        self.use_lbfgs = params.get('use_lbfgs', False)
+        lbfgs_cfg = params['optimizer']['lbfgs']
+        self.use_lbfgs = lbfgs_cfg.get('enabled', False)
         if self.use_lbfgs:
-            self.n_lbfgs_iter = int(params.get('n_lbfgs_iter', 10000))
+            self.n_lbfgs_iter = int(lbfgs_cfg.get('iterations', 1000))
             if self.n_lbfgs_iter <= 0:
                 raise ValueError("n_adam_iter must be greater than zero")
-            max_iter_lbfgs = int(params.get('max_iter_lbfgs', 20))
+            max_iter_lbfgs = int(lbfgs_cfg.get('max_iter_per_step', 20))
             if self.n_lbfgs_iter <= 0:
                 raise ValueError("max_iter_lbfgs must be greater than zero")
-            learning_rate_lbfgs = float(params.get('lr_lbfgs', 1.0))
+            learning_rate_lbfgs = float(lbfgs_cfg.get('learning_rate', 1.0))
             if learning_rate_lbfgs <= 0:
                 raise ValueError("L-BFGS learning rate must be greater than zero")
 
@@ -215,19 +218,20 @@ class PhysicsInformedNN(nn.Module):
                 network.parameters(),
                 lr=learning_rate_lbfgs,
                 max_iter=max_iter_lbfgs,
-                history_size=params.get("lbfgs_history", 50),
+                history_size=50,
                 line_search_fn="strong_wolfe",
-                tolerance_grad=params.get("lbfgs_tol_grad", 1e-7),
-                tolerance_change=params.get("lbfgs_tol_change", 1e-9))
+                tolerance_grad=1e-7,
+                tolerance_change=1e-9)
         else:
             self.n_lbfgs_iter = 0
 
         # Load model
-        if params['load_model']:
-            self.load_model(params['pathModel'], params['model_name'])
+        if params['run']['checkpoint']['load_model']:
+            self.load_model(params['paths']['model'], 
+                            params['files']['model_name'])
 
         # Verbose
-        self.verbose = params.get("verbose", False)
+        self.verbose = params['run'].get("verbose", False)
         # PhysicsInformedNN setup
         if self.verbose:
             print("---------------------------------------")
@@ -244,15 +248,15 @@ class PhysicsInformedNN(nn.Module):
                 print(f"  Validation data points         : {xval.shape[0]}")
             print(f"  Use Adam                       : {self.use_adam}") 
             if self.use_adam:
-                print(f"    Number of Adam iteration     : {self.n_adam_iter}")
+                print(f"    Number of Adam iterations    : {self.n_adam_iter}")
                 print(f"    Adam learning rate           : {learning_rate_adam}")
                 print(f"    Scheduler size               : {scheduler_size}")
                 print(f"    Learning Reduction rate      : {scheduler_gamma}")
             print(f"  Use L-BFGS                     : {self.use_lbfgs}")
             if self.use_lbfgs:
-                print(f"    Number of L-BFGS iteration   : {self.n_lbfgs_iter}")
-                print(f"    Max iterration for L-BFGS    : {max_iter_lbfgs}")
+                print(f"    Number of L-BFGS iterations  : {self.n_lbfgs_iter}")
                 print(f"    L-BFGS learning rate         : {learning_rate_lbfgs}")
+                print(f"    Max iterrations for L-BFGS   : {max_iter_lbfgs}")
             if network.dropout_p > 0.0:
                 print(f"  Dropout:")
                 print(f"    Probability                  : {network.dropout_p}")
@@ -269,8 +273,10 @@ class PhysicsInformedNN(nn.Module):
             print(f"    w_f3                         : {self.w_f3}")
             print(f"    w_f4                         : {self.w_f4}")
             print(f"  Model I/O:")
-            print(f"    Load                         : {params['load_model']}")
-            print(f"    Save                         : {params['save_model']}")
+            print(f"    Load                         : {params['run']['checkpoint']
+                                                        ['load_model']}")
+            print(f"    Save                         : {params['run']['checkpoint']
+                                                        ['save_model']}")
 
         # Move the whole module to the selected device
         self.to(self.device)
@@ -452,38 +458,25 @@ class PhysicsInformedNN(nn.Module):
     @torch.no_grad()
     def predict(self, x, y):
         """
-        Decorator
-        ---------
-        @torch.no_grad()
-            Disables PyTorch autograd inside this function. This:
-            - reduces memory usage,
-            - speeds up inference,
-            - prevents building computation graphs (no backward possible).
+        Predict dimensional flow variables at given physical coordinates.
+
+        The input coordinates are non-dimensionalized using `self.Lref`, converted
+        to tensors on `self.device`, and evaluated with the network in inference
+        mode.
 
         Parameters
         ----------
-        x : array_like
-            x-coordinates of query points. Accepted shapes:
-            - (N,)  : 1D array of N points
-            - (N, 1): column vector of N points
-            Will be converted internally to a NumPy array, then to a torch.Tensor
-            on `self.device`.
-        y : array_like
-            y-coordinates of query points. Accepted shapes:
-            - (N,)
-            - (N, 1)
-            Must contain the same number of points N as `x`.
+        x, y : array_like
+            Physical x- and y-coordinates of the query points. Accepted shapes are
+            `(N,)` or `(N, 1)`.
 
         Returns
         -------
-        rho : numpy.ndarray
-            Predicted density ρ̂ at the input points, shape (N, 1).
-        u : numpy.ndarray
-            Predicted x-velocity û at the input points, shape (N, 1).
-        v : numpy.ndarray
-            Predicted y-velocity v̂ at the input points, shape (N, 1).
-        p : numpy.ndarray
-            Predicted pressure p̂ at the input points, shape (N, 1).
+        tuple of numpy.ndarray
+            For `eq == 'Euler'`: `(rho, u, v, p)`.
+            For `eq == 'RANS'`: `(rho, u, v, p, mut)`.
+
+            All returned quantities are dimensional and have shape `(N, 1)`.
         """
 
         # Training=False
@@ -679,18 +672,16 @@ class PhysicsInformedNN(nn.Module):
 
         self.load_state_dict(checkpoint["model_state_dict"])
 
-        if checkpoint.get("optimizer_adam_state_dict") is not None 
+        if checkpoint.get("optimizer_adam_state_dict") is not None \
             and hasattr(self, "optimizer_adam"):
             self.optimizer_adam.load_state_dict(checkpoint["optimizer_adam_state_dict"])
 
         if (checkpoint.get("optimizer_lbfgs_state_dict") is not None 
-            and hasattr(self, "optimizer_lbfgs") 
-            and self.optimizer_lbfgs is not None):
+            and hasattr(self, "optimizer_lbfgs") and self.optimizer_lbfgs is not None):
             self.optimizer_lbfgs.load_state_dict(checkpoint["optimizer_lbfgs_state_dict"])
 
         if (checkpoint.get("scheduler_state_dict") is not None 
-            and hasattr(self, "scheduler") 
-            and self.scheduler is not None):
+            and hasattr(self, "scheduler") and self.scheduler is not None):
             self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
 
         self.n_epoch = checkpoint.get("n_epoch", 0)
