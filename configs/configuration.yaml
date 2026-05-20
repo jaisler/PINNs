@@ -10,6 +10,12 @@ paths:
   data: ""
   model: ""
 
+  flow: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/scramjet/afrl/2d/cases/euler/case"
+  mesh: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/scramjet/afrl/2d/meshes/mesh2"
+  results: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/results"
+  data: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/data"
+  model: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/model"
+
 # Geometry
 # --------
 geometry:
@@ -42,18 +48,50 @@ run:
     load_model: false
     save_model: true
 
-  verbose: True
+  verbose: true
 
 # Neural network
 # --------------
 network:
-  layers: [2, 32, 32, 32, 4]
-  activation: "tanh"
-  # Options: tanh, sigmoid, sin, softplus, silu/swish, gelu
-  
-  dropout:
-    probability: 0.0
-    hidden_layer_indices: [1, 2]
+  architecture: "mlp"       # mlp or gnn 
+
+  mlp:
+    layers: [2, 32, 32, 32, 4] 
+    activation: "tanh"
+    # Options: tanh, sigmoid, sin, softplus, silu/swish, gelu
+    
+    dropout:
+      probability: 0.0
+      hidden_layer_indices: [1, 2]
+
+  gnn:
+    graph:
+      construction: "knn"      # Options: knn
+      neighbors: 8             # Used when construction
+
+    features:
+      node:
+        coordinates: true
+        boundary_marker: false # TODO
+        wall_distance: false   # TODO
+        
+      edge:
+        relative_position: true
+        distance: true                
+        inverse_distance: false # TODO
+
+    encoder:
+      hidden_layers: [32, 32]     # size of the internal feature vector at each node
+      activation: "tanh"
+
+    processor:
+      message_layers: 4  
+      aggregation: "sum"
+      residual_connection: true
+
+    decoder:
+      hidden_layers: [32, 32]
+      activation: "tanh"
 
 # Sampling
 # --------

@@ -239,13 +239,23 @@ def main():
         # Plot all points
         pl.plot_target_points(x, y, xf, yf, params)
         
-        # Network Network model
-        network = MLP(
-            layers=params["network"]["layers"],
-            activation=params["network"]["activation"],
-            dropout_p=params["network"]["dropout"].get("probability", 0.0),
-            dropout_indices=params["network"]["dropout"].get("hidden_layer_indices", [])
-        )
+        # Network architecture
+        if params['network']['architecture'] == 'mlp':
+            mlp_cfg = params['network']['mlp'] 
+            network = MLP(
+                layers=mlp_cfg['layers'],
+                activation=mlp_cfg['activation'],
+                dropout_p=mlp_cfg['dropout'].get("probability", 0.0),
+                dropout_indices=mlp_cfg['dropout'].get("hidden_layer_indices", [])
+            )
+        elif params['network']['architecture'] == 'gnn':
+            gnn_cfg = params['network']['gnn'] 
+            network = MLP(
+                layers=params['network']['mlp']['layers']
+            )
+            print("Pass")
+        else:
+            raise ValueError(f"Unknown nektwork architecture: {params['network']['architecture']}.")
 
         # Note that model is a object of the class
         model = PhysicsInformedNN(
