@@ -9,7 +9,7 @@ paths:
   results: ""
   data: ""
   model: ""
-  
+
 # Geometry
 # --------
 geometry:
@@ -75,6 +75,7 @@ network:
         inverse_distance: false # TODO
 
     encoder:
+      input_dim: 2
       hidden_layers: [32, 32]     # size of the internal feature vector at each node
       activation: "tanh"
 
@@ -84,6 +85,7 @@ network:
       residual_connection: true
 
     decoder:
+      output_dim: 4
       hidden_layers: [32, 32]
       activation: "tanh"
 
