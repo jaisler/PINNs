@@ -65,29 +65,26 @@ network:
 
     features:
       node:
-        coordinates: true
+        #coordinates: always true 
         boundary_marker: false # TODO
-        wall_distance: false   # TODO
+        #wall_distance: false   # TODO
         
       edge:
-        relative_position: true
+        #relative_position: always true 
         distance: true                
-        inverse_distance: false # TODO
+        #inverse_distance: false # TODO
 
     encoder:
-      input_dim: 2
-      hidden_layers: [32, 32]     # size of the internal feature vector at each node
+      latent_dim: 32     # size of the internal feature vector at each node
       activation: "tanh"
 
     processor:
       message_layers: 4  
       aggregation: "sum"
-      residual_connection: true
+      residual: true
 
     decoder:
-      output_dim: 4
       hidden_layers: [32, 32]
-      activation: "tanh"
 
 # Sampling
 # --------
@@ -139,7 +136,7 @@ dataset:
 optimizer:
   adam:
     enabled: true
-    iterations: 100
+    iterations: 500
     learning_rate: 4.0e-4
 
     scheduler:
@@ -150,7 +147,7 @@ optimizer:
   # if both are enabled.
   lbfgs:
     enabled: true
-    iterations: 20
+    iterations: 200
     learning_rate: 1.0
     max_iter_per_step: 30
 

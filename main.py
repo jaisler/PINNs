@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 
 from src.sampling.sampling import SamplingData
-from src.networks import MLP
+from src.networks import MLP, GNN
 from src.pinn import PhysicsInformedNN
 from src.utils import print_metrics_table
 import src.utils.plot as pl
@@ -250,12 +250,34 @@ def main():
             )
         elif params['network']['architecture'] == 'gnn':
             gnn_cfg = params['network']['gnn'] 
-            network = MLP(
-                layers=params['network']['mlp']['layers']
+            
+            node_input_dim = edge_input_dim = params['geometry']['dimension']
+            if params['features']['node']['boundary_marker']:
+                node_input_dim += 1
+            if gnn_cfg['features']['edge']['distance']:
+                edge_input_dim += 1 
+
+            if params['run']['equation'] == 'Euler':
+                output_dim = 4
+            elif params['run']['equation'] == 'RANS':
+                output_dim = 5
+
+            network = GNN(
+                node_input_dim=node_input_dim,
+                edge_input_dim=edge_input_dim,
+                output_dim=output_dim,
+                neighbors=gnn_cfg['graph']['neighbors'],
+                latent_dim=gnn_cfg['encoder']['latent_dim'],
+                activation=gnn_cfg['encoder']['activation'],
+                message_layers=gnn_cfg['processor']['message_layers'],
+                aggregation=gnn_cfg['processor']['aggregation'],
+                residual=gnn_cfg['processor']['residual'],
+                hidden_layers=gnn_cfg['decoder']['hidden_layers']
             )
-            print("Pass")
         else:
-            raise ValueError(f"Unknown nektwork architecture: {params['network']['architecture']}.")
+            raise ValueError(
+                f"Unknown nektwork architecture: {params['network']['architecture']}."
+            )
 
         # Note that model is a object of the class
         model = PhysicsInformedNN(
