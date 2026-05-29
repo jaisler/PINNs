@@ -84,7 +84,7 @@ network:
       residual: true
 
     decoder:
-      hidden_layers: [32, 32]
+      latent_dim: 32
 
 # Sampling
 # --------
@@ -147,14 +147,14 @@ optimizer:
   # if both are enabled.
   lbfgs:
     enabled: true
-    iterations: 200
+    iterations: 50
     learning_rate: 1.0
     max_iter_per_step: 30
 
 # Loss
 # ----
 loss:
-  print_frequency: 5
+  print_frequency: 10
 
   weights:
     data:

@@ -4,6 +4,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .base import BaseNetwork
+from .mlp import MLP
+from .message_passing import MessagePassingLayer
 
 class GNN(BaseNetwork):
     """
@@ -15,27 +17,68 @@ class GNN(BaseNetwork):
 
     def __init__(
         self,
-        input_dim=2,
-        edge_dim=3,
-        hidden_dim=64,
-        output_dim=4
+        node_input_dim,
+        edge_input_dim,
+        output_dim,
+        neighbors=8,
+        latent_enc_dim=32,
+        activation="tanh",
+        message_layers=4,
+        aggregation="sum",
+        residual=True,
+        latent_dec_dim=32,
     ):
         super().__init__(
             # Base class initialisation
-            input_dim=input_dim,
+            input_dim=node_input_dim,
             output_dim=output_dim,
         )
 
-        print("Pass")
+        self.neighbors = neighbors
+        # Encoder
+        self.node_input_dim = node_input_dim
+        self.edge_input_dim = edge_input_dim
+        self.latent_dim = latent_enc_dim
+        self.activation = activation    
+        # h: class object
+        self.node_encoder = MLP(
+            layers=[node_input_dim, latent_enc_dim, latent_enc_dim],
+            activation=activation,
+        )
+        # g: class object
+        self.edge_encoder = MLP(
+            layers=[edge_input_dim, latent_enc_dim, latent_enc_dim],
+            activation=activation
+        )
+
+        # Processor
+        self.message_layers = message_layers
+        self.aggregation = aggregation
+        self.residual = residual
+        # Class object
+        self.processor = MessagePassingLayer(
+            latent_dim=latent_enc_dim,
+            activation=activation,
+            message_layers=message_layers, 
+            aggregation=aggregation,
+            residual=residual
+        )
+
+        # Decoder
+        self.output_dim = output_dim
+        self.latent_dec_dim = latent_dec_dim
+        # Class object
+        self.decoder = MLP(
+            layers=[latent_dec_dim, latent_dec_dim, output_dim],
+            activation=activation
+        )    
 
 def forward(self, X, edge_index, edge_attr):
 
-    # Encode and edge features
-    #h = self.node_encoder(X)          # (N, hidden_dim)
-    #g = self.edge_encoder(edge_attr)  # (N, hidden_dim)
 
     Y = []
     return Y
+
 
 def build_knn_graph(x, k):
     """

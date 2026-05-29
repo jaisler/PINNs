@@ -272,7 +272,7 @@ def main():
                 message_layers=gnn_cfg['processor']['message_layers'],
                 aggregation=gnn_cfg['processor']['aggregation'],
                 residual=gnn_cfg['processor']['residual'],
-                hidden_layers=gnn_cfg['decoder']['hidden_layers']
+                hidden_layers=gnn_cfg['decoder']['latent_dim']
             )
         else:
             raise ValueError(
