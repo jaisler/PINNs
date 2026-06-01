@@ -59,6 +59,9 @@ network:
       hidden_layer_indices: [1, 2]
 
   gnn:
+    latent_dim: 32    
+    activation: "tanh"
+
     graph:
       construction: "knn"      # Options: knn
       neighbors: 8             # Used when construction
@@ -66,25 +69,16 @@ network:
     features:
       node:
         #coordinates: always true 
-        boundary_marker: false # TODO
-        #wall_distance: false   # TODO
+        boundary_marker: true 
         
       edge:
         #relative_position: always true 
         distance: true                
-        #inverse_distance: false # TODO
-
-    encoder:
-      latent_dim: 32     # size of the internal feature vector at each node
-      activation: "tanh"
 
     processor:
       message_layers: 4  
       aggregation: "sum"
       residual: true
-
-    decoder:
-      latent_dim: 32
 
 # Sampling
 # --------

@@ -20,7 +20,7 @@ class MessagePassingLayer(nn.Module):
         super().__init__()
 
         message_mlp = MLP(
-            layers=[],
+            layers=[2, 4],
             activation=activation
         )
 

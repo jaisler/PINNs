@@ -248,11 +248,11 @@ def main():
                 dropout_p=mlp_cfg['dropout'].get("probability", 0.0),
                 dropout_indices=mlp_cfg['dropout'].get("hidden_layer_indices", [])
             )
-        elif params['network']['architecture'] == 'gnn':
+        #elif params['network']['architecture'] == 'gnn':
             gnn_cfg = params['network']['gnn'] 
             
             node_input_dim = edge_input_dim = params['geometry']['dimension']
-            if params['features']['node']['boundary_marker']:
+            if gnn_cfg['features']['node']['boundary_marker']:
                 node_input_dim += 1
             if gnn_cfg['features']['edge']['distance']:
                 edge_input_dim += 1 
@@ -262,17 +262,19 @@ def main():
             elif params['run']['equation'] == 'RANS':
                 output_dim = 5
 
-            network = GNN(
+            #network = GNN(
+            GNN(
                 node_input_dim=node_input_dim,
                 edge_input_dim=edge_input_dim,
                 output_dim=output_dim,
+                latent_dim=gnn_cfg['latent_dim'],
+                activation=gnn_cfg['activation'],
                 neighbors=gnn_cfg['graph']['neighbors'],
-                latent_dim=gnn_cfg['encoder']['latent_dim'],
-                activation=gnn_cfg['encoder']['activation'],
                 message_layers=gnn_cfg['processor']['message_layers'],
                 aggregation=gnn_cfg['processor']['aggregation'],
                 residual=gnn_cfg['processor']['residual'],
-                hidden_layers=gnn_cfg['decoder']['latent_dim']
+                use_boundary_marker=gnn_cfg['features']['node']['boundary_marker'],
+                use_edge_distance=gnn_cfg['features']['edge']['distance'],
             )
         else:
             raise ValueError(
