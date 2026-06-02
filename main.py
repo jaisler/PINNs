@@ -252,15 +252,20 @@ def main():
             gnn_cfg = params['network']['gnn'] 
             
             node_input_dim = edge_input_dim = params['geometry']['dimension']
-            if gnn_cfg['features']['node']['boundary_marker']:
+            if gnn_cfg['attributes']['node']['boundary_marker']:
                 node_input_dim += 1
-            if gnn_cfg['features']['edge']['distance']:
+            if gnn_cfg['attributes']['edge']['distance']:
                 edge_input_dim += 1 
 
             if params['run']['equation'] == 'Euler':
                 output_dim = 4
             elif params['run']['equation'] == 'RANS':
                 output_dim = 5
+
+            if params['attributes']['node']['boundary_marker']:
+                boundary_marker = None # TODO
+            else:
+                boundary_marker = None
 
             network = GNN(
                 node_input_dim=node_input_dim,
@@ -272,8 +277,8 @@ def main():
                 message_layers=gnn_cfg['processor']['message_layers'],
                 aggregation=gnn_cfg['processor']['aggregation'],
                 residual=gnn_cfg['processor']['residual'],
-                use_boundary_marker=gnn_cfg['features']['node']['boundary_marker'],
-                use_edge_distance=gnn_cfg['features']['edge']['distance'],
+                use_boundary_marker=boundary_marker,
+                use_edge_distance=gnn_cfg['attributes']['edge']['distance'],
             )
         else:
             raise ValueError(

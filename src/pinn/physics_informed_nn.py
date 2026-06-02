@@ -340,6 +340,8 @@ class PhysicsInformedNN(nn.Module):
         # Note that, this is self.network.forward(...)
         if self.net_arch == 'mlp':
             output = self.network(X_norm, use_dropout=use_dropout)
+        elif self.net_arch == 'gnn':
+            output = self.network(X_norm, use_dropout=False)
 
         return output
 
