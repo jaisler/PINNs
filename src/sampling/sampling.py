@@ -434,6 +434,9 @@ class SamplingData:
 
         return X, pts_in, pts_bc, pts_grad, U, rho, p, mut
 
+    def get_boundary_marker(self):
+        return self.boundary_marker
+
     def get_pts_in(self):       
         return self.pts_in
     
