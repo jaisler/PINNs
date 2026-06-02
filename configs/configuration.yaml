@@ -53,7 +53,7 @@ network:
     layers: [2, 32, 32, 32, 4] 
     activation: "tanh"
     # Options: tanh, sigmoid, sin, softplus, silu/swish, gelu
-    
+
     dropout:
       probability: 0.0
       hidden_layer_indices: [1, 2]
@@ -61,18 +61,13 @@ network:
   gnn:
     latent_dim: 32    
     activation: "tanh"
-
-    graph:
-      construction: "knn"      # Options: knn
-      neighbors: 8             # Used when construction
+    neighbors: 8             # Used when construction
 
     features:
       node:
-        #coordinates: always true 
         boundary_marker: true 
         
       edge:
-        #relative_position: always true 
         distance: true                
 
     processor:
@@ -122,15 +117,15 @@ sampling:
 dataset:
   n_train_data: 3500
   n_train_collocation: 3500
-  n_validation_data: 500
-  n_test_data: 500
+  n_validation_data: 750
+  n_test_data: 750
 
 # Optimizers
 # ----------
 optimizer:
   adam:
     enabled: true
-    iterations: 500
+    iterations: 20
     learning_rate: 4.0e-4
 
     scheduler:
@@ -141,7 +136,7 @@ optimizer:
   # if both are enabled.
   lbfgs:
     enabled: true
-    iterations: 50
+    iterations: 20
     learning_rate: 1.0
     max_iter_per_step: 30
 

@@ -248,7 +248,7 @@ def main():
                 dropout_p=mlp_cfg['dropout'].get("probability", 0.0),
                 dropout_indices=mlp_cfg['dropout'].get("hidden_layer_indices", [])
             )
-        #elif params['network']['architecture'] == 'gnn':
+        elif params['network']['architecture'] == 'gnn':
             gnn_cfg = params['network']['gnn'] 
             
             node_input_dim = edge_input_dim = params['geometry']['dimension']
@@ -262,14 +262,13 @@ def main():
             elif params['run']['equation'] == 'RANS':
                 output_dim = 5
 
-            #network = GNN(
-            GNN(
+            network = GNN(
                 node_input_dim=node_input_dim,
                 edge_input_dim=edge_input_dim,
                 output_dim=output_dim,
                 latent_dim=gnn_cfg['latent_dim'],
                 activation=gnn_cfg['activation'],
-                neighbors=gnn_cfg['graph']['neighbors'],
+                neighbors=gnn_cfg['neighbors'],
                 message_layers=gnn_cfg['processor']['message_layers'],
                 aggregation=gnn_cfg['processor']['aggregation'],
                 residual=gnn_cfg['processor']['residual'],
