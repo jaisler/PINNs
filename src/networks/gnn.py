@@ -74,6 +74,7 @@ class GNN(BaseNetwork):
         # Processor
         self.processor = MessagePassingLayer(
             latent_dim=latent_dim,
+            neighbors=neighbors,
             activation=activation,
             message_layers=message_layers, 
             aggregation=aggregation,
@@ -136,7 +137,7 @@ class GNN(BaseNetwork):
         g = self.edge_encoder(edge_attr) # self.edge_encoder.forward(...)
 
         # Updated latent node and edge features
-        h, g = self.processor(h, g, edge_index) # self.processor.forward(...)
+        h = self.processor(h, g, edge_index) # self.processor.forward(...)
 
         # Output features [rho, u, v, p, ...]
         # maps latent/hidden features to physical outputs

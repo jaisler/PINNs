@@ -12,6 +12,7 @@ class MessagePassingLayer(nn.Module):
     def __init__(
         self,
         latent_dim,
+        neighbors,
         activation="tanh",
         message_layers=4,
         aggregation="sum",
@@ -20,6 +21,7 @@ class MessagePassingLayer(nn.Module):
         super().__init__()
 
         self.latent_dim = latent_dim
+        self.neighbors = neighbors
 
         if message_layers < 1:
             raise ValueError(f"{message_layers} should be greater than zero")
@@ -39,7 +41,7 @@ class MessagePassingLayer(nn.Module):
         )
 
         # Update MLP
-        self.update = MLP(
+        self.node_update = MLP(
             layers=[2 * latent_dim, latent_dim, latent_dim],
             activation=activation
         )
@@ -50,12 +52,12 @@ class MessagePassingLayer(nn.Module):
         senders = edge_index[1]
         n_nodes = h.shape[0]
 
-        # Get information on the edges
-        hi = h[receivers] 
-        hj = h[senders] 
-
-        for i in range(self.message_layers):
+        for _ in range(self.message_layers):
             
+            # Get information on the edges
+            hi = h[receivers] 
+            hj = h[senders] 
+
             # Message passing
             message_input = torch.cat([hi, hj, g], dim=1)
             mij = self.message(message_input)
@@ -63,29 +65,30 @@ class MessagePassingLayer(nn.Module):
             # Collect all messages coming from its neighbors j E N(i)
             aggr_mi = self.message_aggregation(mij, receivers, n_nodes)
 
-            # Update 
-            #update_input = torch.cat([hi, aggr_mi], dim=1)
-            #if self.residual:
-            #    delta_hi = self.update(update_input) 
-            #    hi = hi + delta_hi
-            #else:
-            #   hi = self.update(update_input) 
-                 
-        ######## Should I return hi? ###########
-        return h, g
+            # Update node 
+            update_input = torch.cat([h, aggr_mi], dim=1)
+            delta_h = self.node_update(update_input) 
+
+            if self.residual:
+                h = h + delta_h
+            else:
+               h = delta_h
+            
+        return h
 
     def message_aggregation(self, mij, receivers, n_nodes):
 
         if self.aggregation == 'sum':
             # aggr_mi = (N, latent_dim)
-            aggr_mi = torch.zeros(n_nodes, self.latent_dim)
+            # using the same device and data type as mij
+            aggr_mi = mij.new_zeros((n_nodes, self.latent_dim))
 
             for e in range(len(receivers)):
                 aggr_mi[receivers[e],:] += mij[e,:]
 
         elif self.aggregation == 'max':
             # fill vector with -inf to evaluate max
-            aggr_mi = torch.new_full(n_nodes, self.latent_dim,float('-inf'))
+            aggr_mi = mij.new_full((n_nodes, self.latent_dim), float('-inf'))
 
             for e in range(len(receivers)):
                 aggr_mi[receivers[e],:] = torch.maximum(aggr_mi[receivers[e],:], mij[e,:])
