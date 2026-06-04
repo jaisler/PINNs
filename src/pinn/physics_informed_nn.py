@@ -254,11 +254,13 @@ class PhysicsInformedNN(nn.Module):
                 print(f"    Latent feature dimension     : {network.latent_dim}")  
                 print(f"    Activation function          : {network.activation}")  
                 print(f"    Graph neighbors per node     : {network.neighbors}")
-                print(f"    Node boundary marker         : {network.use_boundary_marker}")
-                print(f"    Edge distance feature        : {network.use_edge_distance}")
-                print(f"    Message-passing layers       : {network.message_layer}")
-                print(f"    Message aggregation          : {network.aggregation}")
-                print(f"    Residual update              : {network.residual}")
+                message_cfg = params['network']['gnn']['attributes']
+                print(f"    Node boundary marker         : {message_cfg['node']['boundary_marker']}")
+                print(f"    Edge distance feature        : {message_cfg['edge']['distance']}")
+                processor_cfg = params['network']['gnn']['processor']
+                print(f"    Message-passing layers       : {processor_cfg['message_layers']}")
+                print(f"    Message aggregation          : {processor_cfg['aggregation']}")
+                print(f"    Residual update              : {processor_cfg['residual']}")
             print(f"  Training data points           : {Xdata.shape[0]}")
             if Xf is not None:
                 print(f"  Training collocation points    : {Xf.shape[0]}")

@@ -10,13 +10,6 @@ paths:
   data: ""
   model: ""
 
-  flow: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/scramjet/afrl/2d/cases/euler/case"
-  mesh: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/scramjet/afrl/2d/meshes/mesh2"
-  results: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/results"
-  data: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/data"
-  model: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/model"
-
-
 # Geometry
 # --------
 geometry:
@@ -36,9 +29,9 @@ files:
 # Run setup
 # ---------
 run:
-  model: "pinn"          # supervised or pinn
-  equation: "Euler"      # Euler or RANS
-  device: "cuda"         # cpu or cuda
+  model: "pinn"          # Options: supervised or pinn
+  equation: "Euler"      # Options: Euler or RANS
+  device: "cuda"         # Options: cpu or cuda
 
   routines:
     sampling: true
@@ -47,28 +40,27 @@ run:
 
   checkpoint:
     load_model: false
-    save_model: true
+    save_model: false
 
   verbose: true
 
 # Neural network
 # --------------
 network:
-  architecture: "mlp"       # mlp or gnn 
+  architecture: "mlp"       # Options: mlp or gnn 
 
   mlp:
     layers: [2, 32, 32, 32, 4] 
-    activation: "tanh"
-    # Options: tanh, sigmoid, sin, softplus, silu/swish, gelu
+    activation: "tanh" # Options: tanh, sigmoid, sin, softplus, silu/swish, gelu
 
     dropout:
       probability: 0.0
       hidden_layer_indices: [1, 2]
 
   gnn:
-    latent_dim: 32    
-    activation: "tanh"
-    neighbors: 8             # Used when construction
+    latent_dim: 8
+    activation: "tanh" # Options: tanh, sigmoid, sin, softplus, silu/swish, gelu
+    neighbors: 6             # Used when construction
 
     attributes:
       node:
@@ -79,7 +71,7 @@ network:
 
     processor:
       message_layers: 4  
-      aggregation: "sum"
+      aggregation: "sum" # Options: sum, max, mean
       residual: true
 
 # Sampling

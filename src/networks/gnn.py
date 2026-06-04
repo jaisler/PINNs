@@ -56,6 +56,7 @@ class GNN(BaseNetwork):
         self.latent_dim = latent_dim
         # self.node_encoder: MLP object
         # h: tensor of shape (N, latent_dim), produced later in forward(...)
+        # MLP node encoder
         self.node_encoder = MLP(
             layers=[node_input_dim, latent_dim, latent_dim],
             activation=activation,
@@ -63,16 +64,14 @@ class GNN(BaseNetwork):
 
         # self.edge_encoder: MLP object
         # g: tensor of shape (E, latent_dim), produced later in forward(...)
+        # MLP edge encoder
         self.edge_encoder = MLP(
             layers=[edge_input_dim, latent_dim, latent_dim],
             activation=activation
         )
 
-        # Processor info
-        self.message_layers = message_layers
-        self.aggregation = aggregation
-        self.residual = residual
         # Class object
+        # Processor
         self.processor = MessagePassingLayer(
             latent_dim=latent_dim,
             activation=activation,
@@ -84,6 +83,7 @@ class GNN(BaseNetwork):
         # Decoder info
         self.output_dim = output_dim
         # Class object
+        # MLP decoder
         self.decoder = MLP(
             layers=[latent_dim, latent_dim, output_dim],
             activation=activation
@@ -135,7 +135,7 @@ class GNN(BaseNetwork):
         # Latent edge features
         g = self.edge_encoder(edge_attr) # self.edge_encoder.forward(...)
 
-        # Updated node and edege features
+        # Updated latent node and edge features
         h, g = self.processor(h, g, edge_index) # self.processor.forward(...)
 
         # Output features [rho, u, v, p, ...]
@@ -171,11 +171,12 @@ class GNN(BaseNetwork):
             distance if `self.use_edge_distance` is enabled.
         """
 
-        receiver = edge_index[0]
-        sender = edge_index[1]
+        receivers = edge_index[0]
+        senders = edge_index[1]
 
-        x_i = X[receiver]
-        x_j = X[sender]
+        # Get receivers and senders nodes
+        x_i = X[receivers]
+        x_j = X[senders]
 
         # Relative position
         relative_position = x_i - x_j
@@ -233,8 +234,5 @@ class GNN(BaseNetwork):
 
             # Each column represents one edege: receiver, sender.
             edge_index = torch.stack([receivers, senders], dim=0)
-
-            print(edge_index)
-
 
         return edge_index

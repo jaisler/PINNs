@@ -262,7 +262,7 @@ def main():
             elif params['run']['equation'] == 'RANS':
                 output_dim = 5
 
-            if params['attributes']['node']['boundary_marker']:
+            if gnn_cfg['attributes']['node']['boundary_marker']:
                 boundary_marker = None # TODO
             else:
                 boundary_marker = None
@@ -277,7 +277,7 @@ def main():
                 message_layers=gnn_cfg['processor']['message_layers'],
                 aggregation=gnn_cfg['processor']['aggregation'],
                 residual=gnn_cfg['processor']['residual'],
-                use_boundary_marker=boundary_marker,
+                boundary_marker=boundary_marker,
                 use_edge_distance=gnn_cfg['attributes']['edge']['distance'],
             )
         else:
@@ -342,6 +342,6 @@ def main():
                                            vtest, ptest, muttest)
         # Print metrics of the test dataset
         print_metrics_table(test_metrics)
-
+        
 if __name__ == "__main__":
     main()
