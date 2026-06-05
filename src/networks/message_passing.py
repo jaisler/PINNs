@@ -34,13 +34,13 @@ class MessagePassingLayer(nn.Module):
             raise TypeError(f"residual must be a boolean, got {type(residual).__name__}.")
         self.residual = residual
         
-        # Message MLP
-        self.message = MLP(
+        # Edge update MLP
+        self.edge_update = MLP(
             layers=[3 * latent_dim, latent_dim, latent_dim],
             activation=activation
         )
 
-        # Update MLP
+        # Node update MLP
         self.node_update = MLP(
             layers=[2 * latent_dim, latent_dim, latent_dim],
             activation=activation
@@ -54,16 +54,22 @@ class MessagePassingLayer(nn.Module):
 
         for _ in range(self.message_layers):
             
-            # Get information on the edges
+            # Edge information: h_i, h_j, g_ij
             hi = h[receivers] 
             hj = h[senders] 
 
-            # Message passing
+            # Message passing - Edge update / message computation
             message_input = torch.cat([hi, hj, g], dim=1)
-            mij = self.message(message_input)
+            delta_g = self.edge_update(message_input)
+
+            # Update edge
+            if self.residual:
+                g = g + delta_g
+            else:
+                g = delta_g
 
             # Collect all messages coming from its neighbors j E N(i)
-            aggr_mi = self.message_aggregation(mij, receivers, n_nodes)
+            aggr_mi = self.message_aggregation(g, receivers, n_nodes)
 
             # Update node 
             update_input = torch.cat([h, aggr_mi], dim=1)
