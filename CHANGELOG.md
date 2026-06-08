@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Add
+Add software development related files (#21)
 - Added initial graph neural network (#20)
 - Added selection of hidden layers to apply dropout (#17)
 
