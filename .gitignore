@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+
+# Python cache files
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+.venv/
+
+# Generated/local project data
+data/
+model/
+results/
