@@ -29,9 +29,9 @@ files:
 # Run setup
 # ---------
 run:
-  model: "pinn"          # supervised or pinn
-  equation: "Euler"      # Euler or RANS
-  device: "cuda"         # cpu or cuda
+  model: "pinn"          # Options: supervised or pinn
+  equation: "Euler"      # Options: Euler or RANS
+  device: "cuda"         # Options: cpu or cuda
 
   routines:
     sampling: true
@@ -40,20 +40,39 @@ run:
 
   checkpoint:
     load_model: false
-    save_model: true
+    save_model: false
 
-  verbose: True
+  verbose: true
 
 # Neural network
 # --------------
 network:
-  layers: [2, 32, 32, 32, 4]
-  activation: "tanh"
-  # Options: tanh, sigmoid, sin, softplus, silu/swish, gelu
-  
-  dropout:
-    probability: 0.0
-    hidden_layer_indices: [1, 2]
+  architecture: "mlp"       # Options: mlp or gnn 
+
+  mlp:
+    layers: [2, 32, 32, 32, 4] 
+    activation: "tanh" # Options: tanh, sigmoid, sin, softplus, silu/swish, gelu
+
+    dropout:
+      probability: 0.0
+      hidden_layer_indices: [1, 2]
+
+  gnn:
+    latent_dim: 8
+    activation: "tanh" # Options: tanh, sigmoid, sin, softplus, silu/swish, gelu
+    neighbors: 6             # Used when construction
+
+    attributes:
+      node:
+        boundary_marker: false # TODO 
+        
+      edge:
+        distance: true                
+
+    processor:
+      message_layers: 4  
+      aggregation: "sum" # Options: sum, max, mean
+      residual: true
 
 # Sampling
 # --------
@@ -97,15 +116,15 @@ sampling:
 dataset:
   n_train_data: 3500
   n_train_collocation: 3500
-  n_validation_data: 500
-  n_test_data: 500
+  n_validation_data: 750
+  n_test_data: 750
 
 # Optimizers
 # ----------
 optimizer:
   adam:
     enabled: true
-    iterations: 100
+    iterations: 20
     learning_rate: 4.0e-4
 
     scheduler:
@@ -123,7 +142,7 @@ optimizer:
 # Loss
 # ----
 loss:
-  print_frequency: 5
+  print_frequency: 10
 
   weights:
     data:

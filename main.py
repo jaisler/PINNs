@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 
 from src.sampling.sampling import SamplingData
-from src.networks import MLP
+from src.networks import MLP, GNN
 from src.pinn import PhysicsInformedNN
 from src.utils import print_metrics_table
 import src.utils.plot as pl
@@ -239,13 +239,51 @@ def main():
         # Plot all points
         pl.plot_target_points(x, y, xf, yf, params)
         
-        # Network Network model
-        network = MLP(
-            layers=params["network"]["layers"],
-            activation=params["network"]["activation"],
-            dropout_p=params["network"]["dropout"].get("probability", 0.0),
-            dropout_indices=params["network"]["dropout"].get("hidden_layer_indices", [])
-        )
+        # Network architecture
+        if params['network']['architecture'] == 'mlp':
+            mlp_cfg = params['network']['mlp'] 
+            network = MLP(
+                layers=mlp_cfg['layers'],
+                activation=mlp_cfg['activation'],
+                dropout_p=mlp_cfg['dropout'].get("probability", 0.0),
+                dropout_indices=mlp_cfg['dropout'].get("hidden_layer_indices", [])
+            )
+        elif params['network']['architecture'] == 'gnn':
+            gnn_cfg = params['network']['gnn'] 
+            
+            node_input_dim = edge_input_dim = params['geometry']['dimension']
+            if gnn_cfg['attributes']['node']['boundary_marker']:
+                node_input_dim += 1
+            if gnn_cfg['attributes']['edge']['distance']:
+                edge_input_dim += 1 
+
+            if params['run']['equation'] == 'Euler':
+                output_dim = 4
+            elif params['run']['equation'] == 'RANS':
+                output_dim = 5
+
+            if gnn_cfg['attributes']['node']['boundary_marker']:
+                boundary_marker = None # TODO
+            else:
+                boundary_marker = None
+
+            network = GNN(
+                node_input_dim=node_input_dim,
+                edge_input_dim=edge_input_dim,
+                output_dim=output_dim,
+                latent_dim=gnn_cfg['latent_dim'],
+                activation=gnn_cfg['activation'],
+                neighbors=gnn_cfg['neighbors'],
+                message_layers=gnn_cfg['processor']['message_layers'],
+                aggregation=gnn_cfg['processor']['aggregation'],
+                residual=gnn_cfg['processor']['residual'],
+                boundary_marker=boundary_marker,
+                use_edge_distance=gnn_cfg['attributes']['edge']['distance'],
+            )
+        else:
+            raise ValueError(
+                f"Unknown nektwork architecture: {params['network']['architecture']}."
+            )
 
         # Note that model is a object of the class
         model = PhysicsInformedNN(
@@ -304,6 +342,6 @@ def main():
                                            vtest, ptest, muttest)
         # Print metrics of the test dataset
         print_metrics_table(test_metrics)
-
+        
 if __name__ == "__main__":
     main()

@@ -1,0 +1,126 @@
+# SPDX-License-Identifier: MIT
+import torch
+import torch.nn as nn
+
+from .mlp import MLP
+
+class MessagePassingLayer(nn.Module):
+    """
+    Message passing: processor stage of the graph neural network algorithm.
+    """
+
+    def __init__(
+        self,
+        latent_dim,
+        neighbors,
+        activation="tanh",
+        message_layers=4,
+        aggregation="sum",
+        residual=True
+    ):
+        super().__init__()
+
+        self.latent_dim = latent_dim
+        self.neighbors = neighbors
+
+        if message_layers < 1:
+            raise ValueError(f"{message_layers} should be greater than zero")
+        self.message_layers = message_layers
+        
+        # Aggregation function: sum, max, 
+        self.aggregation = aggregation
+        
+        if not isinstance(residual, bool):
+            raise TypeError(f"residual must be a boolean, got {type(residual).__name__}.")
+        self.residual = residual
+        
+        # Edge update MLP
+        self.edge_update = MLP(
+            layers=[3 * latent_dim, latent_dim, latent_dim],
+            activation=activation
+        )
+
+        # Node update MLP
+        self.node_update = MLP(
+            layers=[2 * latent_dim, latent_dim, latent_dim],
+            activation=activation
+        )
+
+    def forward(self, h, g, edge_index, use_dropout=False):
+
+        receivers = edge_index[0]
+        senders = edge_index[1]
+        n_nodes = h.shape[0]
+
+        for _ in range(self.message_layers):
+            
+            # Edge information: h_i, h_j, g_ij
+            hi = h[receivers] 
+            hj = h[senders] 
+
+            # Message passing - Edge update / message computation
+            message_input = torch.cat([hi, hj, g], dim=1)
+            delta_g = self.edge_update(message_input)
+
+            # Update edge
+            if self.residual:
+                g = g + delta_g
+            else:
+                g = delta_g
+
+            # Collect all messages coming from its neighbors j E N(i)
+            aggr_mi = self.message_aggregation(g, receivers, n_nodes)
+
+            # Update node 
+            update_input = torch.cat([h, aggr_mi], dim=1)
+            delta_h = self.node_update(update_input) 
+
+            if self.residual:
+                h = h + delta_h
+            else:
+               h = delta_h
+            
+        return h
+
+    def message_aggregation(self, mij, receivers, n_nodes):
+
+        if self.aggregation == 'sum':
+            # aggr_mi = (N, latent_dim)
+            # using the same device and data type as mij
+            aggr_mi = mij.new_zeros((n_nodes, self.latent_dim))
+
+            for e in range(len(receivers)):
+                aggr_mi[receivers[e],:] += mij[e,:]
+
+        elif self.aggregation == 'max':
+            # fill vector with -inf to evaluate max
+            aggr_mi = mij.new_full((n_nodes, self.latent_dim), float('-inf'))
+
+            for e in range(len(receivers)):
+                aggr_mi[receivers[e],:] = torch.maximum(aggr_mi[receivers[e],:], mij[e,:])
+
+        elif self.aggregation == 'mean':
+            # Note that this implementation assumes that then nodes always have
+            # the same number of neighbors and the receiver are ordered.
+            aggr_mi = torch.zeros(n_nodes, self.latent_dim)
+
+            n = 0
+            for e in range(len(receivers)):
+                aggr_mi[receivers[e],:] += mij[e,:]
+                # Count neighbors
+                n += 1
+                # Check if change node               
+                if n == self.neighbors:
+                    aggr_mi[receivers[e],:] /= float(self.neighbors) 
+                    n = 0
+
+        # TODO
+        #elif self.aggretation == 'attention':
+
+        else:
+            raise ValueError(f"Unknown aggregation: {self.aggregation}. " 
+                             "Available aggregation functions are sum, max, mean, attention.")
+
+        return aggr_mi
+        
+

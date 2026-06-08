@@ -45,21 +45,6 @@ class MLP(BaseNetwork):
         # Initialise NN - weights and biases
         self.initialise_nn()
 
-    def _get_activation(self, activation):
-
-        if activation == "tanh":
-            return nn.Tanh()
-        elif activation == "sigmoid":
-            return nn.Sigmoid()
-        elif activation == "relu":
-            return nn.ReLU()
-        elif activation == "gelu":
-            return nn.GELU()
-        elif activation == "silu":
-            return nn.SiLU()
-        else:
-            raise ValueError(f"Unknown activation: {activation}")        
-
     def initialise_nn(self):
         """
         Build the fully connected layers.

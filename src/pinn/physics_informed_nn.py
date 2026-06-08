@@ -49,9 +49,15 @@ class PhysicsInformedNN(nn.Module):
         self.model = params['run']['model']
         # Equation
         self.eq = params['run']['equation']
+        # Network architecture
+        self.net_arch = params['network']['architecture']
 
         # Copy network object
         self.network = network
+
+        # Check network
+        if self.net_arch not in ('mlp', 'gnn'):
+            raise ValueError(f"Unknown network architecture type: {self.net_arch}")
 
         # Check model
         if self.model not in ('supervised', 'pinn'):
@@ -66,10 +72,11 @@ class PhysicsInformedNN(nn.Module):
             raise ValueError(f"Unknown equation type: {self.eq}")
 
         # Check the output layer
-        if network.layers[-1] != expected_out:
-            raise ValueError(
-                f"For equation='{self.eq}', last layer must be {expected_out}, "
-                f"but got {self.layers[-1]}")
+        if self.net_arch == 'mlp':        
+            if network.layers[-1] != expected_out:
+                raise ValueError(
+                    f"For equation='{self.eq}', last layer must be {expected_out}, "
+                    f"but got {self.layers[-1]}")
 
         # IO loss function
         self.io_loss = int(params['loss'].get('print_frequency', 999999))
@@ -235,17 +242,32 @@ class PhysicsInformedNN(nn.Module):
         # PhysicsInformedNN setup
         if self.verbose:
             print("---------------------------------------")
-            print("Neural Network initialized")
+            print("Physics Informed Neural Network initialized")
             print(f"  Device                         : {self.device}")
             print(f"  Learning formulation           : {self.model}")
             print(f"  Equation                       : {self.eq}")
-            print(f"  MLP                            : {network.layers}")
-            print(f"  Activation function            : {network.activation}")
+            print(f"  Network architecture           : {self.net_arch}")
+            if self.net_arch == 'mlp':
+                print(f"    MLP                          : {network.layers}")
+                print(f"    Activation function          : {network.activation}")
+            elif self.net_arch == 'gnn':
+                print(f"    Latent feature dimension     : {network.latent_dim}")  
+                print(f"    Activation function          : {network.activation}")  
+                print(f"    Graph neighbors per node     : {network.neighbors}")
+                message_cfg = params['network']['gnn']['attributes']
+                print(f"    Node boundary marker         : {message_cfg['node']['boundary_marker']}")
+                print(f"    Edge distance feature        : {message_cfg['edge']['distance']}")
+                processor_cfg = params['network']['gnn']['processor']
+                print(f"    Message-passing layers       : {processor_cfg['message_layers']}")
+                print(f"    Message aggregation          : {processor_cfg['aggregation']}")
+                print(f"    Residual update              : {processor_cfg['residual']}")
             print(f"  Training data points           : {Xdata.shape[0]}")
             if Xf is not None:
                 print(f"  Training collocation points    : {Xf.shape[0]}")
             if self.has_validation:
                 print(f"  Validation data points         : {xval.shape[0]}")
+                print(f"  Test data points               : {params['dataset']
+                                                            ['n_test_data']}")
             print(f"  Use Adam                       : {self.use_adam}") 
             if self.use_adam:
                 print(f"    Number of Adam iterations    : {self.n_adam_iter}")
@@ -257,21 +279,22 @@ class PhysicsInformedNN(nn.Module):
                 print(f"    Number of L-BFGS iterations  : {self.n_lbfgs_iter}")
                 print(f"    L-BFGS learning rate         : {learning_rate_lbfgs}")
                 print(f"    Max iterrations for L-BFGS   : {max_iter_lbfgs}")
-            if network.dropout_p > 0.0:
-                print(f"  Dropout:")
-                print(f"    Probability                  : {network.dropout_p}")
-                print(f"    Hidden layer indices         : {network.dropout_indices}")
+            if self.net_arch == 'mlp':
+                if network.dropout_p > 0.0:
+                    print(f"  Dropout:")
+                    print(f"    Probability                  : {network.dropout_p}")
+                    print(f"    Hidden layer indices         : {network.dropout_indices}")
             print(f"  Loss weights:")
-            print(f"    w_rho                        : {self.w_rho}")
-            print(f"    w_u                          : {self.w_u}")
-            print(f"    w_v                          : {self.w_v}")
-            print(f"    w_p                          : {self.w_p}")
+            print(f"    rho                          : {self.w_rho}")
+            print(f"    u                            : {self.w_u}")
+            print(f"    v                            : {self.w_v}")
+            print(f"    p                            : {self.w_p}")
             if self.eq == 'RANS':
-                print(f"    w_mut                        : {self.w_mut}")
-            print(f"    w_f1                         : {self.w_f1}")
-            print(f"    w_f2                         : {self.w_f2}")
-            print(f"    w_f3                         : {self.w_f3}")
-            print(f"    w_f4                         : {self.w_f4}")
+                print(f"    mut                          : {self.w_mut}")
+            print(f"    f1                           : {self.w_f1}")
+            print(f"    f2                           : {self.w_f2}")
+            print(f"    f3                           : {self.w_f3}")
+            print(f"    f4                           : {self.w_f4}")
             print(f"  Model I/O:")
             print(f"    Load                         : {params['run']['checkpoint']
                                                         ['load_model']}")
@@ -317,7 +340,10 @@ class PhysicsInformedNN(nn.Module):
         X_norm = self.normalize_input(X)
 
         # Note that, this is self.network.forward(...)
-        output = self.network(X_norm, use_dropout=use_dropout)
+        if self.net_arch == 'mlp':
+            output = self.network(X_norm, use_dropout=use_dropout)
+        elif self.net_arch == 'gnn':
+            output = self.network(X_norm, use_dropout=False)
 
         return output
 

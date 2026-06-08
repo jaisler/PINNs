@@ -35,3 +35,18 @@ class BaseNetwork(nn.Module, ABC):
             Network output with shape [N, output_dim].
         """
         pass
+
+    def _get_activation(self, activation):
+
+        if activation == "tanh":
+            return nn.Tanh()
+        elif activation == "sigmoid":
+            return nn.Sigmoid()
+        elif activation == "relu":
+            return nn.ReLU()
+        elif activation == "gelu":
+            return nn.GELU()
+        elif activation == "silu":
+            return nn.SiLU()
+        else:
+            raise ValueError(f"Unknown activation: {activation}")        
