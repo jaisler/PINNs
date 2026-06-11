@@ -89,30 +89,49 @@ class MessagePassingLayer(nn.Module):
             # using the same device and data type as mij
             aggr_mi = mij.new_zeros((n_nodes, self.latent_dim))
 
-            for e in range(len(receivers)):
-                aggr_mi[receivers[e],:] += mij[e,:]
+            #for e in range(len(receivers)):
+            #    aggr_mi[receivers[e],:] += mij[e,:]
+            aggr_mi.index_add_(0, receivers, mij)
 
         elif self.aggregation == 'max':
             # fill vector with -inf to evaluate max
             aggr_mi = mij.new_full((n_nodes, self.latent_dim), float('-inf'))
 
-            for e in range(len(receivers)):
-                aggr_mi[receivers[e],:] = torch.maximum(aggr_mi[receivers[e],:], mij[e,:])
+            #for e in range(len(receivers)):
+            #    aggr_mi[receivers[e],:] = torch.maximum(aggr_mi[receivers[e],:], mij[e,:])
+
+            index = receivers[:, None].expand(-1, self.latent_dim)
+
+            aggr_mi.scatter_reduce_(
+                dim=0,
+                index=index,
+                src=mij,
+                reduce="amax",
+                include_self=True,
+            )
 
         elif self.aggregation == 'mean':
             # Note that this implementation assumes that then nodes always have
             # the same number of neighbors and the receiver are ordered.
-            aggr_mi = torch.zeros(n_nodes, self.latent_dim)
-
-            n = 0
-            for e in range(len(receivers)):
-                aggr_mi[receivers[e],:] += mij[e,:]
+            aggr_mi = mij.new_zeros((n_nodes, self.latent_dim))
+            
+            #n = 0
+            #for e in range(len(receivers)):
+            #    aggr_mi[receivers[e],:] += mij[e,:]
                 # Count neighbors
-                n += 1
+            #    n += 1
                 # Check if change node               
-                if n == self.neighbors:
-                    aggr_mi[receivers[e],:] /= float(self.neighbors) 
-                    n = 0
+            #    if n == self.neighbors:
+            #        aggr_mi[receivers[e],:] /= float(self.neighbors) 
+            #        n = 0
+
+            aggr_mi.index_add_(0, receivers, mij)
+
+            counts = mij.new_zeros((n_nodes, 1))
+            ones = mij.new_ones((receivers.numel(), 1))
+            counts.index_add_(0, receivers, ones)
+
+            aggr_mi = aggr_mi / counts.clamp_min(1.0)
 
         # TODO
         #elif self.aggretation == 'attention':
