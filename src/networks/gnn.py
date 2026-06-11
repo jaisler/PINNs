@@ -37,7 +37,13 @@ class GNN(BaseNetwork):
 
         # Boundary marker - node attributes
         if boundary_marker is not None:
-            self.boundary_marker = boundary_marker
+            self.register_buffer(
+                "boundary_marker",
+                boundary_marker,
+                persistent=False,
+            )
+        else:
+            self.boundary_marker = None
         
         # Use edge distance -  edge attributes
         self.use_edge_distance = use_edge_distance
@@ -49,6 +55,21 @@ class GNN(BaseNetwork):
 
         # Get activation function
         self.activation = self._get_activation(activation)
+
+        # Buffer for the edge_index. To initialise the 
+        # graph only once, in order to reduce memory comsumption.
+        self.register_buffer(
+            "edge_index",
+            torch.empty((2, 0), dtype=torch.long),
+            persistent=False,
+        )
+
+        # Buffer for the edge_attr
+        self.register_buffer(
+            "edge_attr",
+            torch.empty((0, edge_input_dim)),
+            persistent=False,
+        )
 
         # Encoder info
         self.node_input_dim = node_input_dim
@@ -90,6 +111,29 @@ class GNN(BaseNetwork):
             activation=activation
         )    
 
+    @torch.no_grad()
+    def set_graph(self, X):
+        """
+        Build the graph once and store it as model buffers.
+
+        X_graph should be detached coordinates, usually the normalized
+        training coordinates.
+        """
+
+        if self.neighbors >= X.shape[0]:
+            raise ValueError(
+                f"neighbors must be smaller than the number of nodes. "
+                f"Got neighbors={self.neighbors}, number_of_nodes={X.shape[0]}"
+            )
+
+        X = X.detach()
+
+        edge_index = self.build_knn_graph(X)
+        edge_attr = self.build_edge_attr(X, edge_index)
+
+        self.edge_index = edge_index
+        self.edge_attr = edge_attr
+
     def forward(self, X, use_dropout=False):
         """
         Forward pass of the GNN.
@@ -116,35 +160,29 @@ class GNN(BaseNetwork):
             For example, this may contain [rho, u, v, p].
         """
 
-        if self.neighbors >= X.shape[0]:
-            raise ValueError(
-                f"neighbors must be smaller than the number of nodes. "
-                f"Got neighbors={self.neighbors}, number_of_nodes={X.shape[0]}"
+        if self.edge_index.numel() == 0:
+            raise RuntimeError(
+                "Graph has not been initialized. "
+                "Call model.set_graph(X.detach()) before using the GNN."
             )
-
+        
         # Node attributes
         node_attr = X 
-
-        # Build graph - rebuild every call - not efficient
-        edge_index = self.build_knn_graph(X)
-
-        # Build edge attributes
-        edge_attr = self.build_edge_attr(X, edge_index)
 
         # Latent node features
         h = self.node_encoder(node_attr) # self.node_encoder.forward(...)
         # Latent edge features
-        g = self.edge_encoder(edge_attr) # self.edge_encoder.forward(...)
+        g = self.edge_encoder(self.edge_attr) # self.edge_encoder.forward(...)
 
         # Updated latent node and edge features
-        h = self.processor(h, g, edge_index) # self.processor.forward(...)
+        h = self.processor(h, g, self.edge_index) # self.processor.forward(...)
 
         # Output features [rho, u, v, p, ...]
         # maps latent/hidden features to physical outputs
         Y = self.decoder(h) # self.processor.forward(...)
 
         return Y
-
+    
     def build_edge_attr(self, X, edge_index):
         """
         Build edge features from node coordinates.
