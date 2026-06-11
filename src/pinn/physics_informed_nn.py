@@ -45,15 +45,18 @@ class PhysicsInformedNN(nn.Module):
             else:
                 self.device = torch.device(device_str)
 
+        # Register network as a submodule
+        self.network = network
+        # Move the full PINN model, including the network, 
+        # to the selected device
+        self.to(self.device)
+
         # Model
         self.model = params['run']['model']
         # Equation
         self.eq = params['run']['equation']
         # Network architecture
         self.net_arch = params['network']['architecture']
-
-        # Copy network object
-        self.network = network
 
         # Check network
         if self.net_arch not in ('mlp', 'gnn'):
@@ -181,6 +184,24 @@ class PhysicsInformedNN(nn.Module):
         self.lb = torch.tensor(Xall.min(0), dtype=torch.float32, device=self.device)  # (2,)
         self.ub = torch.tensor(Xall.max(0), dtype=torch.float32, device=self.device)  # (2,)
 
+        # GNN graph construction
+        if self.net_arch == "gnn":
+
+            if self.model == "pinn" and self.Xf is not None:
+                self.X_graph = torch.cat(
+                        [torch.cat([self.x, self.y], dim=1),
+                        self.Xf], dim=0)
+
+                self.n_data_graph = self.x.shape[0]
+                self.n_collocation_graph = self.Xf.shape[0]
+
+            else:
+                self.X_graph = torch.cat([self.x, self.y], dim=1)
+                self.n_data_graph = self.x.shape[0]
+                self.n_collocation_graph = 0
+
+            self.network.set_graph(self.X_graph.detach())
+
 		# Optimizers
         # Adam
         adam_cfg = params['optimizer']['adam']
@@ -300,10 +321,7 @@ class PhysicsInformedNN(nn.Module):
                                                         ['load_model']}")
             print(f"    Save                         : {params['run']['checkpoint']
                                                         ['save_model']}")
-
-        # Move the whole module to the selected device
-        self.to(self.device)
-
+            
     def normalize_input(self, X):
         """
         Input normalisation between [-1,1]
