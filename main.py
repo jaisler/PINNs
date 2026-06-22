@@ -129,51 +129,106 @@ def main():
                 
         # Data points
         # Train / validation / test split
-        N_train_data = min(params['dataset']['n_train_data'], N)
+        N_train_data = min(int(params["dataset"]["n_train_data"]), N)
 
         N_val_data = min(
-            params['dataset'].get('n_validation_data', 0),
-            N - N_train_data
+            int(params["dataset"].get("n_validation_data", 0)),
+            N - N_train_data,
         )
 
         N_test_data = min(
-            params['dataset'].get('n_test_data', N - N_train_data - N_val_data),
-            N - N_train_data - N_val_data
+            int(
+                params["dataset"].get(
+                    "n_test_data",
+                    N - N_train_data - N_val_data,
+                )
+            ),
+            N - N_train_data - N_val_data,
         )
 
         # Path for the dataset split
         idx_file = Path(params['paths']['data']) / "idx_split_data.npz"
-        # Get data from file
-        if idx_file.exists() and not params['run']['routines']['sampling']:
-            split = np.load(idx_file)
+        
+    def valid_indices(indices, expected_size, number_of_points):
+        """
+        Check that an index array has the expected size and contains
+        valid indices.
 
+        Empty arrays are valid when expected_size == 0.
+        """
+        indices = np.asarray(indices)
+
+        if indices.ndim != 1:
+            return False
+
+        if indices.size != expected_size:
+            return False
+
+        if indices.size == 0:
+            return True
+
+        return (
+            np.all(indices >= 0)
+            and np.all(indices < number_of_points)
+        )
+
+    load_existing_split = (
+        idx_file.exists()
+        and not params["run"]["routines"]["sampling"]
+    )
+
+    split_is_valid = False
+
+    if load_existing_split:
+        with np.load(idx_file) as split:
             idx_train = split["idx_train"]
             idx_val = split["idx_val"]
             idx_test = split["idx_test"]
 
-            if np.max(idx_train) >= N or np.max(idx_val) >= N or np.max(idx_test) >= N:
-                raise ValueError(
-                    "Loaded split indices are not compatible with the current data."
-                )
+        split_is_valid = (
+            valid_indices(idx_train, N_train_data, N)
+            and valid_indices(idx_val, N_val_data, N)
+            and valid_indices(idx_test, N_test_data, N)
+        )
 
-        else:
+        if split_is_valid:
+            # Check that the three datasets do not overlap
+            idx_combined = np.concatenate(
+                [idx_train, idx_val, idx_test]
+            )
+
+            split_is_valid = (
+                np.unique(idx_combined).size == idx_combined.size
+            )
+
+        if not split_is_valid:
+            print(
+                "Existing dataset split is incompatible with the "
+                "current configuration. Generating a new split."
+            )
+
+
+        if not split_is_valid:
             rng = np.random.default_rng(params.get("seed", 1234))
-            # Shuffle index
-            idx_all = rng.permutation(N)
-            # Training data
-            idx_train = idx_all[:N_train_data]
-            # Validation data
-            idx_val = idx_all[
-                N_train_data:N_train_data + N_val_data
-            ]
-            # Test data
-            idx_test = idx_all[
-                N_train_data + N_val_data:
-                N_train_data + N_val_data + N_test_data
-            ]
 
-            # Save index for loading datasets
-            np.savez(idx_file, idx_train=idx_train, idx_val=idx_val, idx_test=idx_test)
+            # Shuffle all available indices
+            idx_all = rng.permutation(N)
+
+            train_end = N_train_data
+            val_end = train_end + N_val_data
+            test_end = val_end + N_test_data
+
+            idx_train = idx_all[:train_end]
+            idx_val = idx_all[train_end:val_end]
+            idx_test = idx_all[val_end:test_end]
+
+            # Save indices for future runs
+            np.savez(
+                idx_file,
+                idx_train=idx_train,
+                idx_val=idx_val,
+                idx_test=idx_test,
+            )
 
         # Training data
         xtrain = x[idx_train, None]
@@ -185,22 +240,40 @@ def main():
         muttrain = mut[idx_train, None]
 
         # Validation data
-        xval = x[idx_val, None]
-        yval = y[idx_val, None]
-        rhoval = rho[idx_val, None]
-        uval = u[idx_val, None]
-        vval = v[idx_val, None]
-        pval = p[idx_val, None]
-        mutval = mut[idx_val, None]
+        xval = None
+        yval = None
+        rhoval = None
+        uval = None
+        vval = None
+        pval = None
+        mutval = None
+
+        if N_val_data > 0:
+            xval = x[idx_val, None]
+            yval = y[idx_val, None]
+            rhoval = rho[idx_val, None]
+            uval = u[idx_val, None]
+            vval = v[idx_val, None]
+            pval = p[idx_val, None]
+            mutval = mut[idx_val, None]
 
         # Test data
-        xtest = x[idx_test, None]
-        ytest = y[idx_test, None]
-        rhotest = rho[idx_test, None]
-        utest = u[idx_test, None]
-        vtest = v[idx_test, None]
-        ptest = p[idx_test, None]
-        muttest = mut[idx_test, None]
+        xtest = None
+        ytest = None
+        rhotest = None
+        utest = None
+        vtest = None
+        ptest = None
+        muttest = None
+
+        if N_test_data > 0:
+            xtest = x[idx_test, None]
+            ytest = y[idx_test, None]
+            rhotest = rho[idx_test, None]
+            utest = u[idx_test, None]
+            vtest = v[idx_test, None]
+            ptest = p[idx_test, None]
+            muttest = mut[idx_test, None]
 
         if Xf is not None:  
             # Collocation points
@@ -311,7 +384,8 @@ def main():
         l_data = model.get_data_loss()
         l_res = model.get_residual_loss()
         l_total = model.get_total_loss()
-        l_val = model.get_validation_data_loss()
+        if xval is not None and l_val is not None:
+            l_val = model.get_validation_data_loss()
         n_epoch = model.get_n_epoch()
         
         # Plot losses
