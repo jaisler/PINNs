@@ -45,7 +45,7 @@ class GNN(BaseNetwork):
         else:
             self.boundary_marker = None
         
-        # Use edge distance -  edge attributes
+        # Use edge distance - edge attributes
         self.use_edge_distance = use_edge_distance
 
         # Number of neighbors of each node
@@ -55,21 +55,6 @@ class GNN(BaseNetwork):
 
         # Get activation function
         self.activation = self._get_activation(activation)
-
-        # Buffer for the edge_index. To initialise the 
-        # graph only once, in order to reduce memory comsumption.
-        self.register_buffer(
-            "edge_index",
-            torch.empty((2, 0), dtype=torch.long),
-            persistent=False,
-        )
-
-        # Buffer for the edge_attr
-        self.register_buffer(
-            "edge_attr",
-            torch.empty((0, edge_input_dim)),
-            persistent=False,
-        )
 
         # Encoder info
         self.node_input_dim = node_input_dim
@@ -111,30 +96,7 @@ class GNN(BaseNetwork):
             activation=activation
         )    
 
-    @torch.no_grad()
-    def set_graph(self, X):
-        """
-        Build the graph once and store it as model buffers.
-
-        X_graph should be detached coordinates, usually the normalized
-        training coordinates.
-        """
-
-        if self.neighbors >= X.shape[0]:
-            raise ValueError(
-                f"neighbors must be smaller than the number of nodes. "
-                f"Got neighbors={self.neighbors}, number_of_nodes={X.shape[0]}"
-            )
-
-        X = X.detach()
-
-        edge_index = self.build_knn_graph(X)
-        edge_attr = self.build_edge_attr(X, edge_index)
-
-        self.edge_index = edge_index
-        self.edge_attr = edge_attr
-
-    def forward(self, X, use_dropout=False):
+    def forward(self, X, edge_index, edge_attr, use_dropout=False):
         """
         Forward pass of the GNN.
 
@@ -159,30 +121,37 @@ class GNN(BaseNetwork):
             Output predictions at the nodes, with shape (N, output_dim).
             For example, this may contain [rho, u, v, p].
         """
-
-        if self.edge_index.numel() == 0:
-            raise RuntimeError(
-                "Graph has not been initialized. "
-                "Call model.set_graph(X.detach()) before using the GNN."
-            )
-        
+ 
         # Node attributes
         node_attr = X 
 
         # Latent node features
         h = self.node_encoder(node_attr) # self.node_encoder.forward(...)
         # Latent edge features
-        g = self.edge_encoder(self.edge_attr) # self.edge_encoder.forward(...)
+        g = self.edge_encoder(edge_attr) # self.edge_encoder.forward(...)
 
         # Updated latent node and edge features
-        h = self.processor(h, g, self.edge_index) # self.processor.forward(...)
+        h = self.processor(h, g, edge_index) # self.processor.forward(...)
 
         # Output features [rho, u, v, p, ...]
         # maps latent/hidden features to physical outputs
         Y = self.decoder(h) # self.processor.forward(...)
 
         return Y
-    
+
+    def build_graph(self, X):
+        """
+        Build graph connectivity and edge attributes.
+
+        The topology edge_index is built using detached coordinates because
+        nearest-neighbor selection is not differentiable.
+        """
+
+        edge_index = self.build_knn_graph(X.detach())
+        edge_attr = self.build_edge_attr(X, edge_index)
+
+        return edge_index, edge_attr
+
     def build_edge_attr(self, X, edge_index):
         """
         Build edge features from node coordinates.
@@ -245,10 +214,16 @@ class GNN(BaseNetwork):
         Returns
         -------
         edge_index : torch.Tensor
-            Edge list with shape (2, N*k).
+            Edge list with shape (2, N * neighbors).
             edge_index[0] contains receiver nodes i.
             edge_index[1] contains sender nodes j.
         """
+
+        if self.neighbors >= X.shape[0]:
+            raise ValueError(
+                f"neighbors must be smaller than the number of nodes. "
+                f"Got neighbors={self.neighbors}, number_of_nodes={X.shape[0]}"
+            )
 
         N = X.shape[0]
         k = self.neighbors
@@ -265,13 +240,13 @@ class GNN(BaseNetwork):
             # knn_idx[i] gives the k nearest neighbors of node i
             knn_idx = torch.topk(dist, k=k, largest=False).indices
 
-            # Receiver nodes
+            # Receiver nodes. Creates [0, 0, 0, 1, 1, 1, 2, ...] if k = 3
             receivers = torch.arange(N, device=X.device).repeat_interleave(k)
 
-            # Sender nodes
-            senders = knn_idx.reshape(-1) # flattens the matrix into one long vector
+            # Sender nodes. Flattens the matrix into one long vector
+            senders = knn_idx.reshape(-1) 
 
-            # Each column represents one edege: receiver, sender.
+            # Each column represents one edge: receiver, sender.
             edge_index = torch.stack([receivers, senders], dim=0)
 
         return edge_index
