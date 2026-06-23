@@ -14,6 +14,29 @@ from src.pinn import PhysicsInformedNN
 from src.utils import print_metrics_table
 import src.utils.plot as pl
 
+def valid_indices(indices, expected_size, number_of_points):
+    """
+    Check that an index array has the expected size and contains
+    valid indices.
+
+    Empty arrays are valid when expected_size == 0.
+    """
+    indices = np.asarray(indices)
+
+    if indices.ndim != 1:
+        return False
+
+    if indices.size != expected_size:
+        return False
+
+    if indices.size == 0:
+        return True
+
+    return (
+        np.all(indices >= 0)
+        and np.all(indices < number_of_points)
+    )
+
 def main():
 
     # Configuration file
@@ -114,7 +137,7 @@ def main():
 
     if(params['run']['routines']['inference']):
         # Number of points inside the geometry. This is not the same
-        # number of the points provided in the configureation file.
+        # number of the points provided in the configuration file.
         # Data points
         N = X.shape[0]
 
@@ -148,70 +171,59 @@ def main():
 
         # Path for the dataset split
         idx_file = Path(params['paths']['data']) / "idx_split_data.npz"
-        
-    def valid_indices(indices, expected_size, number_of_points):
-        """
-        Check that an index array has the expected size and contains
-        valid indices.
 
-        Empty arrays are valid when expected_size == 0.
-        """
-        indices = np.asarray(indices)
-
-        if indices.ndim != 1:
-            return False
-
-        if indices.size != expected_size:
-            return False
-
-        if indices.size == 0:
-            return True
-
-        return (
-            np.all(indices >= 0)
-            and np.all(indices < number_of_points)
+        load_existing_split = (
+            idx_file.exists()
+            and not params["run"]["routines"]["sampling"]
         )
 
-    load_existing_split = (
-        idx_file.exists()
-        and not params["run"]["routines"]["sampling"]
-    )
+        split_is_valid = False
 
-    split_is_valid = False
+        # Try to load an existing split
+        if load_existing_split:
+            try:
+                with np.load(idx_file) as split:
+                    idx_train = split["idx_train"]
+                    idx_val = split["idx_val"]
+                    idx_test = split["idx_test"]
 
-    if load_existing_split:
-        with np.load(idx_file) as split:
-            idx_train = split["idx_train"]
-            idx_val = split["idx_val"]
-            idx_test = split["idx_test"]
+                split_is_valid = (
+                    valid_indices(idx_train, N_train_data, N)
+                    and valid_indices(idx_val, N_val_data, N)
+                    and valid_indices(idx_test, N_test_data, N)
+                )
 
-        split_is_valid = (
-            valid_indices(idx_train, N_train_data, N)
-            and valid_indices(idx_val, N_val_data, N)
-            and valid_indices(idx_test, N_test_data, N)
-        )
+                if split_is_valid:
+                    # Check that train, validation, and test do not overlap
+                    idx_combined = np.concatenate(
+                        [idx_train, idx_val, idx_test]
+                    )
 
-        if split_is_valid:
-            # Check that the three datasets do not overlap
-            idx_combined = np.concatenate(
-                [idx_train, idx_val, idx_test]
-            )
+                    split_is_valid = (
+                        np.unique(idx_combined).size
+                        == idx_combined.size
+                    )
 
-            split_is_valid = (
-                np.unique(idx_combined).size == idx_combined.size
-            )
+                if not split_is_valid:
+                    print(
+                        "Existing dataset split is incompatible with the "
+                        "current configuration."
+                    )
 
+            except (OSError, ValueError, KeyError) as error:
+                print(
+                    f"Could not load the existing dataset split: {error}"
+                )
+                split_is_valid = False
+
+        # Generate a split when no valid existing split was loaded
         if not split_is_valid:
-            print(
-                "Existing dataset split is incompatible with the "
-                "current configuration. Generating a new split."
+            print("Generating a new dataset split.")
+
+            rng = np.random.default_rng(
+                params.get("seed", 1234)
             )
 
-
-        if not split_is_valid:
-            rng = np.random.default_rng(params.get("seed", 1234))
-
-            # Shuffle all available indices
             idx_all = rng.permutation(N)
 
             train_end = N_train_data
@@ -222,14 +234,15 @@ def main():
             idx_val = idx_all[train_end:val_end]
             idx_test = idx_all[val_end:test_end]
 
-            # Save indices for future runs
             np.savez(
                 idx_file,
                 idx_train=idx_train,
                 idx_val=idx_val,
                 idx_test=idx_test,
             )
-
+        
+        print("Dataset split prepared.")
+            
         # Training data
         xtrain = x[idx_train, None]
         ytrain = y[idx_train, None]
@@ -307,11 +320,11 @@ def main():
             xftrain = xf[idxc, None]
             yftrain = yf[idxc, None]        
         
-        # Plot traning ponts
+        # Plot traning points
         pl.plot_target_points(xtrain, ytrain, xftrain, yftrain, params, True)
         # Plot all points
         pl.plot_target_points(x, y, xf, yf, params)
-        
+
         # Network architecture
         if params['network']['architecture'] == 'mlp':
             mlp_cfg = params['network']['mlp'] 
@@ -384,8 +397,7 @@ def main():
         l_data = model.get_data_loss()
         l_res = model.get_residual_loss()
         l_total = model.get_total_loss()
-        if xval is not None and l_val is not None:
-            l_val = model.get_validation_data_loss()
+        l_val = model.get_validation_data_loss()
         n_epoch = model.get_n_epoch()
         
         # Plot losses
@@ -401,21 +413,21 @@ def main():
 
         if params['run']['equation'] == 'Euler':
             rho_pred_mesh, u_pred_mesh, v_pred_mesh, p_pred_mesh = \
-                  model.predict(xmesh, ymesh)
+                    model.predict(xmesh, ymesh)
             pred_list = [rho_pred_mesh, p_pred_mesh, u_pred_mesh, v_pred_mesh]
         elif params['run']['equation'] == 'RANS':
             rho_pred_mesh, u_pred_mesh, v_pred_mesh, p_pred_mesh, mut_pred_mesh = \
                 model.predict(xmesh, ymesh)
             pred_list = [rho_pred_mesh, p_pred_mesh, u_pred_mesh, v_pred_mesh, 
-                         mut_pred_mesh]
+                            mut_pred_mesh]
 
         pl.plot_predicted_flow_pyvista(flowfield, pred_list, params)
 
         # Evaluate data        
         test_metrics = model.evaluate_data(xtest, ytest, rhotest, utest,
-                                           vtest, ptest, muttest)
+                                            vtest, ptest, muttest)
         # Print metrics of the test dataset
         print_metrics_table(test_metrics)
-        
+    
 if __name__ == "__main__":
     main()
