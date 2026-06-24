@@ -79,7 +79,7 @@ class PhysicsInformedNN(nn.Module):
             if network.layers[-1] != expected_out:
                 raise ValueError(
                     f"For equation='{self.eq}', last layer must be {expected_out}, "
-                    f"but got {self.layers[-1]}")
+                    f"but got {network.layers[-1]}")
 
         # IO loss function
         self.io_loss = int(params['loss'].get('print_frequency', 999999))
@@ -145,12 +145,23 @@ class PhysicsInformedNN(nn.Module):
             self.mu0star = float(phys_cfg['sutherland']['mu0']) / self.muref
 
         # Training data
-        Xdata, self.x, self.y, self.rho, self.u, self.v, self.p, self.mut = \
+        _, self.x, self.y, self.rho, self.u, self.v, self.p, self.mut = \
             self.prepare_torch_supervised_data(xdata, ydata, rhodata, udata, 
                                                vdata, pdata, mutdata, True)
 
         # Validation
-        self.has_validation = xval is not None
+        self.has_validation = all(
+            value is not None
+            for value in (
+                xval,
+                yval,
+                rhoval,
+                uval,
+                vval,
+                pval,
+            )
+        )
+        
         if self.has_validation:
             self.lval = [] # loss
             (
@@ -175,32 +186,77 @@ class PhysicsInformedNN(nn.Module):
             self.xf = None
             self.yf = None
 
-        # Input bounds for normalization
-        # Calculate the lower and upper bound from the union of all training coord.
-        if Xf is not None:
-            Xall = np.concatenate([Xdata, Xf], axis=0)
+        # Coordinates used by the PINN/GNN
+        # Data coordinates
+        self.X_data = torch.cat([self.x, self.y], dim=1)
+        self.n_data = self.X_data.shape[0]
+
+        # Collocation coordinates
+        if self.model == "pinn" and self.Xf is not None:
+            self.X_res = self.Xf
+            self.n_res = self.X_res.shape[0]
         else:
-            Xall = Xdata.copy()
-        self.lb = torch.tensor(Xall.min(0), dtype=torch.float32, device=self.device)  # (2,)
-        self.ub = torch.tensor(Xall.max(0), dtype=torch.float32, device=self.device)  # (2,)
+            self.X_res = None
+            self.n_res = 0
+
+        # All training coordinates: data + collocation
+        if self.X_res is not None:
+            self.X_all = torch.cat([self.X_data, self.X_res], dim=0)
+        else:
+            self.X_all = self.X_data
+
+        # Input bounds for normalization
+        self.lb = self.X_all.detach().min(dim=0).values
+        self.ub = self.X_all.detach().max(dim=0).values
 
         # GNN graph construction
         if self.net_arch == "gnn":
+            # Graph data
+            # supervised data nodes followed by collocation points
+            self.X_graph_train = self.X_all
+            self.n_data_graph = self.n_data
+            
+            # Bounds
+            self.data_slice = slice(0, self.n_data)
+            self.res_slice = slice(self.n_data, self.n_data + self.n_res)
 
-            if self.model == "pinn" and self.Xf is not None:
-                self.X_graph = torch.cat(
-                        [torch.cat([self.x, self.y], dim=1),
-                        self.Xf], dim=0)
+            # Important: build graph using the same coordinates seen by the GNN.
+            # Since self.forward() normalizes before calling self.network,
+            # the fixed graph should also be built from normalized coordinates.
+            X_graph_train_norm = self.normalize_input(self.X_graph_train.detach())
 
-                self.n_data_graph = self.x.shape[0]
-                self.n_collocation_graph = self.Xf.shape[0]
+            self.edge_index_train, self.edge_attr_train = \
+                self.network.build_graph(X_graph_train_norm)
+
+            # Validatin graph
+            if self.has_validation:
+
+                # X_graph_data_val
+                self.X_graph_val = torch.cat([self.xval, self.yval], dim=1)
+                # Normalization
+                X_graph_val_norm = self.normalize_input(self.X_graph_val.detach())
+
+                self.edge_index_val, self.edge_attr_val = \
+                    self.network.build_graph(X_graph_val_norm)
 
             else:
-                self.X_graph = torch.cat([self.x, self.y], dim=1)
-                self.n_data_graph = self.x.shape[0]
-                self.n_collocation_graph = 0
+                # Validation graph
+                self.X_graph_val = None
+                self.edge_index_val = None
+                self.edge_atrr_val = None
 
-            self.network.set_graph(self.X_graph.detach())
+        else:
+            # Training graph
+            self.X_graph_train = None
+            self.data_slice = None
+            self.res_slice = None
+            self.edge_index_train = None
+            self.edge_attr_train = None
+            # Validation graph
+            self.X_graph_val = None
+            self.edge_index_val = None
+            self.edge_atrr_val = None
+
 
 		# Optimizers
         # Adam
@@ -282,7 +338,7 @@ class PhysicsInformedNN(nn.Module):
                 print(f"    Message-passing layers       : {processor_cfg['message_layers']}")
                 print(f"    Message aggregation          : {processor_cfg['aggregation']}")
                 print(f"    Residual update              : {processor_cfg['residual']}")
-            print(f"  Training data points           : {Xdata.shape[0]}")
+            print(f"  Training data points           : {self.X_data.shape[0]}")
             if Xf is not None:
                 print(f"  Training collocation points    : {Xf.shape[0]}")
             if self.has_validation:
@@ -333,7 +389,7 @@ class PhysicsInformedNN(nn.Module):
         """
         return 2.0 * (X - self.lb) / (self.ub - self.lb) - 1.0
 
-    def forward(self, X, use_dropout=False):
+    def forward(self, X, use_dropout=False, edge_index=None, edge_attr=None):
         """
         Evaluate the neural network inside the PINN.
 
@@ -349,47 +405,45 @@ class PhysicsInformedNN(nn.Module):
         use_dropout : bool, optional
             If True, enables dropout inside the network.
 
+        edge_index : torch.Tensor or None, optional
+            GNN graph connectivity
+
+        edge_attr : torch.Tensor or None, optional
+            GNN edge attributes
+
         Returns
         -------
         torch.Tensor
             Raw network output.
         """
+        
         # Normalised input coordinates
         X_norm = self.normalize_input(X)
 
         # Note that, this is self.network.forward(...)
         if self.net_arch == 'mlp':
-            output = self.network(X_norm, use_dropout=use_dropout)
-        elif self.net_arch == 'gnn':
-            output = self.network(X_norm, use_dropout=False)
+            return self.network(X_norm, use_dropout=use_dropout)
 
-        return output
+        if self.net_arch == 'gnn':
+            if edge_index is None:
+                raise ValueError("GNN forward evaluation requires edge_index.")
 
-    def net_fields(self, x, y, use_dropout=False):
+            if edge_attr is None:
+                raise ValueError("GNN forward evaluation requires edge_attr.")
+
+            return self.network(X_norm, edge_index, edge_attr, use_dropout=False)
+
+        raise ValueError(f"Unknown network architecture: {self.net_arch}")
+
+    def output_to_fields(self, out):
         """
-        Predict the physical flow variables at the given coordinates.
+        Convert raw network output into physical flow variables.
 
-        The coordinates are combined, normalized in forward(...), and passed
-        through the neural network. Positivity is enforced for density,
-        pressure, and, in the RANS case, turbulent viscosity.
-
-        Parameters
-        ----------
-        x, y : torch.Tensor
-            Coordinate tensors with shape (N, 1).
-
-        use_dropout : bool, optional
-            If True, enables dropout during the network evaluation.
-
-        Returns
-        -------
-        tuple of torch.Tensor
-            For Euler: rho, u, v, p.
-            For RANS: rho, u, v, p, muthat.
+        Note that, this method can be used to:
+        rho_data, u_data, v_data, p_data = self.output_to_fields(out_data)
+        rho_f, u_f, v_f, p_f = self.output_to_fields(out_res)
+        for GNN.
         """
-
-        X = torch.cat([x, y], dim=1)
-        out = self.forward(X, use_dropout)
 
         # Common variables
         raw_rho = out[:,0:1]
@@ -410,6 +464,101 @@ class PhysicsInformedNN(nn.Module):
             muthat = torch.nn.functional.softplus(raw_mut) + 1e-8
             return rho, u, v, p, muthat
 
+
+    def net_fields(self, x, y, use_dropout=False, role=None):
+        """
+        Predict physical flow variables.
+
+        Parameters
+        ----------
+        x, y : torch.Tensor
+            Coordinates.
+
+        use_dropout : bool, optional
+            Whether dropout is enabled.
+
+        role : {"data", "residual", "validation", "query"} or None
+            Specifies which graph the GNN should evaluate.
+
+            This argument is ignored by the MLP.
+        """
+        
+        X = torch.cat([x, y], dim=1)
+
+        # MLP
+        if self.net_arch == "mlp":
+            out = self.forward(X, use_dropout)
+            return self.output_to_fields(out)
+
+        # GNN
+        elif self.net_arch == "gnn":
+
+            # GNN supervised training-data evaluation
+            if role == "data":
+                out_graph = self.forward(self.X_graph_train, use_dropout=False, \
+                                         edge_index=self.edge_index_train,
+                                         edge_attr=self.edge_attr_train)
+                out = out_graph[self.data_slice]
+                return self.output_to_fields(out)
+
+            # GNN PDE residual evaluation
+            if role == "residual":
+                if self.X_res is None:
+                    raise ValueError("GNN residual evaluation requires collocation " \
+                                     "points.")
+                
+                if X.shape[0] != self.n_res:
+                    raise ValueError("The number of residual coordinates passed " \
+                                     "to net_fields does not match the number of " \
+                                     "collocation nodes. " \
+                                    f"Expected {self.n_res}, received {X.shape[0]}.")
+
+                # X contains the collocation coordinates with
+                # requires_grad=True.
+                #
+                # The supervised-data coordinates remain fixed, but they are
+                # included in the GNN forward pass so the complete training
+                # graph is used for message passing.                
+                X_graph = torch.cat([self.X_data.detach(), X], dim=0)
+
+                # Note that the graph was already created with a normalised data,
+                # although X_graph is going to be normalised in forward.
+                out_graph = self.forward(X_graph, use_dropout=False)
+                # Only collocation node predictions are used by the PDE loss.
+                out = out_graph[self.res_slice]
+                return self.output_to_fields(out)
+        
+            if role == "validation":        
+                if self.X_graph_val is None:
+                    raise ValueError("Validation graph has not been initialized.")
+                
+                out_graph = self.forward(self.X_graph_val, use_dropout=False, \
+                                         edge_index=self.edge_index_val, \
+                                         edge_attr=self.edge_attr_val)
+                
+                return self.output_to_fields(out_graph)
+
+
+            # GNN arbitrary query or prediction
+            if role == "query":
+                X_query_norm = self.normalize_input(X.detach())
+
+                # Create a graph for prediction
+                self.edge_index_query, self.edge_attr_query = \
+                    self.network.build_graph(X_query_norm)
+
+                out_graph = self.forward(X, use_dropout=False, \
+                                         edge_index=self.edge_index_val, \
+                                         edge_attr=self.edge_attr_val)
+
+                return self.output_to_fields(out_graph)
+     
+            raise ValueError("GNN net_fields requires role='data', 'residual', " \
+                             "'validation', or 'query'.")
+
+        else:  
+            raise ValueError(f"Unknown network architecture: {self.net_arch}")
+        
     def fit(self):
         """
         Train the Physics-Informed Neural Network (PINN) parameters using Adam,
@@ -590,8 +739,9 @@ class PhysicsInformedNN(nn.Module):
 
             elif not hasattr(self, "mut_scale"):
                 raise ValueError(
-                    "mut_scale has not been defined. "
-                    "Call this method first with fit_scale=True using the training data."
+                    "mut_scale has not been defined. " \
+                    "Call this method first with fit_scale=True using the training" \
+                    " data."
                 )
             muthat = mutstar / self.mut_scale
         else:
