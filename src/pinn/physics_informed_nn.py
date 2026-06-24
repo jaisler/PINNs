@@ -548,8 +548,8 @@ class PhysicsInformedNN(nn.Module):
                     self.network.build_graph(X_query_norm)
 
                 out_graph = self.forward(X, use_dropout=False, \
-                                         edge_index=self.edge_index_val, \
-                                         edge_attr=self.edge_attr_val)
+                                         edge_index=self.edge_index_query, \
+                                         edge_attr=self.edge_attr_query)
 
                 return self.output_to_fields(out_graph)
      
