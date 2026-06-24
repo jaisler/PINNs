@@ -34,7 +34,7 @@ def grad(y, x):
     )[0]
 
 
-def steady_euler_residuals(pinn, x, y):
+def steady_euler_residuals(pinn, x, y, rho, u, v, p):
     """
     Steady compressible Euler residuals.
 
@@ -44,18 +44,14 @@ def steady_euler_residuals(pinn, x, y):
         PhysicsInformedNN object.
     x, y :
         Collocation coordinates.
-
+    rho, u, v, p :
+        Predicted flow fields.
+        
     Returns
     -------
     f1, f2, f3, f4
     """
 
-    # Need gradients wrt x,y
-    x = x.clone().detach().requires_grad_(True)
-    y = y.clone().detach().requires_grad_(True)
-
-    rho, u, v, p = pinn.net_fields(x, y)
-    
     # Heat capacity ratio
     gamma = pinn.gamma
     # Internal energy
@@ -84,7 +80,7 @@ def steady_euler_residuals(pinn, x, y):
 
     return f1, f2, f3, f4
 
-def steady_compressible_rans_residuals(pinn, x, y):
+def steady_compressible_rans_residuals(pinn, x, y, rho, u, v, p, muthat):
     """
     Steady compressible RANS residuals. 
     Equations in non-dimensional formulation.
@@ -95,18 +91,13 @@ def steady_compressible_rans_residuals(pinn, x, y):
         PhysicsInformedNN object.
     x, y :
         Collocation coordinates.
+    rho, u, v, p, muhat :
+        Predicted flow field.
 
     Returns
     -------
     f1, f2, f3, f4
     """
-
-    # Need gradients wrt x,y
-    x = x.clone().detach().requires_grad_(True)
-    y = y.clone().detach().requires_grad_(True)
-
-    # Get forward pass: starred fields
-    rho, u, v, p, muthat = pinn.net_fields(x, y, False)
 
     # Recover physical nondimensional eddy viscosity
     mutstar = pinn.mut_scale * muthat
