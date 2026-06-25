@@ -126,6 +126,11 @@ def residual_loss_terms(pinn):
     elif pinn.net_arch == "gnn":
         role = "residual"
 
+    else:
+        raise ValueError(
+            f"Unknown network architecture: {pinn.net_arch}"
+        )
+
     # Residuals for each equation
     if pinn.eq == 'Euler':
         rho_pred, u_pred, v_pred, p_pred = \

@@ -83,8 +83,8 @@ class PhysicsInformedNN(nn.Module):
 
         # IO loss function
         self.io_loss = int(params['loss'].get('print_frequency', 999999))
-        if self.io_loss < 0:
-            raise ValueError(f"print_frequency must be non-negative")
+        if self.io_loss <= 0:
+            raise ValueError(f"print_frequency must be greater than zero")
 
         # Loss weights
         loss_weights = params['loss'].get("weights", {})
@@ -290,7 +290,7 @@ class PhysicsInformedNN(nn.Module):
         if self.use_lbfgs:
             self.n_lbfgs_iter = int(lbfgs_cfg.get('iterations', 1000))
             if self.n_lbfgs_iter <= 0:
-                raise ValueError("n_adam_iter must be greater than zero")
+                raise ValueError("n_lbfgs_iter must be greater than zero")
             max_iter_lbfgs = int(lbfgs_cfg.get('max_iter_per_step', 20))
             if self.n_lbfgs_iter <= 0:
                 raise ValueError("max_iter_lbfgs must be greater than zero")
@@ -379,17 +379,6 @@ class PhysicsInformedNN(nn.Module):
             print(f"    Save                         : {params['run']['checkpoint']
                                                         ['save_model']}")
             
-    def normalize_input(self, X):
-        """
-        Input normalisation between [-1,1]
-
-        Parameters
-        ----------
-        X : torch.Tensor
-            Input coordinates.
-        """
-        return 2.0 * (X - self.lb) / (self.ub - self.lb) - 1.0
-
     def forward(self, X, use_dropout=False, edge_index=None, edge_attr=None):
         """
         Evaluate the neural network inside the PINN.
@@ -435,6 +424,17 @@ class PhysicsInformedNN(nn.Module):
             return self.network(X_norm, edge_index, edge_attr, use_dropout=False)
 
         raise ValueError(f"Unknown network architecture: {self.net_arch}")
+
+    def normalize_input(self, X):
+        """
+        Input normalisation between [-1,1]
+
+        Parameters
+        ----------
+        X : torch.Tensor
+            Input coordinates.
+        """
+        return 2.0 * (X - self.lb) / (self.ub - self.lb) - 1.0
 
     def output_to_fields(self, out):
         """
