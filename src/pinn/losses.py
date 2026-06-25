@@ -22,7 +22,7 @@ def zero_loss(pinn):
     return torch.tensor(0.0, dtype=torch.float32, device=pinn.device)
 
 def data_loss_terms(pinn, x, y, rho_true, u_true, v_true, p_true,
-                   mut_true=None, use_dropout=False):
+                    mut_true=None, use_dropout=False, role="data"):
     """
     Compute supervised data loss terms.
 
@@ -45,6 +45,11 @@ def data_loss_terms(pinn, x, y, rho_true, u_true, v_true, p_true,
         If True, data predictions are computed with dropout activated in the
         selected layers.
 
+    role : {"data", "validation", "query"} or None
+        Specifies which graph the GNN should evaluate.
+
+        This argument is ignored by the MLP.
+
     Returns
     -------
     l_rho, l_u, l_v, l_p, l_mut : torch.Tensor
@@ -53,18 +58,21 @@ def data_loss_terms(pinn, x, y, rho_true, u_true, v_true, p_true,
 
     if pinn.eq == 'Euler': 
         rho_pred, u_pred, v_pred, p_pred = \
-            pinn.net_fields(x, y, use_dropout)        
+            pinn.net_fields(x, y, use_dropout, role=role)        
         # is not RANS
         l_mut = zero_loss(pinn)
 
     elif pinn.eq == 'RANS':
         rho_pred, u_pred, v_pred, p_pred, mut_pred \
-            = pinn.net_fields(x, y, use_dropout)
+            = pinn.net_fields(x, y, use_dropout, role=role)
 
         if mut_true is None:
             raise ValueError("For RANS, mut_t must be provided in loss_fn.")
         # Loss of the turbulent viscosity         
         l_mut = torch.mean((mut_true - mut_pred) ** 2)
+        
+    else:
+        raise ValueError(f"Unknown equation type: {pinn.eq}")
 
     # Data losses terms
     l_rho = torch.mean((rho_true - rho_pred) ** 2)
@@ -100,20 +108,40 @@ def residual_loss_terms(pinn):
         return z, z, z, z
     
     if pinn.model != 'pinn':
-        ValueError(f"Unknown model type: {pinn.model}")
+        raise ValueError(f"Unknown model type: {pinn.model}")
 
     if pinn.xf is None or pinn.yf is None:
         raise ValueError("PINN mode requires collocation points xf and yf.")
 
+    # Need gradients wrt x,y
+    # Independent coordinate tensors for automatic differentiation
+    x = pinn.xf.clone().detach().requires_grad_(True)
+    y = pinn.yf.clone().detach().requires_grad_(True)
+
+    # For the GNN, net_fields() inserts these collocation
+    # coordinates into the complete training graph.
+    if pinn.net_arch == "mlp":
+        role = None
+
+    elif pinn.net_arch == "gnn":
+        role = "residual"
+
     # Residuals for each equation
     if pinn.eq == 'Euler':
+        rho_pred, u_pred, v_pred, p_pred = \
+            pinn.net_fields(x, y, use_dropout=False, role=role)        
+
         f1_res, f2_res, f3_res, f4_res \
-            = steady_euler_residuals(pinn, pinn.xf, pinn.yf)
+            = steady_euler_residuals(pinn, x, y, rho_pred, u_pred, v_pred, p_pred)
         
     elif pinn.eq == 'RANS':
+        rho_pred, u_pred, v_pred, p_pred, mut_pred = \
+            pinn.net_fields(x, y, use_dropout=False, role=role)                
+        
         f1_res, f2_res, f3_res, f4_res \
-            = steady_compressible_rans_residuals(pinn, pinn.xf, pinn.yf)
-    
+            = steady_compressible_rans_residuals(pinn, x, y, rho_pred, u_pred, \
+                                                 v_pred, p_pred, mut_pred)
+
     else:
         raise ValueError(f"Unknown equation type: {pinn.eq}")
         
@@ -156,7 +184,8 @@ def loss_fn(pinn, return_terms=False):
     # Data loss terms
     l_rho, l_u, l_v, l_p, l_mut = \
         data_loss_terms(pinn, pinn.x, pinn.y, pinn.rho, pinn.u,
-                        pinn.v,pinn.p, pinn.mut, use_data_dropout)
+                        pinn.v,pinn.p, pinn.mut, use_data_dropout,
+                        role="data")
 
     # Residuals loss terms
     l_f1, l_f2, l_f3, l_f4 = residual_loss_terms(pinn)
@@ -191,29 +220,41 @@ def validation_loss_fn(pinn):
 
     The validation set should not be used to update the weights.
     It is only used to decide when to stop training.
+   
+    Parameters
+    ----------
+    pinn : PhysicsInformedNN
+        Physics-informed neural network object.
+
     """
 
     if not pinn.has_validation:
         return None
 
+    # Save the current PyTorch module mode.
+    was_training = pinn.training
     # Use the model in prediction/evaluation mode
     pinn.eval()
 
     # Do not compute gradients
-    with torch.no_grad():
-        l_val_rho, l_val_u, l_val_v, l_val_p, l_val_mut = \
-            data_loss_terms(pinn, pinn.xval, pinn.yval, pinn.rhoval, pinn.uval,
-                            pinn.vval,pinn.pval, pinn.mutval, False)
+    try:
+        with torch.no_grad():
+            l_val_rho, l_val_u, l_val_v, l_val_p, l_val_mut = \
+                data_loss_terms(pinn, pinn.xval, pinn.yval, pinn.rhoval, 
+                                pinn.uval, pinn.vval,pinn.pval, 
+                                pinn.mutval, use_data_dropout=False, 
+                                role="validation")
 
-        l_val = (
-            pinn.w_rho * l_val_rho +
-            pinn.w_u   * l_val_u   +
-            pinn.w_v   * l_val_v   +
-            pinn.w_p   * l_val_p   +
-            pinn.w_mut * l_val_mut
-        )
+            l_val = (
+                pinn.w_rho * l_val_rho +
+                pinn.w_u   * l_val_u   +
+                pinn.w_v   * l_val_v   +
+                pinn.w_p   * l_val_p   +
+                pinn.w_mut * l_val_mut
+            )
 
-    # Return to training mode
-    pinn.train()
+    finally:
+        # Return to training mode
+        pinn.train(was_training)
 
     return l_val
