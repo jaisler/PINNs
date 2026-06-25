@@ -495,7 +495,7 @@ class PhysicsInformedNN(nn.Module):
 
             # GNN supervised training-data evaluation
             if role == "data":
-                out_graph = self.forward(self.X_graph_train, use_dropout=False, \
+                out_graph = self.forward(self.X_graph_train, use_dropout=False,
                                          edge_index=self.edge_index_train,
                                          edge_attr=self.edge_attr_train)
                 out = out_graph[self.data_slice]
@@ -523,7 +523,9 @@ class PhysicsInformedNN(nn.Module):
 
                 # Note that the graph was already created with a normalised data,
                 # although X_graph is going to be normalised in forward.
-                out_graph = self.forward(X_graph, use_dropout=False)
+                out_graph = self.forward(X_graph, use_dropout=False, 
+                                        edge_index=self.edge_index_train, 
+                                        edge_attr=self.edge_attr_train)
                 # Only collocation node predictions are used by the PDE loss.
                 out = out_graph[self.res_slice]
                 return self.output_to_fields(out)
@@ -532,8 +534,8 @@ class PhysicsInformedNN(nn.Module):
                 if self.X_graph_val is None:
                     raise ValueError("Validation graph has not been initialized.")
                 
-                out_graph = self.forward(self.X_graph_val, use_dropout=False, \
-                                         edge_index=self.edge_index_val, \
+                out_graph = self.forward(self.X_graph_val, use_dropout=False, 
+                                         edge_index=self.edge_index_val,
                                          edge_attr=self.edge_attr_val)
                 
                 return self.output_to_fields(out_graph)
@@ -547,8 +549,8 @@ class PhysicsInformedNN(nn.Module):
                 self.edge_index_query, self.edge_attr_query = \
                     self.network.build_graph(X_query_norm)
 
-                out_graph = self.forward(X, use_dropout=False, \
-                                         edge_index=self.edge_index_query, \
+                out_graph = self.forward(X, use_dropout=False,
+                                         edge_index=self.edge_index_query,
                                          edge_attr=self.edge_attr_query)
 
                 return self.output_to_fields(out_graph)
