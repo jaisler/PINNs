@@ -205,6 +205,7 @@ def main():
                     )
 
                 if not split_is_valid:
+                    print("---------------------------------------")
                     print(
                         "Existing dataset split is incompatible with the "
                         "current configuration."
@@ -218,6 +219,7 @@ def main():
 
         # Generate a split when no valid existing split was loaded
         if not split_is_valid:
+            print("---------------------------------------")
             print("Generating a new dataset split.")
 
             rng = np.random.default_rng(

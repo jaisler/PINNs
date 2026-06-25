@@ -434,6 +434,14 @@ class PhysicsInformedNN(nn.Module):
         X : torch.Tensor
             Input coordinates.
         """
+
+        coordinate_range = self.ub - self.lb
+
+        if torch.any(coordinate_range <= 0.0):
+            raise ValueError(
+                "Each input coordinate must have a nonzero range. "
+                f"lb={self.lb}, ub={self.ub}")
+
         return 2.0 * (X - self.lb) / (self.ub - self.lb) - 1.0
 
     def output_to_fields(self, out):
