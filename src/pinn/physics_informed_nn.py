@@ -152,18 +152,26 @@ class PhysicsInformedNN(nn.Module):
                                                vdata, pdata, mutdata, True)
 
         # Validation
+        # These variables are always required for validation.
+        validation_values = [
+            xval,
+            yval,
+            rhoval,
+            uval,
+            vval,
+            pval,
+        ]
+
+        # Turbulent viscosity validation data are additionally
+        # required for the RANS equations.
+        if self.eq == "RANS":
+            validation_values.append(mutval)
+
         self.has_validation = all(
             value is not None
-            for value in (
-                xval,
-                yval,
-                rhoval,
-                uval,
-                vval,
-                pval,
-            )
-        )
-        
+            for value in validation_values
+        )        
+
         if self.has_validation:
             (
                 _, self.xval, self.yval, 
@@ -171,6 +179,14 @@ class PhysicsInformedNN(nn.Module):
                 self.pval, self.mutval
             ) = self.prepare_torch_supervised_data(xval, yval, rhoval, uval, 
                                                    vval, pval, mutval, False)
+        else:
+            self.xval = None
+            self.yval = None
+            self.rhoval = None
+            self.uval = None
+            self.vval = None
+            self.pval = None
+            self.mutval = None
 
         # Collocation
         if xf is not None and yf is not None and self.model == 'pinn':
