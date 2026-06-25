@@ -107,12 +107,14 @@ class PhysicsInformedNN(nn.Module):
         # Initialisation: 
         # Collocation points
         Xf = None
-        # Losses
+        # Loss histories
         self.ldata = []
         self.lres = []
+        self.lval = []
         self.loss = []
-        # Epochs
+        # Training history
         self.n_epoch = 0
+        self.enable_data_dropout = False
         # Turbulent viscosity
         self.mut = None 
 
@@ -163,7 +165,6 @@ class PhysicsInformedNN(nn.Module):
         )
         
         if self.has_validation:
-            self.lval = [] # loss
             (
                 _, self.xval, self.yval, 
                 self.rhoval, self.uval, self.vval, 
