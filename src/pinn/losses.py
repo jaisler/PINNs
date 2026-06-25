@@ -242,7 +242,7 @@ def validation_loss_fn(pinn):
             l_val_rho, l_val_u, l_val_v, l_val_p, l_val_mut = \
                 data_loss_terms(pinn, pinn.xval, pinn.yval, pinn.rhoval, 
                                 pinn.uval, pinn.vval,pinn.pval, 
-                                pinn.mutval, use_data_dropout=False, 
+                                pinn.mutval, use_dropout=False, 
                                 role="validation")
 
             l_val = (

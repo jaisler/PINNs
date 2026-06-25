@@ -243,7 +243,7 @@ class PhysicsInformedNN(nn.Module):
                 # Validation graph
                 self.X_graph_val = None
                 self.edge_index_val = None
-                self.edge_atrr_val = None
+                self.edge_attr_val = None
 
         else:
             # Training graph
@@ -255,7 +255,7 @@ class PhysicsInformedNN(nn.Module):
             # Validation graph
             self.X_graph_val = None
             self.edge_index_val = None
-            self.edge_atrr_val = None
+            self.edge_attr_val = None
 
 
 		# Optimizers
@@ -686,7 +686,7 @@ class PhysicsInformedNN(nn.Module):
         y_t = torch.tensor(y, dtype=torch.float32, device=self.device)
 
         if self.eq == 'Euler':
-            rho, u, v, p = self.net_fields(x_t, y_t)
+            rho, u, v, p = self.net_fields(x_t, y_t, role="query")
 
             rhod, ud, vd, pd = self.get_dimensional_data(rho, u, v, p)
             return (
@@ -697,7 +697,7 @@ class PhysicsInformedNN(nn.Module):
             )
 
         elif self.eq == 'RANS':
-            rho, u, v, p, muthat = self.net_fields(x_t, y_t)
+            rho, u, v, p, muthat = self.net_fields(x_t, y_t, role="query")
             
             # Rescaling back to mutstar
             mutstar = self.mut_scale * muthat
@@ -898,10 +898,29 @@ class PhysicsInformedNN(nn.Module):
     def evaluate_data(self, xdata, ydata, rhodata,
                       udata, vdata, pdata, mutdata=None):
         """
-        Evaluate prediction errors on an external dataset.
+        Evaluate the trained model on the held-out test dataset.
 
-        This method can be used for validation or test data.
-        It does not update the neural network weights.
+        Computes model predictions and error metrics without updating the
+        network parameters.
+            
+        Parameters
+        ----------
+        x, y : torch.Tensor
+            Test-point coordinates.
+
+        rho, u, v, p : torch.Tensor
+            Reference test values for density, velocity, and pressure.
+
+        mut : torch.Tensor, optional
+            Reference eddy viscosity for RANS cases.
+
+        Returns
+        -------
+        predictions : dict
+            Predicted physical fields.
+
+        metrics : dict
+            Error metrics for the test dataset.
         """
 
         self.eval()
@@ -940,11 +959,12 @@ class PhysicsInformedNN(nn.Module):
             y_t = X[:, 1:2]
 
             if self.eq == "Euler":
-                rho_pred, u_pred, v_pred, p_pred = self.net_fields(x_t, y_t)
+                rho_pred, u_pred, v_pred, p_pred = \
+                    self.net_fields(x_t, y_t, use_dropout=False, role="query")
 
             elif self.eq == "RANS":
                 rho_pred, u_pred, v_pred, p_pred, muthat_pred = \
-                    self.net_fields(x_t, y_t)
+                    self.net_fields(x_t, y_t, use_dropout=False, role="query")
 
                 # Recover mutstar
                 mut_pred = self.mut_scale * muthat_pred
