@@ -546,11 +546,25 @@ class PhysicsInformedNN(nn.Module):
                 # graph is used for message passing.                
                 X_graph = torch.cat([self.X_data.detach(), X], dim=0)
 
+                # Normalize without detach so the dependence on the residual
+                # coordinates is preserved. Note that, this normalisation is
+                # because I will generate a new edge_attr_res, which is
+                # differentiable.
+                X_graph_norm = self.normalize_input(X_graph)
+
+                # Keep the same fixed graph connectivity, but reconstruct the
+                # geometric edge attributes from the differentiable coordinates.
+                edge_attr_res = self.network.build_edge_attr(
+                    X_graph_norm,
+                    self.edge_index_train,
+                )
+
                 # Note that the graph was already created with a normalised data,
                 # although X_graph is going to be normalised in forward.
                 out_graph = self.forward(X_graph, use_dropout=False, 
                                         edge_index=self.edge_index_train, 
-                                        edge_attr=self.edge_attr_train)
+                                        edge_attr=edge_attr_res)
+                
                 # Only collocation node predictions are used by the PDE loss.
                 out = out_graph[self.res_slice]
                 return self.output_to_fields(out)
