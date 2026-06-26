@@ -360,8 +360,7 @@ class PhysicsInformedNN(nn.Module):
                 print(f"  Training collocation points    : {Xf.shape[0]}")
             if self.has_validation:
                 print(f"  Validation data points         : {xval.shape[0]}")
-                print(f"  Test data points               : {params['dataset']
-                                                            ['n_test_data']}")
+                print(f"  Test data points               : {params['dataset']['n_test_data']}")
             print(f"  Use Adam                       : {self.use_adam}") 
             if self.use_adam:
                 print(f"    Number of Adam iterations    : {self.n_adam_iter}")
@@ -390,10 +389,8 @@ class PhysicsInformedNN(nn.Module):
             print(f"    f3                           : {self.w_f3}")
             print(f"    f4                           : {self.w_f4}")
             print(f"  Model I/O:")
-            print(f"    Load                         : {params['run']['checkpoint']
-                                                        ['load_model']}")
-            print(f"    Save                         : {params['run']['checkpoint']
-                                                        ['save_model']}")
+            print(f"    Load                         : {params['run']['checkpoint']['load_model']}")
+            print(f"    Save                         : {params['run']['checkpoint']['save_model']}")
             
     def forward(self, X, use_dropout=False, edge_index=None, edge_attr=None):
         """

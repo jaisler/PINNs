@@ -1,4 +1,5 @@
-# SPDX-License-Identifier: MIT
+#
+SPDX-License-Identifier: MIT
 import os
 import pyvista as pv
 import matplotlib.pyplot as plt
@@ -8,7 +9,7 @@ from matplotlib import rc, cm
 from matplotlib.colors import TwoSlopeNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
-rc('text', usetex=True)
+rc('text', usetex=False)
 
 def plot_sampling_points(pall, pin, pbc, pgrad, params, collpts=False):
 
@@ -100,7 +101,7 @@ def plot_losses(l_data, l_res, l_total, n_epoch, params):
     fig.subplots_adjust(left=0.127, right=0.97, bottom=0.117, top=0.97)
     ax.grid(color='0.5', linestyle=':', linewidth=0.5, which='both')
     #ax.set_xlim(0.0, 0.0)
-    ax.set_ylim(0.0001, 10.0)
+    ax.set_ylim(0.0001, 1000.0)
     ax.tick_params(labelsize=18)
     ax.set_xlabel(r'$Epochs$', fontsize=18)
     ax.set_ylabel(r'$Losses$', fontsize=18)
@@ -125,7 +126,7 @@ def plot_validation_loss(l_train, l_val, n_epoch, params):
     fig.subplots_adjust(left=0.127, right=0.97, bottom=0.117, top=0.97)
     ax.grid(color='0.5', linestyle=':', linewidth=0.5, which='both')
     #ax.set_xlim(0.0, 0.0)
-    ax.set_ylim(0.0001, 10.0)
+    ax.set_ylim(0.0001, 1000.0)
     ax.tick_params(labelsize=18)
     ax.set_xlabel(r'$Epochs$', fontsize=18)
     ax.set_ylabel(r'$Losses$', fontsize=18)
