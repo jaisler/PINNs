@@ -455,7 +455,8 @@ class PhysicsInformedNN(nn.Module):
                 "Each input coordinate must have a nonzero range. "
                 f"lb={self.lb}, ub={self.ub}")
 
-        return 2.0 * (X - self.lb) / (self.ub - self.lb) - 1.0
+        eps = 1e-12
+        return 2.0 * (X - self.lb) / (self.ub - self.lb + eps) - 1.0
 
     def output_to_fields(self, out):
         """
