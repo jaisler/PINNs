@@ -37,9 +37,15 @@ class GNN(BaseNetwork):
 
         # Boundary marker - node attributes
         if boundary_marker is not None:
-            self.boundary_marker = boundary_marker
+            self.register_buffer(
+                "boundary_marker",
+                boundary_marker,
+                persistent=False,
+            )
+        else:
+            self.boundary_marker = None
         
-        # Use edge distance -  edge attributes
+        # Use edge distance - edge attributes
         self.use_edge_distance = use_edge_distance
 
         # Number of neighbors of each node
@@ -90,7 +96,7 @@ class GNN(BaseNetwork):
             activation=activation
         )    
 
-    def forward(self, X, use_dropout=False):
+    def forward(self, X, edge_index, edge_attr, use_dropout=False):
         """
         Forward pass of the GNN.
 
@@ -115,21 +121,9 @@ class GNN(BaseNetwork):
             Output predictions at the nodes, with shape (N, output_dim).
             For example, this may contain [rho, u, v, p].
         """
-
-        if self.neighbors >= X.shape[0]:
-            raise ValueError(
-                f"neighbors must be smaller than the number of nodes. "
-                f"Got neighbors={self.neighbors}, number_of_nodes={X.shape[0]}"
-            )
-
+ 
         # Node attributes
         node_attr = X 
-
-        # Build graph - rebuild every call - not efficient
-        edge_index = self.build_knn_graph(X)
-
-        # Build edge attributes
-        edge_attr = self.build_edge_attr(X, edge_index)
 
         # Latent node features
         h = self.node_encoder(node_attr) # self.node_encoder.forward(...)
@@ -144,6 +138,19 @@ class GNN(BaseNetwork):
         Y = self.decoder(h) # self.processor.forward(...)
 
         return Y
+
+    def build_graph(self, X):
+        """
+        Build graph connectivity and edge attributes.
+
+        The topology edge_index is built using detached coordinates because
+        nearest-neighbor selection is not differentiable.
+        """
+
+        edge_index = self.build_knn_graph(X.detach())
+        edge_attr = self.build_edge_attr(X, edge_index)
+
+        return edge_index, edge_attr
 
     def build_edge_attr(self, X, edge_index):
         """
@@ -207,10 +214,16 @@ class GNN(BaseNetwork):
         Returns
         -------
         edge_index : torch.Tensor
-            Edge list with shape (2, N*k).
+            Edge list with shape (2, N * neighbors).
             edge_index[0] contains receiver nodes i.
             edge_index[1] contains sender nodes j.
         """
+
+        if self.neighbors >= X.shape[0]:
+            raise ValueError(
+                f"neighbors must be smaller than the number of nodes. "
+                f"Got neighbors={self.neighbors}, number_of_nodes={X.shape[0]}"
+            )
 
         N = X.shape[0]
         k = self.neighbors
@@ -227,13 +240,13 @@ class GNN(BaseNetwork):
             # knn_idx[i] gives the k nearest neighbors of node i
             knn_idx = torch.topk(dist, k=k, largest=False).indices
 
-            # Receiver nodes
+            # Receiver nodes. Creates [0, 0, 0, 1, 1, 1, 2, ...] if k = 3
             receivers = torch.arange(N, device=X.device).repeat_interleave(k)
 
-            # Sender nodes
-            senders = knn_idx.reshape(-1) # flattens the matrix into one long vector
+            # Sender nodes. Flattens the matrix into one long vector
+            senders = knn_idx.reshape(-1) 
 
-            # Each column represents one edege: receiver, sender.
+            # Each column represents one edge: receiver, sender.
             edge_index = torch.stack([receivers, senders], dim=0)
 
         return edge_index
