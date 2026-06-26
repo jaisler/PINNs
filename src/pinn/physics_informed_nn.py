@@ -585,12 +585,12 @@ class PhysicsInformedNN(nn.Module):
                 X_query_norm = self.normalize_input(X.detach())
 
                 # Create a graph for prediction
-                self.edge_index_query, self.edge_attr_query = \
+                edge_index_query, edge_attr_query = \
                     self.network.build_graph(X_query_norm)
 
                 out_graph = self.forward(X, use_dropout=False,
-                                         edge_index=self.edge_index_query,
-                                         edge_attr=self.edge_attr_query)
+                                         edge_index=edge_index_query,
+                                         edge_attr=edge_attr_query)
 
                 return self.output_to_fields(out_graph)
      
