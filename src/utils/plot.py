@@ -230,7 +230,6 @@ def plot_field(x, y, values, ifield, params, suffix="", perc=95, mult=1.8):
     fname = f"{field.lower()}_{comp}_{suffix}.pdf" if suffix else f"{field.lower()}_{comp}.pdf"
     fig.savefig(os.path.join(out_dir, fname), bbox_inches="tight")
 
-    plt.show()
     plt.close(fig)
 
 def plot_field_pyvista(mesh, ifield, params, values=None, suffix=""):
