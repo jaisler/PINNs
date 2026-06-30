@@ -36,13 +36,13 @@ class MessagePassingLayer(nn.Module):
         
         # Edge update MLP
         self.edge_update = MLP(
-            layers=[3 * latent_dim, latent_dim, latent_dim],
+            layers=[3 * latent_dim, 2 * latent_dim, latent_dim, latent_dim],
             activation=activation
         )
 
         # Node update MLP
         self.node_update = MLP(
-            layers=[2 * latent_dim, latent_dim, latent_dim],
+            layers=[2 * latent_dim, 2* latent_dim, latent_dim, latent_dim],
             activation=activation
         )
 

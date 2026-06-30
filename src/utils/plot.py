@@ -8,7 +8,7 @@ from matplotlib import rc, cm
 from matplotlib.colors import TwoSlopeNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
-rc('text', usetex=True)
+rc('text', usetex=False)
 
 def plot_sampling_points(pall, pin, pbc, pgrad, params, collpts=False):
 
@@ -97,15 +97,14 @@ def plot_losses(l_data, l_res, l_total, n_epoch, params):
         ax.legend([p0], [r'Data loss'], loc='best')
 
     ax.tick_params(direction="in", which='both')
-    fig.subplots_adjust(left=0.127, right=0.97, bottom=0.117, top=0.97)
+    fig.subplots_adjust(left=0.146, right=0.97, bottom=0.124, top=0.97)
     ax.grid(color='0.5', linestyle=':', linewidth=0.5, which='both')
     #ax.set_xlim(0.0, 0.0)
-    ax.set_ylim(0.0001, 10.0)
+    ax.set_ylim(0.0001, 1000.0)
     ax.tick_params(labelsize=18)
     ax.set_xlabel(r'$Epochs$', fontsize=18)
     ax.set_ylabel(r'$Losses$', fontsize=18)
     fig.savefig(params['paths']['results']+'/training_losses.pdf')
-    plt.show()
     plt.close()
 
 def plot_validation_loss(l_train, l_val, n_epoch, params):
@@ -122,15 +121,14 @@ def plot_validation_loss(l_train, l_val, n_epoch, params):
     ax.legend([p0,p1], [r'Training data loss',r'Validation data loss'], loc='best')
 
     ax.tick_params(direction="in", which='both')
-    fig.subplots_adjust(left=0.127, right=0.97, bottom=0.117, top=0.97)
+    fig.subplots_adjust(left=0.146, right=0.97, bottom=0.124, top=0.97)
     ax.grid(color='0.5', linestyle=':', linewidth=0.5, which='both')
     #ax.set_xlim(0.0, 0.0)
-    ax.set_ylim(0.0001, 10.0)
+    ax.set_ylim(0.0001, 1000.0)
     ax.tick_params(labelsize=18)
     ax.set_xlabel(r'$Epochs$', fontsize=18)
     ax.set_ylabel(r'$Losses$', fontsize=18)
     fig.savefig(params['paths']['results']+'/validation_loss.pdf')
-    plt.show()
     plt.close()
 
 def plot_field(x, y, values, ifield, params, suffix="", perc=95, mult=1.8):
@@ -232,7 +230,6 @@ def plot_field(x, y, values, ifield, params, suffix="", perc=95, mult=1.8):
     fname = f"{field.lower()}_{comp}_{suffix}.pdf" if suffix else f"{field.lower()}_{comp}.pdf"
     fig.savefig(os.path.join(out_dir, fname), bbox_inches="tight")
 
-    plt.show()
     plt.close(fig)
 
 def plot_field_pyvista(mesh, ifield, params, values=None, suffix=""):

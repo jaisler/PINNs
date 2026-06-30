@@ -37,11 +37,7 @@ class GNN(BaseNetwork):
 
         # Boundary marker - node attributes
         if boundary_marker is not None:
-            self.register_buffer(
-                "boundary_marker",
-                boundary_marker,
-                persistent=False,
-            )
+            self.boundary_marker = boundary_marker
         else:
             self.boundary_marker = None
         

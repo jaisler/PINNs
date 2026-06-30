@@ -360,8 +360,7 @@ class PhysicsInformedNN(nn.Module):
                 print(f"  Training collocation points    : {Xf.shape[0]}")
             if self.has_validation:
                 print(f"  Validation data points         : {xval.shape[0]}")
-                print(f"  Test data points               : {params['dataset']
-                                                            ['n_test_data']}")
+                print(f"  Test data points               : {params['dataset']['n_test_data']}")
             print(f"  Use Adam                       : {self.use_adam}") 
             if self.use_adam:
                 print(f"    Number of Adam iterations    : {self.n_adam_iter}")
@@ -390,10 +389,8 @@ class PhysicsInformedNN(nn.Module):
             print(f"    f3                           : {self.w_f3}")
             print(f"    f4                           : {self.w_f4}")
             print(f"  Model I/O:")
-            print(f"    Load                         : {params['run']['checkpoint']
-                                                        ['load_model']}")
-            print(f"    Save                         : {params['run']['checkpoint']
-                                                        ['save_model']}")
+            print(f"    Load                         : {params['run']['checkpoint']['load_model']}")
+            print(f"    Save                         : {params['run']['checkpoint']['save_model']}")
             
     def forward(self, X, use_dropout=False, edge_index=None, edge_attr=None):
         """
@@ -458,7 +455,8 @@ class PhysicsInformedNN(nn.Module):
                 "Each input coordinate must have a nonzero range. "
                 f"lb={self.lb}, ub={self.ub}")
 
-        return 2.0 * (X - self.lb) / (self.ub - self.lb) - 1.0
+        eps = 1e-12
+        return 2.0 * (X - self.lb) / (self.ub - self.lb + eps) - 1.0
 
     def output_to_fields(self, out):
         """
@@ -546,11 +544,25 @@ class PhysicsInformedNN(nn.Module):
                 # graph is used for message passing.                
                 X_graph = torch.cat([self.X_data.detach(), X], dim=0)
 
+                # Normalize without detach so the dependence on the residual
+                # coordinates is preserved. Note that, this normalisation is
+                # because I will generate a new edge_attr_res, which is
+                # differentiable.
+                X_graph_norm = self.normalize_input(X_graph)
+
+                # Keep the same fixed graph connectivity, but reconstruct the
+                # geometric edge attributes from the differentiable coordinates.
+                edge_attr_res = self.network.build_edge_attr(
+                    X_graph_norm,
+                    self.edge_index_train,
+                )
+
                 # Note that the graph was already created with a normalised data,
                 # although X_graph is going to be normalised in forward.
                 out_graph = self.forward(X_graph, use_dropout=False, 
                                         edge_index=self.edge_index_train, 
-                                        edge_attr=self.edge_attr_train)
+                                        edge_attr=edge_attr_res)
+                
                 # Only collocation node predictions are used by the PDE loss.
                 out = out_graph[self.res_slice]
                 return self.output_to_fields(out)
@@ -571,12 +583,12 @@ class PhysicsInformedNN(nn.Module):
                 X_query_norm = self.normalize_input(X.detach())
 
                 # Create a graph for prediction
-                self.edge_index_query, self.edge_attr_query = \
+                edge_index_query, edge_attr_query = \
                     self.network.build_graph(X_query_norm)
 
                 out_graph = self.forward(X, use_dropout=False,
-                                         edge_index=self.edge_index_query,
-                                         edge_attr=self.edge_attr_query)
+                                         edge_index=edge_index_query,
+                                         edge_attr=edge_attr_query)
 
                 return self.output_to_fields(out_graph)
      
