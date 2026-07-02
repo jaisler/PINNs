@@ -413,6 +413,7 @@ def main():
         xmesh = flowfield.points[:, 0]
         ymesh = flowfield.points[:, 1]
 
+        # Mesh
         if params['run']['equation'] == 'Euler':
             rho_pred_mesh, u_pred_mesh, v_pred_mesh, p_pred_mesh = \
                     model.predict(xmesh, ymesh)
@@ -425,11 +426,21 @@ def main():
 
         pl.plot_predicted_flow_pyvista(flowfield, pred_list, params)
 
-        # Evaluate data        
-        test_metrics = model.evaluate_data(xtest, ytest, rhotest, utest,
-                                            vtest, ptest, muttest)
-        # Print metrics of the test dataset
-        print_metrics_table(test_metrics)
-    
+        # Evaluate data
+        if xtest is not None and ytest is not None and xtest.shape[0] > 0:
+            test_metrics = model.evaluate_data(
+                xtest, ytest, rhotest, utest, vtest, ptest, muttest
+            )
+
+            # Print metrics of the test dataset
+            print_metrics_table(test_metrics)
+
+        else:
+            print("---------------------------------------")
+            print("Skipping test evaluation.")
+            print("No test data were created. "
+                  "This usually means N_test_data = 0 after the "
+                  "train/validation/test split.") 
+               
 if __name__ == "__main__":
     main()
