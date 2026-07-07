@@ -10,6 +10,10 @@ paths:
   data: ""
   model: ""
 
+# Name
+# ----
+  name: afrl_scramjet
+
 # Geometry
 # --------
 geometry:
@@ -184,7 +188,7 @@ physics:
 # Flow-field plotting
 # -------------------
 plot_flow:
-  fields:
+  fields: # from CFD
     - "Density"
     - "Pressure"
     - "Velocity"

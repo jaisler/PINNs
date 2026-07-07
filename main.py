@@ -426,16 +426,18 @@ def main():
             params=params,
         )
 
-        postprocessor.run(prefix="scramjet_flowfield")
+        postprocessor.run(prefix=params['name'])
 
         # Plot CFD/simulation fields using unified PyVista style
         pl.plot_simulation_flow(flowfield, params)
 
         # Plot predicted flow field
-        pred_list = postprocessor.get_pred_list()
-        pl.plot_predicted_flow_pyvista(flowfield, pred_list, params)
+        #pred_fields = postprocessor.get_predicted_fields()
+        #pl.plot_predicted_flow_pyvista(flowfield, pred_fields, params)
 
         # Plot error flow field
+        #error_fields = postprocessor.get_error_fields()
+        #pl.plot_error_flow_pyvista(flowfield, error_fields, params)
 
 if __name__ == "__main__":
     main()

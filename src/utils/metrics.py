@@ -73,7 +73,6 @@ def print_metrics_table(metrics, title="Metrics", rel_l2_percent=True):
 
     line_width = len(header)
 
-    #print("\n" + "=" * line_width)
     print("=" * line_width)
     print(f"{title:}")
     print("-" * line_width)
@@ -104,5 +103,4 @@ def print_metrics_table(metrics, title="Metrics", rel_l2_percent=True):
             f"{r2:>14.4f}"
         )
 
-    #print("=" * line_width + "\n")
     print("=" * line_width)
