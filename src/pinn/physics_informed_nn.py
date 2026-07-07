@@ -308,7 +308,7 @@ class PhysicsInformedNN(nn.Module):
             if self.n_lbfgs_iter <= 0:
                 raise ValueError("n_lbfgs_iter must be greater than zero")
             max_iter_lbfgs = int(lbfgs_cfg.get('max_iter_per_step', 20))
-            if self.n_lbfgs_iter <= 0:
+            if max_iter_lbfgs <= 0:
                 raise ValueError("max_iter_lbfgs must be greater than zero")
             learning_rate_lbfgs = float(lbfgs_cfg.get('learning_rate', 1.0))
             if learning_rate_lbfgs <= 0:
