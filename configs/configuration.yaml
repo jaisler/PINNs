@@ -37,6 +37,7 @@ run:
     sampling: true
     inference: true
     identification: false
+    postprocessing: false
 
   checkpoint:
     load_model: false

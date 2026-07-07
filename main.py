@@ -11,6 +11,7 @@ import torch.nn as nn
 from src.sampling.sampling import SamplingData
 from src.networks import MLP, GNN
 from src.pinn import PhysicsInformedNN
+from src.postprocessing import FlowFieldPostProcessor
 from src.utils import print_metrics_table
 import src.utils.plot as pl
 
@@ -56,18 +57,6 @@ def main():
     # Check if folder exists: model
     if not os.path.isdir(params['paths']['model']):
         os.makedirs(params['paths']['model'], exist_ok=True)
-
-    # Load CFD mesh/flowfield once
-    # It is used for:
-    #   1. plotting the original simulation fields,
-    #   2. evaluating the PINN prediction on the CFD mesh points.
-    flowfield = None
-    if params['run']['routines']['inference']:
-        flowfield = pv.read(os.path.join(params['paths']['flow'], 
-                                         params['files']['flowfield']))
-
-    # Plot CFD/simulation fields using unified PyVista style
-    pl.plot_simulation_flow(flowfield, params)
     
     # Initialisation
     Xf = None
@@ -407,25 +396,6 @@ def main():
         # Plot validation loss
         pl.plot_validation_loss(l_data, l_val, n_epoch, params)
 
-        # Prediction on the CFD mesh
-        # This gives high-resolution prediction plots because the PINN is
-        # evaluated at every point of the original CFD mesh.
-        xmesh = flowfield.points[:, 0]
-        ymesh = flowfield.points[:, 1]
-
-        # Mesh
-        if params['run']['equation'] == 'Euler':
-            rho_pred_mesh, u_pred_mesh, v_pred_mesh, p_pred_mesh = \
-                    model.predict(xmesh, ymesh)
-            pred_list = [rho_pred_mesh, p_pred_mesh, u_pred_mesh, v_pred_mesh]
-        elif params['run']['equation'] == 'RANS':
-            rho_pred_mesh, u_pred_mesh, v_pred_mesh, p_pred_mesh, mut_pred_mesh = \
-                model.predict(xmesh, ymesh)
-            pred_list = [rho_pred_mesh, p_pred_mesh, u_pred_mesh, v_pred_mesh, 
-                            mut_pred_mesh]
-
-        pl.plot_predicted_flow_pyvista(flowfield, pred_list, params)
-
         # Evaluate data
         if xtest is not None and ytest is not None and xtest.shape[0] > 0:
             test_metrics = model.evaluate_data(
@@ -441,6 +411,31 @@ def main():
             print("No test data were created. "
                   "This usually means N_test_data = 0 after the "
                   "train/validation/test split.") 
-               
+
+        # Prediction on the CFD mesh. This gives high-resolution prediction plot
+        # Load CFD mesh/flowfield once
+        flowfield = None
+        if params['run']['routines']['inference']:
+            flowfield = pv.read(os.path.join(params['paths']['flow'], 
+                                            params['files']['flowfield']))
+
+        # Post-processing on the full CFD mesh
+        postprocessor = FlowFieldPostProcessor(
+            model=model,
+            flowfield=flowfield,
+            params=params,
+        )
+
+        postprocessor.run(prefix="scramjet_flowfield")
+
+        # Plot CFD/simulation fields using unified PyVista style
+        pl.plot_simulation_flow(flowfield, params)
+
+        # Plot predicted flow field
+        pred_list = postprocessor.get_pred_list()
+        pl.plot_predicted_flow_pyvista(flowfield, pred_list, params)
+
+        # Plot error flow field
+
 if __name__ == "__main__":
     main()
