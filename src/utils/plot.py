@@ -142,7 +142,7 @@ def plot_field(x, y, values, ifield, params, suffix="", perc=95, mult=1.8):
     values : array_like
         Scalar values to plot.
     ifield : int
-        Index of the field in params['plot_flow'].
+        Index of the field in params['post_processing'].
     params : dict
         Plot settings.
     suffix : str
@@ -151,7 +151,7 @@ def plot_field(x, y, values, ifield, params, suffix="", perc=95, mult=1.8):
         Parameters used to mask large triangles.
     """
 
-    pf = params["plot_flow"]
+    pf = params["post_processing"]
 
     field  = pf["fields"][ifield]
     comp   = pf["components"][ifield]
@@ -241,7 +241,7 @@ def plot_field_pyvista(mesh, ifield, params, values=None, suffix=""):
     mesh : pyvista.DataSet
         Mesh to plot on.
     ifield : int
-        Index of the field in params["plot_flow"].
+        Index of the field in params["post_processing"].
     params : dict
         Configuration dictionary.
     values : array_like or None
@@ -254,7 +254,7 @@ def plot_field_pyvista(mesh, ifield, params, values=None, suffix=""):
         Extra suffix for file naming, e.g. "sim" or "pred".
     """
 
-    pf = params["plot_flow"]
+    pf = params["post_processing"]
 
     field = pf["fields"][ifield]
     comp = pf["components"][ifield]
@@ -388,9 +388,9 @@ def plot_field_pyvista(mesh, ifield, params, values=None, suffix=""):
 
 def plot_simulation_flow(mesh, params):
     """
-    Plot all simulation fields defined in params["plot_flow"].
+    Plot all simulation fields defined in params["post_processing"].
     """
-    nfields = len(params["plot_flow"]["fields"])
+    nfields = len(params["post_processing"]["fields"])
     for ifield in range(nfields):
         plot_field_pyvista(mesh, ifield, params, values=None, suffix="sim")
 
@@ -404,7 +404,7 @@ def plot_predicted_flow_pyvista(mesh, pred_list, params):
     mesh : pyvista.DataSet
         Mesh on which the prediction is defined.
     pred_list : list
-        List of predicted arrays in the same order as plot_flow fields.
+        List of predicted arrays in the same order as post_processing fields.
     params : dict
         Configuration dictionary.
     """

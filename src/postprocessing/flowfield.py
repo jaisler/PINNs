@@ -170,12 +170,12 @@ class FlowFieldPostProcessor:
 
         The field names and components are read from:
 
-            params["plot_flow"]["fields"]
-            params["plot_flow"]["components"]
+            params["post_processing"]["fields"]
+            params["post_processing"]["components"]
 
         Example for Euler:
 
-            plot_flow:
+            post_processing:
               fields:
                 - "Density"
                 - "Pressure"
@@ -201,35 +201,35 @@ class FlowFieldPostProcessor:
         else:
             raise ValueError(f"Unknown equation: {equation}.")
 
-        if "plot_flow" not in self.params:
+        if "post_processing" not in self.params:
             raise KeyError(
-                "params does not contain 'plot_flow'. "
+                "params does not contain 'post_processing'. "
                 "The reference VTK field names must be provided in "
-                "params['plot_flow']['fields'] and "
-                "params['plot_flow']['components']."
+                "params['post_processing']['fields'] and "
+                "params['post_processing']['components']."
             )
 
-        plot_cfg = self.params["plot_flow"]
+        plot_cfg = self.params["post_processing"]
 
         if "fields" not in plot_cfg:
-            raise KeyError("params['plot_flow'] does not contain 'fields'.")
+            raise KeyError("params['post_processing'] does not contain 'fields'.")
 
         if "components" not in plot_cfg:
-            raise KeyError("params['plot_flow'] does not contain 'components'.")
+            raise KeyError("params['post_processing'] does not contain 'components'.")
 
         fields = plot_cfg["fields"]
         components = plot_cfg["components"]
 
         if len(fields) != len(components):
             raise ValueError(
-                "params['plot_flow']['fields'] and "
-                "params['plot_flow']['components'] must have the same length. "
+                "params['post_processing']['fields'] and "
+                "params['post_processing']['components'] must have the same length. "
                 f"Got {len(fields)} fields and {len(components)} components."
             )
 
         if len(fields) < len(variables):
             raise ValueError(
-                "Not enough reference fields were provided in params['plot_flow']. "
+                "Not enough reference fields were provided in params['post_processing']. "
                 f"Expected at least {len(variables)} fields for equation "
                 f"{equation}, but got {len(fields)}."
             )

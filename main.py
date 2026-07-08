@@ -11,8 +11,8 @@ import torch.nn as nn
 from src.sampling.sampling import SamplingData
 from src.networks import MLP, GNN
 from src.pinn import PhysicsInformedNN
-from src.postprocessing import FlowFieldPostProcessor
 from src.utils import print_metrics_table
+from src.postprocessing import run_flowfield_postprocessing
 import src.utils.plot as pl
 
 def valid_indices(indices, expected_size, number_of_points):
@@ -412,32 +412,10 @@ def main():
                   "This usually means N_test_data = 0 after the "
                   "train/validation/test split.") 
 
-        # Prediction on the CFD mesh. This gives high-resolution prediction plot
-        # Load CFD mesh/flowfield once
-        flowfield = None
-        if params['run']['routines']['inference']:
-            flowfield = pv.read(os.path.join(params['paths']['flow'], 
-                                            params['files']['flowfield']))
 
-        # Post-processing on the full CFD mesh
-        postprocessor = FlowFieldPostProcessor(
-            model=model,
-            flowfield=flowfield,
-            params=params,
-        )
+    if params["run"]["routines"].get("postprocessing", False):
+        run_flowfield_postprocessing(model, params)        
 
-        postprocessor.run(prefix=params['name'])
-
-        # Plot CFD/simulation fields using unified PyVista style
-        pl.plot_simulation_flow(flowfield, params)
-
-        # Plot predicted flow field
-        #pred_fields = postprocessor.get_predicted_fields()
-        #pl.plot_predicted_flow_pyvista(flowfield, pred_fields, params)
-
-        # Plot error flow field
-        #error_fields = postprocessor.get_error_fields()
-        #pl.plot_error_flow_pyvista(flowfield, error_fields, params)
 
 if __name__ == "__main__":
     main()
