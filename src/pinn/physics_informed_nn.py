@@ -34,16 +34,21 @@ class PhysicsInformedNN(nn.Module):
         super().__init__()
 
         # Device selection
-        device_str = params['run'].get("device", None)
-        if device_str is None:
-            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device_str = params['run'].get("device", None)
+        if self.device_str is None:
+            if torch.cuda.is_available():
+                self.device_str = "cuda"
+            else:
+                self.device_str = "cpu"
+            self.device = torch.device(self.device_str)
         else:
-            if "cuda" in device_str and not torch.cuda.is_available():
+            if "cuda" in self.device_str and not torch.cuda.is_available():
                 print("---------------------------------------")
                 print("CUDA requested but not available. Falling back to CPU")
                 self.device = torch.device("cpu")
+                self.device_str = "cpu"
             else:
-                self.device = torch.device(device_str)
+                self.device = torch.device(self.device_str)
 
         # Register network as a submodule
         self.network = network
@@ -308,7 +313,7 @@ class PhysicsInformedNN(nn.Module):
             if self.n_lbfgs_iter <= 0:
                 raise ValueError("n_lbfgs_iter must be greater than zero")
             max_iter_lbfgs = int(lbfgs_cfg.get('max_iter_per_step', 20))
-            if self.n_lbfgs_iter <= 0:
+            if max_iter_lbfgs <= 0:
                 raise ValueError("max_iter_lbfgs must be greater than zero")
             learning_rate_lbfgs = float(lbfgs_cfg.get('learning_rate', 1.0))
             if learning_rate_lbfgs <= 0:

@@ -9,6 +9,10 @@ paths:
   results: ""
   data: ""
   model: ""
+  
+# Name
+# ----
+name: afrl_scramjet
 
 # Geometry
 # --------
@@ -31,12 +35,13 @@ files:
 run:
   model: "pinn"          # Options: supervised or pinn
   equation: "Euler"      # Options: Euler or RANS
-  device: "cuda"         # Options: cpu or cuda
+  device: "cpu"         # Options: cpu or cuda
 
   routines:
     sampling: true
     inference: true
     identification: false
+    postprocessing: true
 
   checkpoint:
     load_model: false
@@ -180,10 +185,12 @@ physics:
     mu0: 1.716e-5     # N s / m^2
     S: 110.4          # K
 
-# Flow-field plotting
-# -------------------
-plot_flow:
-  fields:
+# Post processing 
+# ---------------
+post_processing:
+  error_type: abs_error_01 # Options: error, abs_error, rel_error, abs_error_01
+
+  fields: # from CFD
     - "Density"
     - "Pressure"
     - "Velocity"
