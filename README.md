@@ -1,15 +1,18 @@
 # Physics-Informed Graph Neural Networks for Compressible Flows
 
-This repository contains a PyTorch implementation of Physics-Informed Graph Neural Networks (PIGNNs) for reconstructing compressible flow fields from sparse data. The project focuses on steady compressible Euler and RANS-type formulations, with applications to high-speed internal flows such as scramjet-like configurations.
+This repository contains a PyTorch implementation of physics-informed neural networks and graph neural networks for reconstructing compressible flow fields from sparse CFD data.
 
-The neural network predicts flow variables such as density, velocity components, pressure, and, for RANS cases, turbulent viscosity. The model can be trained either as a purely supervised neural network or a supervised graph neural network and also be combined with a PINN by using data loss with the residuals of the governing equations.
+The project focuses on steady compressible Euler and RANS-type formulations, with applications to high-speed internal flows such as scramjet-like configurations. The model can be trained using sparse supervised data and, when enabled, physics-informed residual losses from the governing equations.
+
+The neural network predicts flow variables such as density, velocity components, pressure, and, for RANS-type cases, turbulent viscosity.
 
 ## Features
 
 - PyTorch-based implementation
 - Support for steady compressible Euler equations
-- Support for RANS-style formulation with effective viscosity
-- Supervised neural netwok and graph neural network and physics-informed training modes
+- Support for RANS-type formulations with effective viscosity
+- Support for MLP and GNN architectures
+- Supervised and physics-informed training modes
 - Sparse data reconstruction from CFD samples
 - Collocation-point residual minimization
 - Input normalization and non-dimensionalization
@@ -17,7 +20,11 @@ The neural network predicts flow variables such as density, velocity components,
 - Adam and L-BFGS optimization
 - Validation and test error metrics
 - Sampling utilities for CFD data and geometry-based points
-- Modular structure for losses, residuals, networks, and utilities
+- Full-mesh prediction on CFD meshes
+- VTK export of predicted flow fields and error fields
+- Scaled absolute error post-processing
+PyVista-based plotting of simulation, prediction, and error fields
+- Modular structure for networks, losses, residuals, sampling, metrics, plotting, and post-processing
 
 ## Project Structure
 
@@ -40,6 +47,13 @@ PINNs/
     │   ├── losses.py
     │   ├── physics_informed_nn.py
     │   └── residuals.py
+    ├── pinn/
+    │   ├── __init__.py
+    │   ├── flowfield.py
+    │   └── workflow.py
+    ├── sampling/
+    │   ├── __init__.py
+    │   └── sampling.py
     └── utils/
         ├── __init__.py
         ├── metrics.py
