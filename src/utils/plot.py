@@ -131,46 +131,70 @@ def plot_validation_loss(l_train, l_val, n_epoch, params):
     fig.savefig(params['paths']['results']+'/validation_loss.pdf')
     plt.close()
 
-def plot_field_pyvista(mesh, ifield, params, values=None, suffix=""):
+def plot_field_pyvista(
+    mesh,
+    ifield,
+    params,
+    values=None,
+    suffix="",
+    clabel=None,
+    clim=None,
+    cmap=None,
+):
     """
-    Unified PyVista plotting function for both simulation and prediction.
+    Unified PyVista plotting function for simulation, prediction and error.
 
     Parameters
     ----------
     mesh : pyvista.DataSet
         Mesh to plot on.
+
     ifield : int
         Index of the field in params["post_processing"].
+
     params : dict
         Configuration dictionary.
+
     values : array_like or None
         If None, plot the field already stored in the mesh.
         If given, attach these values to a copy of the mesh and plot them.
-        Values can be:
-          - 1D array of shape (n_points,)
-          - 2D array of shape (n_points, ncomp)
+
     suffix : str
-        Extra suffix for file naming, e.g. "sim" or "pred".
+        Extra suffix for file naming, e.g. "sim", "pred" or "error".
+
+    clabel : str or None
+        Optional custom colorbar label. If None, use params["post_processing"]["latex"].
+
+    clim : tuple or None
+        Optional color limits. If None, use params["post_processing"]["scales"].
+
+    cmap : str or None
+        Optional colormap. If None, use params["post_processing"]["colormaps"].
     """
 
     pf = params["post_processing"]
 
     field = pf["fields"][ifield]
     comp = pf["components"][ifield]
-    cmap = pf["colormaps"][ifield]
-    clabel = pf["latex"][ifield]
 
-    scale = np.asarray(pf["scales"][ifield], dtype=float)
-    vmin = float(np.min(scale))
-    vmax = float(np.max(scale))
-    clim = (vmin, vmax)
+    if cmap is None:
+        cmap = pf["colormaps"][ifield]
+
+    if clabel is None:
+        clabel = pf["latex"][ifield]
+
+    if clim is None:
+        scale = np.asarray(pf["scales"][ifield], dtype=float)
+        vmin = float(np.min(scale))
+        vmax = float(np.max(scale))
+        clim = (vmin, vmax)
 
     zoom = 1.02
     show_edges = False
     edge_color = "black"
     line_width = 0.2
 
-    out_dir = params['paths']['results']
+    out_dir = params["paths"]["results"]
     os.makedirs(out_dir, exist_ok=True)
 
     mesh_plot = mesh.copy()
@@ -207,6 +231,7 @@ def plot_field_pyvista(mesh, ifield, params, values=None, suffix=""):
                     f"Values length ({values.shape[0]}) does not match "
                     f"number of mesh points ({mesh_plot.n_points})."
                 )
+
             mesh_plot.point_data[scalar_name] = values.ravel()
             use_component = None
 
@@ -216,13 +241,12 @@ def plot_field_pyvista(mesh, ifield, params, values=None, suffix=""):
                     f"Values shape {values.shape} is incompatible with "
                     f"number of mesh points ({mesh_plot.n_points})."
                 )
+
             mesh_plot.point_data[scalar_name] = values
             use_component = comp if values.shape[1] > 1 else None
 
         else:
-            raise ValueError(
-                "values must be a 1D or 2D array."
-            )
+            raise ValueError("values must be a 1D or 2D array.")
 
     # Plot
     pl = pv.Plotter(off_screen=True)
@@ -245,7 +269,7 @@ def plot_field_pyvista(mesh, ifield, params, values=None, suffix=""):
     pl.view_xy()
     pl.camera.zoom(zoom)
 
-    axes_actor = pl.show_bounds(
+    pl.show_bounds(
         mesh=mesh_plot,
         xtitle=pf.get("xtitle", "x [m]"),
         ytitle=pf.get("ytitle", "y [m]"),
@@ -272,14 +296,16 @@ def plot_field_pyvista(mesh, ifield, params, values=None, suffix=""):
         vertical=True,
         font_family="times",
         n_labels=2,
-        fmt="%.2f"
+        fmt="%.2f",
     )
 
     pl.show(auto_close=False)
 
     fname = f"{field.lower()}_{comp}"
+
     if suffix:
         fname += f"_{suffix}"
+
     fname += ".pdf"
 
     pl.save_graphic(os.path.join(out_dir, fname))
@@ -289,12 +315,18 @@ def plot_simulation_flow(mesh, params):
     """
     Plot all simulation fields defined in params["post_processing"].
     """
+
     nfields = len(params["post_processing"]["fields"])
     for ifield in range(nfields):
-        plot_field_pyvista(mesh, ifield, params, values=None, suffix="sim")
+        plot_field_pyvista(
+            mesh,
+            ifield,
+            params,
+            values=None,
+            suffix="sim",
+        )
 
-
-def plot_predicted_flow_pyvista(mesh, pred_list, params):
+def plot_predicted_flow_pyvista(mesh, predicted_fields, params):
     """
     Plot predicted fields on the provided mesh.
 
@@ -302,10 +334,148 @@ def plot_predicted_flow_pyvista(mesh, pred_list, params):
     ----------
     mesh : pyvista.DataSet
         Mesh on which the prediction is defined.
-    pred_list : list
-        List of predicted arrays in the same order as post_processing fields.
+
+    predicted_fields : dict
+        Dictionary containing predicted fields.
+
+        Expected keys for Euler:
+            rho, p, u, v
+
+        Expected keys for RANS:
+            rho, p, u, v, mut
+
     params : dict
         Configuration dictionary.
     """
-    for ifield, values in enumerate(pred_list):
-        plot_field_pyvista(mesh, ifield, params, values=values, suffix="pred")
+
+    variables = get_flow_variables(params)
+    nfields = len(params["post_processing"]["fields"])
+
+    if nfields > len(variables):
+        raise ValueError(
+            f"params['post_processing']['fields'] has {nfields} fields, "
+            f"but equation {params['run']['equation']} only defines "
+            f"{len(variables)} variables."
+        )
+
+    for ifield in range(nfields):
+        variable = variables[ifield]
+
+        if variable not in predicted_fields:
+            raise KeyError(
+                f"Predicted field '{variable}' was not found. "
+                f"Available predicted fields are: {list(predicted_fields.keys())}"
+            )
+
+        values = predicted_fields[variable]
+
+        plot_field_pyvista(
+            mesh,
+            ifield,
+            params,
+            values=values,
+            suffix="pred",
+        )
+
+def plot_error_flow_pyvista(
+    mesh,
+    error_fields,
+    params,
+    error_type="abs_error_01",
+):
+    """
+    Plot error fields on the provided mesh.
+
+    Parameters
+    ----------
+    mesh : pyvista.DataSet
+        Mesh on which the error is defined.
+
+    error_fields : dict
+        Dictionary containing error fields.
+
+        Examples:
+            rho_error
+            rho_abs_error
+            rho_rel_error
+            rho_abs_error_01
+
+    params : dict
+        Configuration dictionary.
+
+    error_type : str
+        Error type to plot.
+
+        Options:
+            "error"
+            "abs_error"
+            "rel_error"
+            "abs_error_01"
+    """
+
+    variables = get_flow_variables(params)
+    nfields = len(params["post_processing"]["fields"])
+
+    if nfields > len(variables):
+        raise ValueError(
+            f"params['post_processing']['fields'] has {nfields} fields, "
+            f"but equation {params['run']['equation']} only defines "
+            f"{len(variables)} variables."
+        )
+
+    for ifield in range(nfields):
+        variable = variables[ifield]
+        error_name = f"{variable}_{error_type}"
+
+        if error_name not in error_fields:
+            raise KeyError(
+                f"Error field '{error_name}' was not found. "
+                f"Available error fields are: {list(error_fields.keys())}"
+            )
+
+        values = error_fields[error_name]
+
+        clabel = f"{params['post_processing']['latex'][ifield]}"
+
+        if error_type == "abs_error_01":
+            clim = (0.0, 1.0)
+        elif (error_type == "abs_error_01" or error_type == "rel_error" or
+              error_type == "abs_error" or error_type == "error"):
+            clim = None
+        else:
+            raise ValueError(
+                f"Unknown error_type '{error_type}'. "
+                "Use 'error', 'abs_error', 'rel_error', or 'abs_error_01'."
+            )
+        
+        plot_field_pyvista(
+            mesh,
+            ifield,
+            params,
+            values=values,
+            suffix=error_name,
+            clabel=clabel,
+            clim=clim,
+            cmap=params["post_processing"].get("error_colormap", "bwr"),
+        )
+
+def get_flow_variables(params):
+    """
+    Return the flow variables in the same order as params["post_processing"].
+
+    Euler:
+        rho, p, u, v
+
+    RANS:
+        rho, p, u, v, mut
+    """
+
+    equation = params["run"]["equation"]
+
+    if equation == "Euler":
+        return ["rho", "p", "u", "v"]
+
+    if equation == "RANS":
+        return ["rho", "p", "u", "v", "mut"]
+
+    raise ValueError(f"Unknown equation: {equation}.")
