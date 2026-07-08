@@ -93,9 +93,6 @@ class FlowFieldPostProcessor:
             Dictionary containing the written VTK file paths.
         """
 
-        print("---------------------------------------")
-        print("Mesh-based post-processing")
-
         # Get the predict flow field on the mesh points
         self.predict_on_mesh()
         # Extract reference flow field from CFD simulation
@@ -241,8 +238,28 @@ class FlowFieldPostProcessor:
 
             # Get data from flow field
             data = np.asarray(self.flowfield.point_data[field_name])
-            # Numpy conversion
-            reference_value = self.to_numpy_1d(data[:, component])
+
+            # Scalar field, e.g. Density or Pressure: shape (N,)
+            if data.ndim == 1:
+                reference_value = data
+
+            # Vector field, e.g. Velocity: shape (N, n_components)
+            elif data.ndim == 2:
+                if component >= data.shape[1]:
+                    raise ValueError(
+                        f"Field '{field_name}' has {data.shape[1]} components, "
+                        f"but component {component} was requested."
+                    )
+
+                reference_value = data[:, component]
+
+            else:
+                raise ValueError(
+                    f"Field '{field_name}' has unsupported shape {data.shape}."
+                )
+
+            # Convert to 1D NumPy array
+            reference_value = self.to_numpy_1d(reference_value)
             # Store value
             self.reference_fields[variable] = reference_value
 

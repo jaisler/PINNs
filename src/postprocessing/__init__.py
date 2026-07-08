@@ -1,9 +1,9 @@
 # src/postprocessing/__init__.py
 
 from .flowfield import FlowFieldPostProcessor
-from .workflow import run_post_processing
+from .workflow import run_flowfield_postprocessing
 
 __all__ = [
     "FlowFieldPostProcessor",
-    "run_post_processing",
+    "run_flowfield_processing",
 ]
