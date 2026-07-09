@@ -9,8 +9,7 @@ The neural network predicts flow variables such as density, velocity components,
 ## Features
 
 - PyTorch-based implementation
-- Support for steady compressible Euler equations
-- Support for RANS-type formulations with effective viscosity
+- Support for steady compressible Euler equations and RANS-type formulations with effective viscosity
 - Support for MLP and GNN architectures
 - Supervised and physics-informed training modes
 - Sparse data reconstruction from CFD samples
@@ -23,7 +22,7 @@ The neural network predicts flow variables such as density, velocity components,
 - Full-mesh prediction on CFD meshes
 - VTK export of predicted flow fields and error fields
 - Scaled absolute error post-processing
-PyVista-based plotting of simulation, prediction, and error fields
+- PyVista-based plotting of simulation, prediction, and error fields
 - Modular structure for networks, losses, residuals, sampling, metrics, plotting, and post-processing
 
 ## Project Structure
@@ -42,6 +41,7 @@ PINNs/
     ├── networks/
     │   ├── __init__.py
     │   ├── base.py
+    │   ├── factory.py
     │   ├── gnn.py
     │   ├── message_passing.py
     │   └── mlp.py
@@ -56,7 +56,8 @@ PINNs/
     │   └── workflow.py
     ├── sampling/
     │   ├── __init__.py
-    │   └── sampling.py
+    │   ├── sampling.py
+    │   └── splitting.py
     └── utils/
         ├── __init__.py
         ├── metrics.py
