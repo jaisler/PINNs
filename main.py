@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: MIT
 import os
-import yaml
 import numpy as np
 import time
 import pyvista as pv
@@ -8,12 +7,14 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
+from src.config import create_output_directories, load_config
 from src.sampling.sampling import SamplingData
 from src.networks import MLP, GNN
 from src.pinn import PhysicsInformedNN
 from src.utils import print_metrics_table
 from src.postprocessing import run_flowfield_postprocessing
 import src.utils.plot as pl
+
 
 def valid_indices(indices, expected_size, number_of_points):
     """
@@ -38,25 +39,12 @@ def valid_indices(indices, expected_size, number_of_points):
         and np.all(indices < number_of_points)
     )
 
-def main():
-
+def main() -> None:
+    
     # Configuration file
-    with open(r'configs/configuration.yaml') as file:
-        # The FullLoader parameter handles the conversion from YAML
-        # scalar values to Python the dictionary format
-        params = yaml.load(file, Loader=yaml.FullLoader)
-
-    # Check if folder exists: results
-    if not os.path.isdir(params['paths']['results']):
-        os.makedirs(params['paths']['results'], exist_ok=True)
-
-    # Check if folder exists: data
-    if not os.path.isdir(params['paths']['data']):
-        os.makedirs(params['paths']['data'], exist_ok=True)
-
-    # Check if folder exists: model
-    if not os.path.isdir(params['paths']['model']):
-        os.makedirs(params['paths']['model'], exist_ok=True)
+    params = load_config()
+    # Create output directories
+    create_output_directories(params)
     
     # Initialisation
     Xf = None
@@ -159,7 +147,7 @@ def main():
         )
 
         # Path for the dataset split
-        idx_file = Path(params['paths']['data']) / "idx_split_data.npz"
+        idx_file = Path(params['paths']['samples']) / "idx_split_data.npz"
 
         load_existing_split = (
             idx_file.exists()
@@ -287,7 +275,7 @@ def main():
             # For training data
             N_train_coll = min(params['dataset']['n_train_collocation'], Ncoll)
             # File for loading collocation ponts
-            idxc_file = Path(params['paths']['data']) / "idx_train_coll.npy"
+            idxc_file = Path(params['paths']['samples']) / "idx_train_coll.npy"
 
             if idxc_file.exists() and not params['run']['routines']['sampling']:
                 idxc = np.load(idxc_file)

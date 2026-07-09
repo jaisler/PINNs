@@ -13,8 +13,8 @@ def load_flowfield(params):
     """
 
     flowfield_path = os.path.join(
-        params["paths"]["flow"],
-        params["files"]["flowfield"],
+        params['paths']['flow'],
+        params['files']['flowfield'],
     )
 
     return pv.read(flowfield_path)

@@ -9,6 +9,6 @@ __pycache__/
 .venv/
 
 # Generated/local project data
-data/
+samples/
 model/
 results/

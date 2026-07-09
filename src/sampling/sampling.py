@@ -367,7 +367,7 @@ class SamplingData:
         Save sampling data to a compressed NumPy .npz file.
         """
 
-        path_data = Path(self.params['paths']['data'])
+        path_data = Path(self.params['paths']['samples'])
         path_data.mkdir(parents=True, exist_ok=True)
 
         if self.collpts:
@@ -406,7 +406,7 @@ class SamplingData:
         Load sampling data from a compressed NumPy .npz file.
         """
 
-        path_data = Path(self.params['paths']['data'])
+        path_data = Path(self.params['paths']['samples'])
 
         # Note that, here, the collpts was sent as argument from main
         if not self.collpts:
