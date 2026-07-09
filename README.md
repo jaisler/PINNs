@@ -36,6 +36,9 @@ PINNs/
 ├── configs/
 │   └── configuration.yaml/
 └── src/
+    ├── config/
+    │   ├── __init__.py
+    │   └── io.py
     ├── networks/
     │   ├── __init__.py
     │   ├── base.py
@@ -47,7 +50,7 @@ PINNs/
     │   ├── losses.py
     │   ├── physics_informed_nn.py
     │   └── residuals.py
-    ├── pinn/
+    ├── postprocessing/
     │   ├── __init__.py
     │   ├── flowfield.py
     │   └── workflow.py

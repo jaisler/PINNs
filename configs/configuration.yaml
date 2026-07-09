@@ -7,9 +7,15 @@ paths:
   flow: ""
   mesh: ""
   results: ""
-  data: ""
+  samples: ""
   model: ""
-  
+
+  flow: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/scramjet/afrl/2d/cases/euler/case"
+  mesh: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/scramjet/afrl/2d/meshes/mesh2"
+  results: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/results"
+  samples: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/samples"
+  model: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/model"
+
 # Name
 # ----
 name: afrl_scramjet
