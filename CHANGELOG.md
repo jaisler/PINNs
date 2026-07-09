@@ -17,5 +17,6 @@ All notable changes to this project will be documented in this file.
 - Refactored the network classes using a common `BaseNetwork` (#18)
 - Improved GNN architecture (#26)
 - Refacrored the main regarding IO (#29)
+- Refactored the main regading network (#30)
 
 ### Fixed
