@@ -10,12 +10,6 @@ paths:
   samples: ""
   model: ""
 
-  flow: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/scramjet/afrl/2d/cases/euler/case"
-  mesh: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/scramjet/afrl/2d/meshes/mesh2"
-  results: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/results"
-  samples: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/samples"
-  model: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/model"
-
 # Name
 # ----
 name: afrl_scramjet
@@ -111,16 +105,6 @@ sampling:
     variable: "Density"
     pool_factor: 8
     alpha: 1.4
-
-  plot_files:
-    data: "pl_data"
-    collocation: "pl_coll"
-    all: "pl_all"
-    training: "pl_training"
-
-  data_files:
-    data: "data_points"
-    collocation: "collocation_points"
 
 # Dataset split
 # -------------

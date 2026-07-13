@@ -10,6 +10,34 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 rc('text', usetex=False)
 
+def plot_dataset(x, y, params, dataset):
+
+    fig, ax = plt.subplots(1, 1, num=1, figsize=(12, 4), sharey=True)
+    plt.rc('legend', **{'fontsize': 14})
+
+    p0, = ax.plot(x, y, 'o', color='k', markersize=2)
+    ax.tick_params(direction="in", which='both')
+    ax.grid(color='0.5', linestyle=':', linewidth=0.5, which='both')
+    ax.tick_params(labelsize=18)
+    ax.set_xlabel(r'$x$ $[m]$', fontsize=18)
+    ax.set_ylabel(r'$y$ $[m]$', fontsize=18)
+
+    ax.set_aspect("equal", adjustable="box")
+    fig.subplots_adjust(left=0.08, right=0.99, bottom=0.15, top=0.97)
+    if dataset == 'training':
+        ax.legend([p0], [r'Training data'], loc='lower left')
+        fig.savefig(params['paths']['results']+'/training_dataset_points.pdf')
+    elif dataset == 'validation':
+        ax.legend([p0], [r'Validation data'], loc='lower left')
+        fig.savefig(params['paths']['results']+'/validation_dataset_points.pdf')
+    elif dataset == 'test':
+        ax.legend([p0], [r'Test data'], loc='lower left')
+        fig.savefig(params['paths']['results']+'/test_dataset_points.pdf')
+    else:
+        raise ValueError(f"Unknown dataset {dataset}")
+
+    plt.close(fig)
+
 def plot_sampling_points(pall, pin, pbc, pgrad, params, collpts=False):
 
     fig, ax = plt.subplots(1, 1, num=1, figsize=(12, 4), sharey=True)
@@ -28,21 +56,22 @@ def plot_sampling_points(pall, pin, pbc, pgrad, params, collpts=False):
     ax.set_xlabel(r'$x$ $[m]$', fontsize=18)
     ax.set_ylabel(r'$y$ $[m]$', fontsize=18)
 
-    ax.set_title("Collocation points", fontsize=18) if collpts else \
-        ax.set_title("Data points", fontsize=18)
+    #ax.set_title("Collocation points", fontsize=18) if collpts else \
+    #    ax.set_title("Data points", fontsize=18)
 
     ax.legend([p0,p1,p2], [r'Inner',
                            r'Boundary',
-                           r'$\left|\nabla \rho\right|^{\alpha}$'], loc='best')
+                           r'$\left|\nabla \rho\right|^{\alpha}$'], 
+                           loc='lower left')
     
     ax.set_aspect("equal", adjustable="box")
     fig.subplots_adjust(left=0.08, right=0.99, bottom=0.15, top=0.97)
     if collpts:
         fig.savefig(params['paths']['results']+'/'+
-                    params['sampling']['plot_files']['collocation']+'.pdf')
+                    'collocation_dataset_points.pdf')
     else:
         fig.savefig(params['paths']['results']+'/'+
-                    params['sampling']['plot_files']['data']+'.pdf')
+                    'data_dataset_points.pdf')
 
     plt.close(fig)
 
@@ -64,18 +93,20 @@ def plot_target_points(x, y, xf, yf, params, training=False):
     ax.set_ylabel(r'$y$ $[m]$', fontsize=18)
 
     if xf is not None or yf is not None:
-        ax.legend([p0,p1], [r'Residual',r'Data'], loc='best')
+        ax.legend([p0,p1], [r'Residual',r'Data'], loc='lower left')
     else:
         ax.legend([p1], [r'Data'], loc='best')
 
     ax.set_aspect("equal", adjustable="box")
     fig.subplots_adjust(left=0.08, right=0.99, bottom=0.15, top=0.97)
     if training:
-        ax.set_title("Data and Collocation training points", fontsize=18) 
-        fig.savefig(params['paths']['results']+'/'+params['sampling']['plot_files']['training']+'.pdf')
+        #ax.set_title("Data and Collocation training points", fontsize=18) 
+        fig.savefig(params['paths']['results']+'/'+
+                    'training_dataset.pdf')
     else:
-        ax.set_title("Data and Collocation points", fontsize=18) 
-        fig.savefig(params['paths']['results']+'/'+params['sampling']['plot_files']['all']+'.pdf')
+        #ax.set_title("Data and Collocation points", fontsize=18) 
+        fig.savefig(params['paths']['results']+'/'+
+                    'all_dataset.pdf')
 
     plt.close(fig)
 
@@ -100,7 +131,7 @@ def plot_losses(l_data, l_res, l_total, n_epoch, params):
     fig.subplots_adjust(left=0.146, right=0.97, bottom=0.124, top=0.97)
     ax.grid(color='0.5', linestyle=':', linewidth=0.5, which='both')
     #ax.set_xlim(0.0, 0.0)
-    ax.set_ylim(0.0001, 1000.0)
+    ax.set_ylim(0.0001, 200.0)
     ax.tick_params(labelsize=18)
     ax.set_xlabel(r'$Epochs$', fontsize=18)
     ax.set_ylabel(r'$Losses$', fontsize=18)
@@ -124,7 +155,7 @@ def plot_validation_loss(l_train, l_val, n_epoch, params):
     fig.subplots_adjust(left=0.146, right=0.97, bottom=0.124, top=0.97)
     ax.grid(color='0.5', linestyle=':', linewidth=0.5, which='both')
     #ax.set_xlim(0.0, 0.0)
-    ax.set_ylim(0.0001, 1000.0)
+    ax.set_ylim(0.0001, 200.0)
     ax.tick_params(labelsize=18)
     ax.set_xlabel(r'$Epochs$', fontsize=18)
     ax.set_ylabel(r'$Losses$', fontsize=18)
@@ -392,13 +423,7 @@ def plot_error_flow_pyvista(
         Mesh on which the error is defined.
 
     error_fields : dict
-        Dictionary containing error fields.
-
-        Examples:
-            rho_error
-            rho_abs_error
-            rho_rel_error
-            rho_abs_error_01
+        Dictionary containing the error fields.
 
     params : dict
         Configuration dictionary.
@@ -407,11 +432,21 @@ def plot_error_flow_pyvista(
         Error type to plot.
 
         Options:
-            "error"
-            "abs_error"
-            "rel_error"
             "abs_error_01"
     """
+
+    valid_error_types = [
+        #"error",
+        #"abs_error",
+        #"rel_error",
+        "abs_error_01",
+    ]
+
+    if error_type not in valid_error_types:
+        raise ValueError(
+            f"Unknown error_type '{error_type}'. "
+            f"Use one of: {valid_error_types}."
+        )
 
     variables = get_flow_variables(params)
     nfields = len(params["post_processing"]["fields"])
@@ -423,31 +458,43 @@ def plot_error_flow_pyvista(
             f"{len(variables)} variables."
         )
 
+    # Labels are defined explicitly because the plotted error fields
+    # are scaled and therefore do not use the original field labels.
+    error_labels = {
+        "rho": r"$\rho_{\mathrm{error}}$",
+        "p": r"$p_{\mathrm{error}}$",
+        "u": r"$u_{\mathrm{error}}$",
+        "v": r"$v_{\mathrm{error}}$",
+        "mut": r"$\widehat{\mu}_{t,\mathrm{error}}$",
+    }
+
     for ifield in range(nfields):
+        # Variable names
         variable = variables[ifield]
-        error_name = f"{variable}_{error_type}"
+        # Also created in compute_error_fields
+        error_name = f"{variable}_{error_type}" 
 
         if error_name not in error_fields:
             raise KeyError(
                 f"Error field '{error_name}' was not found. "
-                f"Available error fields are: {list(error_fields.keys())}"
+                f"Available error fields are: "
+                f"{list(error_fields.keys())}"
+            )
+
+        if variable not in error_labels:
+            raise KeyError(
+                f"No error label has been defined for variable "
+                f"'{variable}'."
             )
 
         values = error_fields[error_name]
-
-        clabel = f"{params['post_processing']['latex'][ifield]}"
+        clabel = error_labels[variable]
 
         if error_type == "abs_error_01":
-            clim = (0.0, 1.0)
-        elif (error_type == "abs_error_01" or error_type == "rel_error" or
-              error_type == "abs_error" or error_type == "error"):
-            clim = None
+            clim = (0.0, 1.0e-2) # graph scale
         else:
-            raise ValueError(
-                f"Unknown error_type '{error_type}'. "
-                "Use 'error', 'abs_error', 'rel_error', or 'abs_error_01'."
-            )
-        
+            clim = None
+
         plot_field_pyvista(
             mesh,
             ifield,
@@ -456,9 +503,12 @@ def plot_error_flow_pyvista(
             suffix=error_name,
             clabel=clabel,
             clim=clim,
-            cmap=params["post_processing"].get("error_colormap", "bwr"),
+            cmap=params["post_processing"].get(
+                "error_colormap",
+                "bwr",
+            ),
         )
-
+        
 def get_flow_variables(params):
     """
     Return the flow variables in the same order as params["post_processing"].

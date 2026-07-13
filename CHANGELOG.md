@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - Added selection of hidden layers to apply dropout (#17)
 - Added exception for metrics (#27)
 - Added postprocessing tool (#28)
+- Added plots for traning, validation and test datasets (#31)
 
 ### Changed
 - Created configs directory (#19)

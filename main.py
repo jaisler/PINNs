@@ -275,7 +275,13 @@ def main() -> None:
             xftrain = xf[idxc, None]
             yftrain = yf[idxc, None]
         
-        # Plot traning points
+        # Plot training dataset points
+        pl.plot_dataset(xtrain, ytrain, params, dataset='training')
+        # Plot validation dataset points
+        pl.plot_dataset(xval, yval, params, dataset='validation')
+        # Plot test dataset points
+        pl.plot_dataset(xtest, ytest, params, dataset='test')
+        # Plot all traning points
         pl.plot_target_points(xtrain, ytrain, xftrain, yftrain, params, True)
         # Plot all points
         pl.plot_target_points(x, y, xf, yf, params)
