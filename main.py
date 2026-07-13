@@ -1,10 +1,9 @@
 # SPDX-License-Identifier: MIT
 import numpy as np
 import time
-from pathlib import Path
 
 from src.config import create_output_directories, load_config
-from src.sampling import SamplingData, get_data_split_indeces
+from src.sampling import SamplingData, get_data_split_indeces, get_collocation_indeces
 from src.pinn import PhysicsInformedNN
 from src.networks import build_network
 from src.utils import print_metrics_table
@@ -87,6 +86,7 @@ def main() -> None:
     if(params['run']['routines']['inference']):
         # Number of points inside the geometry. This is not the same
         # number of the points provided in the configuration file.
+        
         # Data points
         N = X.shape[0]
 
@@ -99,9 +99,19 @@ def main() -> None:
         p = p[:]     # N
         mut = mut[:] # N: eddy viscosity
 
+        # Collocation points
+        if Xf is not None:  
+            # Collocation points
+            N_coll = Xf.shape[0]
+            xf = Xf[:,0]   # N 
+            yf = Xf[:,1]   # N
+
         # Get data split indeces 
         (idx_train, idx_val, idx_test, N_train_data, N_val_data, 
             N_test_data) = get_data_split_indeces(N, params)
+        
+        # Get collocation split indeces 
+        idxc = get_collocation_indeces(N_coll, params)
 
         # Training data
         xtrain = x[idx_train, None]
@@ -148,40 +158,7 @@ def main() -> None:
             ptest = p[idx_test, None]
             muttest = mut[idx_test, None]
 
-        Ncoll = 0
-        if Xf is not None:  
-            # Collocation points
-            Ncoll = Xf.shape[0]
-            xf = Xf[:,0]   # N 
-            yf = Xf[:,1]   # N
-            # For training data
-            # File for loading collocation ponts
-            idxc_file = Path(params['paths']['samples']) / "idx_train_coll.npy"
-
-            if idxc_file.exists() and not params['run']['routines']['sampling']:
-                idxc = np.load(idxc_file)
-
-                if idxc.shape[0] != Ncoll:
-                    raise ValueError(
-                        "Loaded collocation indices have a different size from Xf. "
-                        f"Expected {Ncoll}, got {idxc.shape[0]}."
-                    )
-
-                if idxc.size > 0 and np.max(idxc) >= Ncoll:
-                    raise ValueError(
-                        "Loaded collocation indices are not compatible with Xf."
-                    )
-
-                if idxc.size > 0 and np.any(idxc < 0):
-                    raise ValueError(
-                        "Loaded collocation indices contain negative values."
-                    )
-
-            else:
-                rng = np.random.default_rng(params.get("seed", 1234))
-                idxc = rng.choice(Ncoll, Ncoll, replace=False)
-                np.save(idxc_file, idxc)
-
+        if N_coll > 0:
             xftrain = xf[idxc, None]
             yftrain = yf[idxc, None]
 
@@ -192,7 +169,7 @@ def main() -> None:
         print(f"  Validation data points         : {N_val_data}")
         print(f"  Test data points               : {N_test_data}")
         if xftrain is not None:
-            print(f"  Training collocation points    : {Ncoll}")
+            print(f"  Training collocation points    : {N_coll}")
             
         # Plot training dataset points
         pl.plot_dataset(xtrain, ytrain, params, dataset='training')

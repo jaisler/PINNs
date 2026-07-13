@@ -137,3 +137,37 @@ def get_data_split_indeces(N, params):
             N_val_data,
             N_test_data,
         )
+    
+def get_collocation_indeces(N_coll, params):
+    """
+    Create or load collocation indices for the training collocation points.
+    """
+
+    # File for loading collocation ponts
+    idxc_file = Path(params['paths']['samples']) / "idx_train_coll.npy"
+
+    if idxc_file.exists() and not params['run']['routines']['sampling']:
+        idxc = np.load(idxc_file)
+
+        if idxc.shape[0] != N_coll:
+            raise ValueError(
+                "Loaded collocation indices have a different size from Xf. "
+                f"Expected {N_coll}, got {idxc.shape[0]}."
+            )
+
+        if idxc.size > 0 and np.max(idxc) >= N_coll:
+            raise ValueError(
+                "Loaded collocation indices are not compatible with Xf."
+            )
+
+        if idxc.size > 0 and np.any(idxc < 0):
+            raise ValueError(
+                "Loaded collocation indices contain negative values."
+            )
+
+    else:
+        rng = np.random.default_rng(params.get("seed", 1234))
+        idxc = rng.choice(N_coll, N_coll, replace=False)
+        np.save(idxc_file, idxc)
+
+    return idxc
