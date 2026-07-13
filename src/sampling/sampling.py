@@ -371,7 +371,7 @@ class SamplingData:
         path_data.mkdir(parents=True, exist_ok=True)
 
         if self.collpts:
-            filename = path_data / f"{self.params['sampling']['data_files']['collocation']}.npz"
+            filename = path_data / "collocation_points.npz"
 
             np.savez_compressed(
                 filename,
@@ -383,7 +383,7 @@ class SamplingData:
             )
 
         else:
-            filename = path_data / f"{self.params['sampling']['data_files']['data']}.npz"
+            filename = path_data / "data_points.npz"
 
             np.savez_compressed(
                 filename,
@@ -410,9 +410,9 @@ class SamplingData:
 
         # Note that, here, the collpts was sent as argument from main
         if not self.collpts:
-            filename = path_data / f"{self.params['sampling']['data_files']['data']}.npz"
+            filename = path_data / "data_points.npz"
         else:
-            filename = path_data / f"{self.params['sampling']['data_files']['collocation']}.npz"
+            filename = path_data / "collocation_points.npz"
 
         data = np.load(filename)
 
