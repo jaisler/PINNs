@@ -105,22 +105,26 @@ def main() -> None:
                 
         # Data points
         # Train / validation / test split
-        N_train_data = min(int(params["dataset"]["n_train_data"]), N)
+        perc_train = params["dataset"]["p_training_data"]
+        perc_val = params["dataset"]["p_validation_data"]
+        perc_test = params["dataset"]["p_test_data"]
 
-        N_val_data = min(
-            int(params["dataset"].get("n_validation_data", 0)),
-            N - N_train_data,
-        )
+        if perc_train < 0 or perc_val < 0 or perc_test < 0:
+            raise ValueError("Split percentages cannot be negative")
 
-        N_test_data = min(
-            int(
-                params["dataset"].get(
-                    "n_test_data",
-                    N - N_train_data - N_val_data,
-                )
-            ),
-            N - N_train_data - N_val_data,
-        )
+        if (perc_train + perc_val + perc_test) > 100:
+            raise ValueError("Split percentages cannot be greater than 100%")
+
+        if perc_test <= 0:
+            raise ValueError("Test data percentage must be greater than 0%")
+
+        # Number of points in each subset
+        N_train_data = int(N * perc_train / 100)
+        N_val_data = int(N * perc_val / 100)
+        N_test_data = int(N * perc_test / 100)
+
+        # Give any rounding remainder to the training dataset
+        N_train_data += (N - N_train_data - N_val_data - N_test_data)
 
         # Path for the dataset split
         idx_file = Path(params['paths']['samples']) / "idx_split_data.npz"
@@ -197,7 +201,7 @@ def main() -> None:
             )
         
         print("Dataset split prepared.")
-            
+
         # Training data
         xtrain = x[idx_train, None]
         ytrain = y[idx_train, None]
@@ -273,7 +277,13 @@ def main() -> None:
 
             xftrain = xf[idxc, None]
             yftrain = yf[idxc, None]
-        
+
+        # Print dataset information
+        print(f"  Training data points           : {N_train_data}")
+        print(f"  Validation data points         : {N_val_data}")
+        print(f"  Test data points               : {N_test_data}")
+        print(f"  Training collocation points    : {Ncoll}")
+            
         # Plot training dataset points
         pl.plot_dataset(xtrain, ytrain, params, dataset='training')
         # Plot validation dataset points
@@ -349,7 +359,7 @@ def main() -> None:
             )
 
             # Print metrics of the test dataset
-            print_metrics_table(test_metrics, title="Test dataset metrics",)
+            print_metrics_table(test_metrics, title="Test dataset metrics")
 
         else:
             print("---------------------------------------")

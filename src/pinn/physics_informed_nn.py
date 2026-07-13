@@ -360,12 +360,6 @@ class PhysicsInformedNN(nn.Module):
                 print(f"    Message-passing layers       : {processor_cfg['message_layers']}")
                 print(f"    Message aggregation          : {processor_cfg['aggregation']}")
                 print(f"    Residual update              : {processor_cfg['residual']}")
-            print(f"  Training data points           : {self.X_data.shape[0]}")
-            if Xf is not None:
-                print(f"  Training collocation points    : {Xf.shape[0]}")
-            if self.has_validation:
-                print(f"  Validation data points         : {xval.shape[0]}")
-                print(f"  Test data points               : {params['dataset']['n_test_data']}")
             print(f"  Use Adam                       : {self.use_adam}") 
             if self.use_adam:
                 print(f"    Number of Adam iterations    : {self.n_adam_iter}")

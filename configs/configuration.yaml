@@ -106,12 +106,12 @@ sampling:
     pool_factor: 8
     alpha: 1.4
 
-# Dataset split
-# -------------
+# Dataset split [percentage %]
+# ----------------------------
 dataset:
-  n_train_data: 3000
-  n_validation_data: 700
-  n_test_data: 700
+  p_training_data: 80
+  p_validation_data: 10
+  p_test_data: 10
 
 # Optimizers
 # ----------
