@@ -41,7 +41,7 @@ run:
     sampling: true
     inference: true
     identification: false
-    postprocessing: true
+    postprocessing: false
 
   checkpoint:
     load_model: false
@@ -97,8 +97,8 @@ sampling:
     boundary: [40, 260, 40, 160]
 
   collocation_points:
-    interior: 2100
-    gradient: 2300
+    interior: 1700
+    gradient: 1700
     boundary: [40, 260, 40, 160]
 
   gradient_sampling:
@@ -109,17 +109,16 @@ sampling:
 # Dataset split
 # -------------
 dataset:
-  n_train_data: 3500
-  n_train_collocation: 3500
-  n_validation_data: 750
-  n_test_data: 750
+  n_train_data: 3000
+  n_validation_data: 700
+  n_test_data: 700
 
 # Optimizers
 # ----------
 optimizer:
   adam:
     enabled: true
-    iterations: 20
+    iterations: 20 
     learning_rate: 4.0e-4
 
     scheduler:
@@ -178,7 +177,7 @@ physics:
 # Post processing 
 # ---------------
 post_processing:
-  error_type: abs_error_01 # Options: error, abs_error, rel_error, abs_error_01
+  error_type: abs_error_01 # Options: abs_error_01
 
   fields: # from CFD
     - "Density"
