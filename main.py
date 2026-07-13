@@ -1,11 +1,7 @@
 # SPDX-License-Identifier: MIT
-import os
 import numpy as np
 import time
-import pyvista as pv
 from pathlib import Path
-import torch
-import torch.nn as nn
 
 from src.config import create_output_directories, load_config
 from src.sampling import SamplingData, valid_indices
@@ -247,6 +243,7 @@ def main() -> None:
             ptest = p[idx_test, None]
             muttest = mut[idx_test, None]
 
+        Ncoll = 0
         if Xf is not None:  
             # Collocation points
             Ncoll = Xf.shape[0]
@@ -265,9 +262,14 @@ def main() -> None:
                         f"Expected {Ncoll}, got {idxc.shape[0]}."
                     )
 
-                if np.max(idxc) >= Ncoll:
+                if idxc.size > 0 and np.max(idxc) >= Ncoll:
                     raise ValueError(
                         "Loaded collocation indices are not compatible with Xf."
+                    )
+
+                if idxc.size > 0 and np.any(idxc < 0):
+                    raise ValueError(
+                        "Loaded collocation indices contain negative values."
                     )
 
             else:
@@ -279,17 +281,22 @@ def main() -> None:
             yftrain = yf[idxc, None]
 
         # Print dataset information
+        print("---------------------------------------")
+        print("Dataset information")
         print(f"  Training data points           : {N_train_data}")
         print(f"  Validation data points         : {N_val_data}")
         print(f"  Test data points               : {N_test_data}")
-        print(f"  Training collocation points    : {Ncoll}")
+        if xftrain if not None:
+            print(f"  Training collocation points    : {Ncoll}")
             
         # Plot training dataset points
         pl.plot_dataset(xtrain, ytrain, params, dataset='training')
         # Plot validation dataset points
-        pl.plot_dataset(xval, yval, params, dataset='validation')
+        if xval is not None:
+            pl.plot_dataset(xval, yval, params, dataset='validation')
         # Plot test dataset points
-        pl.plot_dataset(xtest, ytest, params, dataset='test')
+        if xtest is not None:
+            pl.plot_dataset(xtest, ytest, params, dataset='test')
         # Plot all traning points
         pl.plot_target_points(xtrain, ytrain, xftrain, yftrain, params, True)
         # Plot all points
