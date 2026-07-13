@@ -249,17 +249,16 @@ def main() -> None:
             xf = Xf[:,0]   # N 
             yf = Xf[:,1]   # N
             # For training data
-            N_train_coll = min(params['dataset']['n_train_collocation'], Ncoll)
             # File for loading collocation ponts
             idxc_file = Path(params['paths']['samples']) / "idx_train_coll.npy"
 
             if idxc_file.exists() and not params['run']['routines']['sampling']:
                 idxc = np.load(idxc_file)
 
-                if idxc.shape[0] != N_train_coll:
+                if idxc.shape[0] != Ncoll:
                     raise ValueError(
-                        "Loaded collocation indices have a different size from "
-                        f"n_train_collocation. Expected {N_train_coll}, got {idxc.shape[0]}."
+                        "Loaded collocation indices have a different size from Xf. "
+                        f"Expected {Ncoll}, got {idxc.shape[0]}."
                     )
 
                 if np.max(idxc) >= Ncoll:
@@ -269,7 +268,7 @@ def main() -> None:
 
             else:
                 rng = np.random.default_rng(params.get("seed", 1234))
-                idxc = rng.choice(Ncoll, N_train_coll, replace=False)
+                idxc = rng.choice(Ncoll, Ncoll, replace=False)
                 np.save(idxc_file, idxc)
 
             xftrain = xf[idxc, None]
