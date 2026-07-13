@@ -7,8 +7,27 @@ def valid_indices(indices, expected_size, number_of_points):
     Check that an index array has the expected size and contains
     valid indices.
 
+    Check if an array contains valid indices.
+
     Empty arrays are valid when expected_size == 0.
+
+    Parameters
+    ----------
+    indices : array-like
+        Indices to check.
+    expected_size : int
+        Expected number of indices.
+    number_of_points : int
+        Total number of available points.
+
+    Returns
+    -------
+    bool
+        True if the indices have the correct size and are within the
+        valid range.
+    
     """
+
     indices = np.asarray(indices)
 
     if indices.ndim != 1:
@@ -28,7 +47,32 @@ def valid_indices(indices, expected_size, number_of_points):
 def get_data_split_indeces(N, params):
     """
     Create or load train/validation/test indices for the data points.
-    """
+
+    If a valid saved split exists, it is loaded. Otherwise, a new random
+    split is generated and saved.
+
+    Parameters
+    ----------
+    N : int
+        Total number of data points.
+    params : dict
+        Configuration parameters.
+
+    Returns
+    -------
+    idx_train : numpy.ndarray
+        Training indices.
+    idx_val : numpy.ndarray
+        Validation indices.
+    idx_test : numpy.ndarray
+        Test indices.
+    N_train_data : int
+        Number of training points.
+    N_val_data : int
+        Number of validation points.
+    N_test_data : int
+        Number of test points.
+    """    
 
     # Data points
     # Train / validation / test split
@@ -141,6 +185,18 @@ def get_data_split_indeces(N, params):
 def get_collocation_indeces(N_coll, params):
     """
     Create or load collocation indices for the training collocation points.
+
+    Parameters
+    ----------
+    N_coll : int
+        Total number of collocation points.
+    params : dict
+        Configuration parameters.
+
+    Returns
+    -------
+    idxc : numpy.ndarray
+        Collocation-point indices.
     """
 
     # File for loading collocation ponts
