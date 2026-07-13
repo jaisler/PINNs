@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Add
+### Added
 - Added validation and test to the graph neural network model (#24)
 - Added software development related files (#21)
 - Added initial graph neural network (#20)
@@ -19,5 +19,8 @@ All notable changes to this project will be documented in this file.
 - Improved GNN architecture (#26)
 - Refacrored the main regarding IO (#29)
 - Refactored the main regading network (#30)
+
+### Removed
+- Removed collocation dataset definition (#32)
 
 ### Fixed
