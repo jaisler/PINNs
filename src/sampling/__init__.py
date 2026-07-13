@@ -1,9 +1,9 @@
 # src/sampling/__init__.py
 
 from .sampling import SamplingData
-from .splitting import valid_indices
+from .splitting import get_data_split_indeces
 
 __all__ = [
         "SamplingData",
-        "valid_indices"
+        "get_data_split_indeces"
 ]

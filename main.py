@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 
 from src.config import create_output_directories, load_config
-from src.sampling import SamplingData, valid_indices
+from src.sampling import SamplingData, get_data_split_indeces
 from src.pinn import PhysicsInformedNN
 from src.networks import build_network
 from src.utils import print_metrics_table
@@ -98,105 +98,10 @@ def main() -> None:
         v = U[:,1]   # N
         p = p[:]     # N
         mut = mut[:] # N: eddy viscosity
-                
-        # Data points
-        # Train / validation / test split
-        perc_train = params["dataset"]["p_training_data"]
-        perc_val = params["dataset"]["p_validation_data"]
-        perc_test = params["dataset"]["p_test_data"]
 
-        if perc_train < 0 or perc_val < 0 or perc_test < 0:
-            raise ValueError("Split percentages cannot be negative")
-
-        if (perc_train + perc_val + perc_test) > 100:
-            raise ValueError("Split percentages cannot be greater than 100%")
-
-        if perc_test <= 0:
-            raise ValueError("Test data percentage must be greater than 0%")
-
-        # Number of points in each subset
-        N_train_data = int(N * perc_train / 100)
-        N_val_data = int(N * perc_val / 100)
-        N_test_data = int(N * perc_test / 100)
-
-        # Give any rounding remainder to the training dataset
-        N_train_data += (N - N_train_data - N_val_data - N_test_data)
-
-        # Path for the dataset split
-        idx_file = Path(params['paths']['samples']) / "idx_split_data.npz"
-
-        load_existing_split = (
-            idx_file.exists()
-            and not params["run"]["routines"]["sampling"]
-        )
-
-        split_is_valid = False
-
-        # Try to load an existing split
-        if load_existing_split:
-            try:
-                with np.load(idx_file) as split:
-                    idx_train = split["idx_train"]
-                    idx_val = split["idx_val"]
-                    idx_test = split["idx_test"]
-
-                split_is_valid = (
-                    valid_indices(idx_train, N_train_data, N)
-                    and valid_indices(idx_val, N_val_data, N)
-                    and valid_indices(idx_test, N_test_data, N)
-                )
-
-                if split_is_valid:
-                    # Check that train, validation, and test do not overlap
-                    idx_combined = np.concatenate(
-                        [idx_train, idx_val, idx_test]
-                    )
-
-                    split_is_valid = (
-                        np.unique(idx_combined).size
-                        == idx_combined.size
-                    )
-
-                if not split_is_valid:
-                    print("---------------------------------------")
-                    print(
-                        "Existing dataset split is incompatible with the "
-                        "current configuration."
-                    )
-
-            except (OSError, ValueError, KeyError) as error:
-                print(
-                    f"Could not load the existing dataset split: {error}"
-                )
-                split_is_valid = False
-
-        # Generate a split when no valid existing split was loaded
-        if not split_is_valid:
-            print("---------------------------------------")
-            print("Generating a new dataset split.")
-
-            rng = np.random.default_rng(
-                params.get("seed", 1234)
-            )
-
-            idx_all = rng.permutation(N)
-
-            train_end = N_train_data
-            val_end = train_end + N_val_data
-            test_end = val_end + N_test_data
-
-            idx_train = idx_all[:train_end]
-            idx_val = idx_all[train_end:val_end]
-            idx_test = idx_all[val_end:test_end]
-
-            np.savez(
-                idx_file,
-                idx_train=idx_train,
-                idx_val=idx_val,
-                idx_test=idx_test,
-            )
-        
-        print("Dataset split prepared.")
+        # Get data split indeces 
+        (idx_train, idx_val, idx_test, N_train_data, N_val_data, 
+            N_test_data) = get_data_split_indeces(N, params)
 
         # Training data
         xtrain = x[idx_train, None]
@@ -286,7 +191,7 @@ def main() -> None:
         print(f"  Training data points           : {N_train_data}")
         print(f"  Validation data points         : {N_val_data}")
         print(f"  Test data points               : {N_test_data}")
-        if xftrain if not None:
+        if xftrain is not None:
             print(f"  Training collocation points    : {Ncoll}")
             
         # Plot training dataset points
