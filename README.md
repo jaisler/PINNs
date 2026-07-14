@@ -35,6 +35,8 @@ PINNs/
 ├── configs/
 │   └── configuration.yaml/
 └── src/
+    ├── __init__.py
+    ├── runner.py
     ├── config/
     │   ├── __init__.py
     │   └── io.py
@@ -47,6 +49,7 @@ PINNs/
     │   └── mlp.py
     ├── pinn/
     │   ├── __init__.py
+    │   ├── factory.py
     │   ├── losses.py
     │   ├── physics_informed_nn.py
     │   └── residuals.py
