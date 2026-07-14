@@ -408,11 +408,27 @@ class SamplingData:
 
         path_data = Path(self.params['paths']['samples'])
 
-        # Note that, here, the collpts was sent as argument from main
+        # Note that, the attribute self.collpts has the information if it is
+        # data or collocation points
         if not self.collpts:
             filename = path_data / "data_points.npz"
+
+            if not filename.is_file():
+                raise FileNotFoundError(
+                    f"Sample data file was not found:\n  {filename}\n\n"
+                    "Sampling is currently disabled. Enable the sampling routine in "
+                    "'configuration.yaml' and run the program once to generate the file."
+                )
+
         else:
             filename = path_data / "collocation_points.npz"
+
+            if not filename.is_file():
+                raise FileNotFoundError(
+                    f"Sample collocation data file was not found:\n  {filename}\n\n"
+                    "Sampling is currently disabled. Enable the sampling routine in "
+                    "'configuration.yaml' and run the program once to generate the file."
+                )
 
         data = np.load(filename)
 

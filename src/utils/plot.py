@@ -69,6 +69,28 @@ def plot_prepared_data(data, params):
     )
 
 def plot_dataset(x, y, params, dataset):
+    """
+    Plot the points in a dataset.
+
+    Parameters
+    ----------
+    x : array_like
+        Point x-coordinates.
+
+    y : array_like
+        Point y-coordinates.
+
+    params : dict
+        Configuration dictionary.
+
+    dataset : {"training", "validation", "test"}
+        Dataset to plot.
+
+    Raises
+    ------
+    ValueError
+        If ``dataset`` is not a supported dataset.
+    """
 
     fig, ax = plt.subplots(1, 1, num=1, figsize=(12, 4), sharey=True)
     plt.rc('legend', **{'fontsize': 14})
@@ -79,9 +101,9 @@ def plot_dataset(x, y, params, dataset):
     ax.tick_params(labelsize=18)
     ax.set_xlabel(r'$x$ $[m]$', fontsize=18)
     ax.set_ylabel(r'$y$ $[m]$', fontsize=18)
-
     ax.set_aspect("equal", adjustable="box")
     fig.subplots_adjust(left=0.08, right=0.99, bottom=0.15, top=0.97)
+    
     if dataset == 'training':
         ax.legend([p0], [r'Training data'], loc='lower left')
         fig.savefig(params['paths']['results']+'/training_dataset_points.pdf')
@@ -96,7 +118,108 @@ def plot_dataset(x, y, params, dataset):
 
     plt.close(fig)
 
+def plot_target_points(x, y, xf, yf, params, training=False):
+    """
+    Plot data and collocation points.
+
+    Parameters
+    ----------
+    x : array_like
+        Data-point x-coordinates.
+
+    y : array_like
+        Data-point y-coordinates.
+
+    xf : array_like or None
+        Collocation-point x-coordinates.
+
+    yf : array_like or None
+        Collocation-point y-coordinates.
+
+    params : dict
+        Configuration dictionary.
+
+    training : bool, optional
+        Whether the points belong to the training dataset.
+    """
+
+    fig, ax = plt.subplots(1, 1, num=1, figsize=(12, 4), sharey=True)
+    plt.rc('legend', **{'fontsize': 14})
+
+    if xf is not None or yf is not None:
+        p0, = ax.plot(xf, yf, 'o', color='darkorange', markersize=2)
+    p1, = ax.plot(x, y, 'o', color='g', markersize=2)
+    
+    ax.tick_params(direction="in", which='both')
+    ax.grid(color='0.5', linestyle=':', linewidth=0.5, which='both')
+    ax.tick_params(labelsize=18)
+    ax.set_xlabel(r'$x$ $[m]$', fontsize=18)
+    ax.set_ylabel(r'$y$ $[m]$', fontsize=18)
+    ax.set_aspect("equal", adjustable="box")
+    fig.subplots_adjust(left=0.08, right=0.99, bottom=0.15, top=0.97)
+
+    if xf is not None or yf is not None:
+        ax.legend([p0,p1], [r'Residual',r'Data'], loc='lower left')
+    else:
+        ax.legend([p1], [r'Data'], loc='best')
+
+    if training:
+        fig.savefig(params['paths']['results']+'/'+
+                    'training_dataset.pdf')
+    else:
+        fig.savefig(params['paths']['results']+'/'+
+                    'all_dataset.pdf')
+
+    plt.close(fig)
+
+def plot_sampling_data(data_points, collocation_points, params):
+    """
+    Plot data and collocation sampling points.
+    """
+
+    plot_sampling_points(
+        data_points["X"],
+        data_points["pts_in"],
+        data_points["pts_bc"],
+        data_points["pts_grad"],
+        params,
+        False,
+    )
+
+    if collocation_points is not None:
+        plot_sampling_points(
+            collocation_points["Xf"],
+            collocation_points["pts_in"],
+            collocation_points["pts_bc"],
+            collocation_points["pts_grad"],
+            params,
+            True,
+        )
+
 def plot_sampling_points(pall, pin, pbc, pgrad, params, collpts=False):
+    """
+    Plot the different groups of sampled points.
+
+    Parameters
+    ----------
+    pall : array_like
+        All sampled points. Currently not plotted.
+
+    pin : array_like
+        Interior points.
+
+    pbc : array_like
+        Boundary points.
+
+    pgrad : array_like
+        Gradient-based points.
+
+    params : dict
+        Configuration dictionary.
+
+    collpts : bool, optional
+        Whether the points are collocation points.
+    """
 
     fig, ax = plt.subplots(1, 1, num=1, figsize=(12, 4), sharey=True)
     plt.rc('legend', **{'fontsize': 14})
@@ -113,17 +236,14 @@ def plot_sampling_points(pall, pin, pbc, pgrad, params, collpts=False):
     ax.tick_params(labelsize=18)
     ax.set_xlabel(r'$x$ $[m]$', fontsize=18)
     ax.set_ylabel(r'$y$ $[m]$', fontsize=18)
-
-    #ax.set_title("Collocation points", fontsize=18) if collpts else \
-    #    ax.set_title("Data points", fontsize=18)
+    ax.set_aspect("equal", adjustable="box")
+    fig.subplots_adjust(left=0.08, right=0.99, bottom=0.15, top=0.97)
 
     ax.legend([p0,p1,p2], [r'Inner',
                            r'Boundary',
                            r'$\left|\nabla \rho\right|^{\alpha}$'], 
                            loc='lower left')
     
-    ax.set_aspect("equal", adjustable="box")
-    fig.subplots_adjust(left=0.08, right=0.99, bottom=0.15, top=0.97)
     if collpts:
         fig.savefig(params['paths']['results']+'/'+
                     'collocation_dataset_points.pdf')
@@ -133,42 +253,27 @@ def plot_sampling_points(pall, pin, pbc, pgrad, params, collpts=False):
 
     plt.close(fig)
 
-def plot_target_points(x, y, xf, yf, params, training=False):
-
-    fig, ax = plt.subplots(1, 1, num=1, figsize=(12, 4), sharey=True)
-    plt.rc('legend', **{'fontsize': 14})
-
-    if xf is not None or yf is not None:
-        p0, = ax.plot(xf, yf, 'o', color='darkorange', markersize=2)
-    p1, = ax.plot(x, y, 'o', color='g', markersize=2)
-    
-    ax.tick_params(direction="in", which='both')
-    ax.grid(color='0.5', linestyle=':', linewidth=0.5, which='both')
-    #ax.set_xlim(0.0, 0.0)
-    #ax.set_ylim(0.0, 0.0)
-    ax.tick_params(labelsize=18)
-    ax.set_xlabel(r'$x$ $[m]$', fontsize=18)
-    ax.set_ylabel(r'$y$ $[m]$', fontsize=18)
-
-    if xf is not None or yf is not None:
-        ax.legend([p0,p1], [r'Residual',r'Data'], loc='lower left')
-    else:
-        ax.legend([p1], [r'Data'], loc='best')
-
-    ax.set_aspect("equal", adjustable="box")
-    fig.subplots_adjust(left=0.08, right=0.99, bottom=0.15, top=0.97)
-    if training:
-        #ax.set_title("Data and Collocation training points", fontsize=18) 
-        fig.savefig(params['paths']['results']+'/'+
-                    'training_dataset.pdf')
-    else:
-        #ax.set_title("Data and Collocation points", fontsize=18) 
-        fig.savefig(params['paths']['results']+'/'+
-                    'all_dataset.pdf')
-
-    plt.close(fig)
-
 def plot_losses(l_data, l_res, l_total, n_epoch, params):
+    """
+    Plot the training losses.
+
+    Parameters
+    ----------
+    l_data : array_like
+        Data-loss history.
+
+    l_res : array_like
+        Residual-loss history.
+
+    l_total : array_like
+        Total-loss history.
+
+    n_epoch : int
+        Number of epochs.
+
+    params : dict
+        Configuration dictionary.
+    """
 
     fig = plt.figure()
     ax = fig.add_subplot(1,1,1)
@@ -188,7 +293,6 @@ def plot_losses(l_data, l_res, l_total, n_epoch, params):
     ax.tick_params(direction="in", which='both')
     fig.subplots_adjust(left=0.146, right=0.97, bottom=0.124, top=0.97)
     ax.grid(color='0.5', linestyle=':', linewidth=0.5, which='both')
-    #ax.set_xlim(0.0, 0.0)
     ax.set_ylim(0.0001, 200.0)
     ax.tick_params(labelsize=18)
     ax.set_xlabel(r'$Epochs$', fontsize=18)
@@ -197,7 +301,24 @@ def plot_losses(l_data, l_res, l_total, n_epoch, params):
     plt.close()
 
 def plot_validation_loss(l_train, l_val, n_epoch, params):
+    """
+    Plot the training and validation losses.
 
+    Parameters
+    ----------
+    l_train : array_like
+        Training-loss history.
+
+    l_val : array_like
+        Validation-loss history.
+
+    n_epoch : int
+        Number of epochs.
+
+    params : dict
+        Configuration dictionary.
+    """
+    
     fig = plt.figure()
     ax = fig.add_subplot(1,1,1)
     plt.rc('legend', **{'fontsize': 14})
@@ -212,7 +333,6 @@ def plot_validation_loss(l_train, l_val, n_epoch, params):
     ax.tick_params(direction="in", which='both')
     fig.subplots_adjust(left=0.146, right=0.97, bottom=0.124, top=0.97)
     ax.grid(color='0.5', linestyle=':', linewidth=0.5, which='both')
-    #ax.set_xlim(0.0, 0.0)
     ax.set_ylim(0.0001, 200.0)
     ax.tick_params(labelsize=18)
     ax.set_xlabel(r'$Epochs$', fontsize=18)

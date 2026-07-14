@@ -125,7 +125,7 @@ optimizer:
       step_size: 2000
       gamma: 0.8
 
-  # starts after adam optimizer finishes
+  # lbfgs starts after adam optimizer finishes
   # if both are enabled.
   lbfgs:
     enabled: true
