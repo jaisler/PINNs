@@ -56,6 +56,7 @@ PINNs/
     │   └── workflow.py
     ├── sampling/
     │   ├── __init__.py
+    │   ├── data.py
     │   ├── sampling.py
     │   └── splitting.py
     └── utils/
