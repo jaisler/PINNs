@@ -12,7 +12,7 @@ paths:
 
 # Name
 # ----
-name: afrl_scramjet
+name: "afrl_scramjet"
 
 # Geometry
 # --------
@@ -35,7 +35,7 @@ files:
 run:
   model: "pinn"          # Options: supervised or pinn
   equation: "Euler"      # Options: Euler or RANS
-  device: "cpu"         # Options: cpu or cuda
+  device: "cpu"          # Options: cpu or cuda
 
   routines:
     sampling: true
