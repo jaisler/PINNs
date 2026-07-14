@@ -1,14 +1,9 @@
 # SPDX-License-Identifier: MIT
-import os
 import numpy as np
 import time
-import pyvista as pv
-from pathlib import Path
-import torch
-import torch.nn as nn
 
 from src.config import create_output_directories, load_config
-from src.sampling import SamplingData, valid_indices
+from src.sampling import SamplingData, prepare_data
 from src.pinn import PhysicsInformedNN
 from src.networks import build_network
 from src.utils import print_metrics_table
@@ -22,13 +17,9 @@ def main() -> None:
     # Create output directories
     create_output_directories(params)
     
-    # Collocation points initialisation
+    # Collocation dataset initialisation
     Xf = None
-    xf = None
-    yf = None
-    xftrain = None
-    yftrain = None
-
+    
     # Sampling points - Data points
     if (params['run']['routines']['sampling']):
         flag = False # Data points
@@ -89,201 +80,12 @@ def main() -> None:
                                 pts_grad_coll, params, True)
 
     if(params['run']['routines']['inference']):
-        # Number of points inside the geometry. This is not the same
-        # number of the points provided in the configuration file.
-        # Data points
-        N = X.shape[0]
 
-        # Rearrange Data 
-        x = X[:,0]   # N 
-        y = X[:,1]   # N
-        rho = rho[:] # N
-        u = U[:,0]   # N
-        v = U[:,1]   # N
-        p = p[:]     # N
-        mut = mut[:] # N: eddy viscosity
-                
-        # Data points
-        # Train / validation / test split
-        N_train_data = min(int(params["dataset"]["n_train_data"]), N)
+        # Prepare training, validation, test and collocation data
+        data = prepare_data(X, U, rho, p, mut, Xf, params)
 
-        N_val_data = min(
-            int(params["dataset"].get("n_validation_data", 0)),
-            N - N_train_data,
-        )
-
-        N_test_data = min(
-            int(
-                params["dataset"].get(
-                    "n_test_data",
-                    N - N_train_data - N_val_data,
-                )
-            ),
-            N - N_train_data - N_val_data,
-        )
-
-        # Path for the dataset split
-        idx_file = Path(params['paths']['samples']) / "idx_split_data.npz"
-
-        load_existing_split = (
-            idx_file.exists()
-            and not params["run"]["routines"]["sampling"]
-        )
-
-        split_is_valid = False
-
-        # Try to load an existing split
-        if load_existing_split:
-            try:
-                with np.load(idx_file) as split:
-                    idx_train = split["idx_train"]
-                    idx_val = split["idx_val"]
-                    idx_test = split["idx_test"]
-
-                split_is_valid = (
-                    valid_indices(idx_train, N_train_data, N)
-                    and valid_indices(idx_val, N_val_data, N)
-                    and valid_indices(idx_test, N_test_data, N)
-                )
-
-                if split_is_valid:
-                    # Check that train, validation, and test do not overlap
-                    idx_combined = np.concatenate(
-                        [idx_train, idx_val, idx_test]
-                    )
-
-                    split_is_valid = (
-                        np.unique(idx_combined).size
-                        == idx_combined.size
-                    )
-
-                if not split_is_valid:
-                    print("---------------------------------------")
-                    print(
-                        "Existing dataset split is incompatible with the "
-                        "current configuration."
-                    )
-
-            except (OSError, ValueError, KeyError) as error:
-                print(
-                    f"Could not load the existing dataset split: {error}"
-                )
-                split_is_valid = False
-
-        # Generate a split when no valid existing split was loaded
-        if not split_is_valid:
-            print("---------------------------------------")
-            print("Generating a new dataset split.")
-
-            rng = np.random.default_rng(
-                params.get("seed", 1234)
-            )
-
-            idx_all = rng.permutation(N)
-
-            train_end = N_train_data
-            val_end = train_end + N_val_data
-            test_end = val_end + N_test_data
-
-            idx_train = idx_all[:train_end]
-            idx_val = idx_all[train_end:val_end]
-            idx_test = idx_all[val_end:test_end]
-
-            np.savez(
-                idx_file,
-                idx_train=idx_train,
-                idx_val=idx_val,
-                idx_test=idx_test,
-            )
-        
-        print("Dataset split prepared.")
-            
-        # Training data
-        xtrain = x[idx_train, None]
-        ytrain = y[idx_train, None]
-        rhotrain = rho[idx_train, None]
-        utrain = u[idx_train, None]
-        vtrain = v[idx_train, None]
-        ptrain = p[idx_train, None]
-        muttrain = mut[idx_train, None]
-
-        # Validation data
-        xval = None
-        yval = None
-        rhoval = None
-        uval = None
-        vval = None
-        pval = None
-        mutval = None
-
-        if N_val_data > 0:
-            xval = x[idx_val, None]
-            yval = y[idx_val, None]
-            rhoval = rho[idx_val, None]
-            uval = u[idx_val, None]
-            vval = v[idx_val, None]
-            pval = p[idx_val, None]
-            mutval = mut[idx_val, None]
-
-        # Test data
-        xtest = None
-        ytest = None
-        rhotest = None
-        utest = None
-        vtest = None
-        ptest = None
-        muttest = None
-
-        if N_test_data > 0:
-            xtest = x[idx_test, None]
-            ytest = y[idx_test, None]
-            rhotest = rho[idx_test, None]
-            utest = u[idx_test, None]
-            vtest = v[idx_test, None]
-            ptest = p[idx_test, None]
-            muttest = mut[idx_test, None]
-
-        if Xf is not None:  
-            # Collocation points
-            Ncoll = Xf.shape[0]
-            xf = Xf[:,0]   # N 
-            yf = Xf[:,1]   # N
-            # For training data
-            # File for loading collocation ponts
-            idxc_file = Path(params['paths']['samples']) / "idx_train_coll.npy"
-
-            if idxc_file.exists() and not params['run']['routines']['sampling']:
-                idxc = np.load(idxc_file)
-
-                if idxc.shape[0] != Ncoll:
-                    raise ValueError(
-                        "Loaded collocation indices have a different size from Xf. "
-                        f"Expected {Ncoll}, got {idxc.shape[0]}."
-                    )
-
-                if np.max(idxc) >= Ncoll:
-                    raise ValueError(
-                        "Loaded collocation indices are not compatible with Xf."
-                    )
-
-            else:
-                rng = np.random.default_rng(params.get("seed", 1234))
-                idxc = rng.choice(Ncoll, Ncoll, replace=False)
-                np.save(idxc_file, idxc)
-
-            xftrain = xf[idxc, None]
-            yftrain = yf[idxc, None]
-        
-        # Plot training dataset points
-        pl.plot_dataset(xtrain, ytrain, params, dataset='training')
-        # Plot validation dataset points
-        pl.plot_dataset(xval, yval, params, dataset='validation')
-        # Plot test dataset points
-        pl.plot_dataset(xtest, ytest, params, dataset='test')
-        # Plot all traning points
-        pl.plot_target_points(xtrain, ytrain, xftrain, yftrain, params, True)
-        # Plot all points
-        pl.plot_target_points(x, y, xf, yf, params)
+        # Plot prepared datasets
+        pl.plot_prepared_data(data, params)
 
         # Build neural network: MLP or GNN
         network = build_network(params)
@@ -291,12 +93,14 @@ def main() -> None:
         # Note that model is a object of the class
         model = PhysicsInformedNN(
             network, # MLP or GNN 
-            xtrain, ytrain, # training data
-            rhotrain, utrain, vtrain, ptrain, # training data
-            xftrain, yftrain, # collocation data
+            data["xtrain"], data["ytrain"], # training data
+            data["rhotrain"], data["utrain"], data["vtrain"], 
+            data["ptrain"], # training data
+            data["xftrain"], data["yftrain"], # collocation data
             params, # general parameters
-            muttrain, # RANS eq.
-            xval, yval, rhoval, uval, vval, pval, mutval # validation data
+            data["muttrain"], # RANS eq.
+            data["xval"], data["yval"], data["rhoval"], data["uval"], 
+            data["vval"], data["pval"], data["mutval"] # validation data
         )
 
         # Optimizer settings
@@ -343,13 +147,15 @@ def main() -> None:
                   "zero iterations.")
 
         # Evaluate data
-        if xtest is not None and ytest is not None and xtest.shape[0] > 0:
+        if (data["xtest"] is not None and data["ytest"] is not None and 
+            data["xtest"].shape[0] > 0):
             test_metrics = model.evaluate_data(
-                xtest, ytest, rhotest, utest, vtest, ptest, muttest
+                data["xtest"], data["ytest"], data["rhotest"], data["utest"], 
+                data["vtest"], data["ptest"], data["muttest"]
             )
 
             # Print metrics of the test dataset
-            print_metrics_table(test_metrics, title="Test dataset metrics",)
+            print_metrics_table(test_metrics, title="Test dataset metrics")
 
         else:
             print("---------------------------------------")

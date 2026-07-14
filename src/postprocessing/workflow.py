@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: MIT
 
 import os
-import pyvista as pv
 
 import src.utils.plot as pl
 from src.postprocessing import FlowFieldPostProcessor
@@ -81,7 +80,7 @@ def run_flowfield_postprocessing(model, params):
     # VTK output and plotting.
     if do_plotting:
         # Plot CFD/simulation fields
-        pl.plot_simulation_flow(flowfield, params)
+        pl.plot_simulation_flow_pyvista(flowfield, params)
 
         # Plot predicted flow field
         pred_fields = postprocessor.get_predicted_fields()
