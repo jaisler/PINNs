@@ -1,5 +1,6 @@
-# src/sampling/__init__.py
+# SPDX-License-Identifier: MIT
 
+# src/sampling/__init__.py
 from .data import get_data_points, get_collocation_points
 from .sampling import SamplingData
 from .splitting import prepare_data

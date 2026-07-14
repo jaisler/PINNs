@@ -1,5 +1,6 @@
-# src/utils/__init__.py
+# SPDX-License-Identifier: MIT
 
+# src/utils/__init__.py
 from .metrics import compute_metrics, print_metrics_table
 from .print_loss import print_loss
 
