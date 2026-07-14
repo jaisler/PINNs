@@ -3,7 +3,7 @@ import numpy as np
 import time
 
 from src.config import create_output_directories, load_config
-from src.sampling import SamplingData, prepare_data
+from src.sampling import get_data_points, get_collocation_points, prepare_data
 from src.pinn import PhysicsInformedNN
 from src.networks import build_network
 from src.utils import print_metrics_table
@@ -16,73 +16,19 @@ def main() -> None:
     params = load_config()
     # Create output directories
     create_output_directories(params)
-    
-    # Collocation dataset initialisation
-    Xf = None
-    
-    # Sampling points - Data points
-    if (params['run']['routines']['sampling']):
-        flag = False # Data points
-        # Create data set
-        sample_data = SamplingData(params, flag)
-        sample_data.sample() 
-        # Write data to file
-        sample_data.write_data_to_npz()
-        
-        # Get sampling ponits and fields. Data points
-        X = sample_data.get_x() # N x 3
-        U = sample_data.get_u() # N x 3
-        rho = sample_data.get_rho() # N
-        p = sample_data.get_p() # N
-        # Note that if Euler equations are used it return an array
-        # of zeros
-        mut = sample_data.get_mut()
 
-        # Get domain points
-        pts_in_data = sample_data.get_pts_in()
-        pts_bc_data = sample_data.get_pts_bc()
-        pts_grad_data = sample_data.get_pts_grad()
+    # Sample or read data
+    data_pnts = get_data_points(params)
+    collocation_pnts = get_collocation_points(params)
 
-        # Collocation points (PDE residuals)
-        if params['run']['model'] == 'pinn':  
-            flag = True # collocation points
-            sample_coll = SamplingData(params, flag)
-            sample_coll.sample() 
-            # Write data to file
-            sample_coll.write_data_to_npz()
-
-            Xf = sample_coll.get_x()  
-
-            # Get domain points
-            pts_in_coll = sample_coll.get_pts_in()
-            pts_bc_coll = sample_coll.get_pts_bc()
-            pts_grad_coll = sample_coll.get_pts_grad()
-
-    else:
-        flag = False        
-        read_data = SamplingData(params, flag)    
-        X, pts_in_data, pts_bc_data, pts_grad_data, U, rho, p, mut = \
-            read_data.read_data_from_npz()
-
-        if params['run']['model'] == 'pinn':  
-            flag = True
-            read_coll = SamplingData(params, flag)    
-            Xf, pts_in_coll, pts_bc_coll, pts_grad_coll, _, _, _, _ = \
-                read_coll.read_data_from_npz()
-
-    # Plot sampling points (data)
-    pl.plot_sampling_points(X, pts_in_data, pts_bc_data, 
-                            pts_grad_data, params, False)
-
-    if params['run']['model'] == 'pinn':  
-        # Plot sampling points (collocation)
-        pl.plot_sampling_points(Xf, pts_in_coll, pts_bc_coll, 
-                                pts_grad_coll, params, True)
+    # Plot original sampling points
+    pl.plot_sampling_data(data_pnts, collocation_pnts, params)
 
     if(params['run']['routines']['inference']):
-
         # Prepare training, validation, test and collocation data
-        data = prepare_data(X, U, rho, p, mut, Xf, params)
+        data = prepare_data(data_pnts["X"], data_pnts["U"], data_pnts["rho"], 
+                            data_pnts["p"], data_pnts["mut"], collocation_pnts["Xf"], 
+                            params)
 
         # Plot prepared datasets
         pl.plot_prepared_data(data, params)
@@ -90,7 +36,7 @@ def main() -> None:
         # Build neural network: MLP or GNN
         network = build_network(params)
 
-        # Note that model is a object of the class
+        # Build PINN model
         model = PhysicsInformedNN(
             network, # MLP or GNN 
             data["xtrain"], data["ytrain"], # training data
