@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: MIT
-
 from .physics_informed_nn import PhysicsInformedNN
 
 def build_pinn_model(network, data, params):
