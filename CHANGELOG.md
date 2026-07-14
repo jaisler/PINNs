@@ -20,6 +20,7 @@ All notable changes to this project will be documented in this file.
 - Refacrored the main regarding IO (#29)
 - Refactored the main regading network (#30)
 - Refactored data splitting (#33)
+- Refactored sampling data (#34)
 
 ### Removed
 - Removed collocation dataset definition (#32)
