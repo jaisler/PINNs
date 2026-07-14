@@ -1,10 +1,9 @@
 # src/sampling/__init__.py
 
 from .sampling import SamplingData
-from .splitting import get_data_split_indeces, get_collocation_indeces
+from .splitting import prepare_data
 
 __all__ = [
         "SamplingData",
-        "get_data_split_indeces",
-        "get_collocation_indeces",
+        "prepare_data",
 ]

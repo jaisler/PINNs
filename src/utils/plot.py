@@ -10,6 +10,64 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 rc('text', usetex=False)
 
+def plot_prepared_data(data, params):
+    """
+    Plot the training, validation, test, and collocation datasets.
+
+    Parameters
+    ----------
+    data : dict
+        Dictionary returned by prepare_data.
+
+    params : dict
+        Configuration dictionary.
+    """
+
+    # Plot training dataset points
+    plot_dataset(
+        data["xtrain"],
+        data["ytrain"],
+        params,
+        dataset='training',
+    )
+
+    # Plot validation dataset points
+    if data["xval"] is not None:
+        plot_dataset(
+            data["xval"],
+            data["yval"],
+            params,
+            dataset='validation',
+        )
+
+    # Plot test dataset points
+    if data["xtest"] is not None:
+        plot_dataset(
+            data["xtest"],
+            data["ytest"],
+            params,
+            dataset='test',
+        )
+
+    # Plot training data and training collocation points
+    plot_target_points(
+        data["xtrain"],
+        data["ytrain"],
+        data["xftrain"],
+        data["yftrain"],
+        params,
+        True,
+    )
+
+    # Plot all data and all collocation points
+    plot_target_points(
+        data["x"],
+        data["y"],
+        data["xf"],
+        data["yf"],
+        params,
+    )
+
 def plot_dataset(x, y, params, dataset):
 
     fig, ax = plt.subplots(1, 1, num=1, figsize=(12, 4), sharey=True)
@@ -342,7 +400,7 @@ def plot_field_pyvista(
     pl.save_graphic(os.path.join(out_dir, fname))
     pl.close()
 
-def plot_simulation_flow(mesh, params):
+def plot_simulation_flow_pyvista(mesh, params):
     """
     Plot all simulation fields defined in params["post_processing"].
     """

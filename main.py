@@ -3,7 +3,7 @@ import numpy as np
 import time
 
 from src.config import create_output_directories, load_config
-from src.sampling import SamplingData, get_data_split_indeces, get_collocation_indeces
+from src.sampling import SamplingData, prepare_data
 from src.pinn import PhysicsInformedNN
 from src.networks import build_network
 from src.utils import print_metrics_table
@@ -17,13 +17,9 @@ def main() -> None:
     # Create output directories
     create_output_directories(params)
     
-    # Collocation points initialisation
+    # Collocation dataset initialisation
     Xf = None
-    xf = None
-    yf = None
-    xftrain = None
-    yftrain = None
-
+    
     # Sampling points - Data points
     if (params['run']['routines']['sampling']):
         flag = False # Data points
@@ -84,105 +80,12 @@ def main() -> None:
                                 pts_grad_coll, params, True)
 
     if(params['run']['routines']['inference']):
-        # Number of points inside the geometry. This is not the same
-        # number of the points provided in the configuration file.
-        
-        # Data points
-        N = X.shape[0]
 
-        # Rearrange Data 
-        x = X[:,0]   # N 
-        y = X[:,1]   # N
-        rho = rho[:] # N
-        u = U[:,0]   # N
-        v = U[:,1]   # N
-        p = p[:]     # N
-        mut = mut[:] # N: eddy viscosity
+        # Prepare training, validation, test and collocation data
+        data = prepare_data(X, U, rho, p, mut, Xf, params)
 
-        # Collocation points
-        if Xf is not None:  
-            # Collocation points
-            N_coll = Xf.shape[0]
-            xf = Xf[:,0]   # N 
-            yf = Xf[:,1]   # N
-
-        # Get data split indeces 
-        (idx_train, idx_val, idx_test, N_train_data, N_val_data, 
-            N_test_data) = get_data_split_indeces(N, params)
-        
-        # Get collocation split indeces 
-        idxc = get_collocation_indeces(N_coll, params)
-
-        # Training data
-        xtrain = x[idx_train, None]
-        ytrain = y[idx_train, None]
-        rhotrain = rho[idx_train, None]
-        utrain = u[idx_train, None]
-        vtrain = v[idx_train, None]
-        ptrain = p[idx_train, None]
-        muttrain = mut[idx_train, None]
-
-        # Validation data
-        xval = None
-        yval = None
-        rhoval = None
-        uval = None
-        vval = None
-        pval = None
-        mutval = None
-
-        if N_val_data > 0:
-            xval = x[idx_val, None]
-            yval = y[idx_val, None]
-            rhoval = rho[idx_val, None]
-            uval = u[idx_val, None]
-            vval = v[idx_val, None]
-            pval = p[idx_val, None]
-            mutval = mut[idx_val, None]
-
-        # Test data
-        xtest = None
-        ytest = None
-        rhotest = None
-        utest = None
-        vtest = None
-        ptest = None
-        muttest = None
-
-        if N_test_data > 0:
-            xtest = x[idx_test, None]
-            ytest = y[idx_test, None]
-            rhotest = rho[idx_test, None]
-            utest = u[idx_test, None]
-            vtest = v[idx_test, None]
-            ptest = p[idx_test, None]
-            muttest = mut[idx_test, None]
-
-        if N_coll > 0:
-            xftrain = xf[idxc, None]
-            yftrain = yf[idxc, None]
-
-        # Print dataset information
-        print("---------------------------------------")
-        print("Dataset information")
-        print(f"  Training data points           : {N_train_data}")
-        print(f"  Validation data points         : {N_val_data}")
-        print(f"  Test data points               : {N_test_data}")
-        if xftrain is not None:
-            print(f"  Training collocation points    : {N_coll}")
-            
-        # Plot training dataset points
-        pl.plot_dataset(xtrain, ytrain, params, dataset='training')
-        # Plot validation dataset points
-        if xval is not None:
-            pl.plot_dataset(xval, yval, params, dataset='validation')
-        # Plot test dataset points
-        if xtest is not None:
-            pl.plot_dataset(xtest, ytest, params, dataset='test')
-        # Plot all traning points
-        pl.plot_target_points(xtrain, ytrain, xftrain, yftrain, params, True)
-        # Plot all points
-        pl.plot_target_points(x, y, xf, yf, params)
+        # Plot prepared datasets
+        pl.plot_prepared_data(data, params)
 
         # Build neural network: MLP or GNN
         network = build_network(params)
@@ -190,12 +93,14 @@ def main() -> None:
         # Note that model is a object of the class
         model = PhysicsInformedNN(
             network, # MLP or GNN 
-            xtrain, ytrain, # training data
-            rhotrain, utrain, vtrain, ptrain, # training data
-            xftrain, yftrain, # collocation data
+            data["xtrain"], data["ytrain"], # training data
+            data["rhotrain"], data["utrain"], data["vtrain"], 
+            data["ptrain"], # training data
+            data["xftrain"], data["yftrain"], # collocation data
             params, # general parameters
-            muttrain, # RANS eq.
-            xval, yval, rhoval, uval, vval, pval, mutval # validation data
+            data["muttrain"], # RANS eq.
+            data["xval"], data["yval"], data["rhoval"], data["uval"], 
+            data["vval"], data["pval"], data["mutval"] # validation data
         )
 
         # Optimizer settings
@@ -242,9 +147,11 @@ def main() -> None:
                   "zero iterations.")
 
         # Evaluate data
-        if xtest is not None and ytest is not None and xtest.shape[0] > 0:
+        if (data["xtest"] is not None and data["ytest"] is not None and 
+            data["xtest"].shape[0] > 0):
             test_metrics = model.evaluate_data(
-                xtest, ytest, rhotest, utest, vtest, ptest, muttest
+                data["xtest"], data["ytest"], data["rhotest"], data["utest"], 
+                data["vtest"], data["ptest"], data["muttest"]
             )
 
             # Print metrics of the test dataset

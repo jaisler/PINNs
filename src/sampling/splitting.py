@@ -2,51 +2,51 @@
 import numpy as np
 from pathlib import Path
 
-def valid_indices(indices, expected_size, number_of_points):
+def valid_indeces(indeces, expected_size, number_of_points):
     """
     Check that an index array has the expected size and contains
-    valid indices.
+    valid indeces.
 
-    Check if an array contains valid indices.
+    Check if an array contains valid indeces.
 
     Empty arrays are valid when expected_size == 0.
 
     Parameters
     ----------
-    indices : array-like
-        Indices to check.
+    indeces : array-like
+        indeces to check.
     expected_size : int
-        Expected number of indices.
+        Expected number of indeces.
     number_of_points : int
         Total number of available points.
 
     Returns
     -------
     bool
-        True if the indices have the correct size and are within the
+        True if the indeces have the correct size and are within the
         valid range.
     
     """
 
-    indices = np.asarray(indices)
+    indeces = np.asarray(indeces)
 
-    if indices.ndim != 1:
+    if indeces.ndim != 1:
         return False
 
-    if indices.size != expected_size:
+    if indeces.size != expected_size:
         return False
 
-    if indices.size == 0:
+    if indeces.size == 0:
         return True
 
     return (
-        np.all(indices >= 0)
-        and np.all(indices < number_of_points)
+        np.all(indeces >= 0)
+        and np.all(indeces < number_of_points)
     )
 
 def get_data_split_indeces(N, params):
     """
-    Create or load train/validation/test indices for the data points.
+    Create or load train/validation/test indeces for the data points.
 
     If a valid saved split exists, it is loaded. Otherwise, a new random
     split is generated and saved.
@@ -61,11 +61,11 @@ def get_data_split_indeces(N, params):
     Returns
     -------
     idx_train : numpy.ndarray
-        Training indices.
+        Training indeces.
     idx_val : numpy.ndarray
-        Validation indices.
+        Validation indeces.
     idx_test : numpy.ndarray
-        Test indices.
+        Test indeces.
     N_train_data : int
         Number of training points.
     N_val_data : int
@@ -116,9 +116,9 @@ def get_data_split_indeces(N, params):
                 idx_test = split["idx_test"]
 
             split_is_valid = (
-                valid_indices(idx_train, N_train_data, N)
-                and valid_indices(idx_val, N_val_data, N)
-                and valid_indices(idx_test, N_test_data, N)
+                valid_indeces(idx_train, N_train_data, N)
+                and valid_indeces(idx_val, N_val_data, N)
+                and valid_indeces(idx_test, N_test_data, N)
             )
 
             if split_is_valid:
@@ -173,18 +173,18 @@ def get_data_split_indeces(N, params):
 
         print("Dataset split prepared.")
 
-        return (
-            idx_train,
-            idx_val,
-            idx_test,
-            N_train_data,
-            N_val_data,
-            N_test_data,
-        )
+    return (
+        idx_train,
+        idx_val,
+        idx_test,
+        N_train_data,
+        N_val_data,
+        N_test_data,
+    )
     
 def get_collocation_indeces(N_coll, params):
     """
-    Create or load collocation indices for the training collocation points.
+    Create or load collocation indeces for the training collocation points.
 
     Parameters
     ----------
@@ -196,7 +196,7 @@ def get_collocation_indeces(N_coll, params):
     Returns
     -------
     idxc : numpy.ndarray
-        Collocation-point indices.
+        Collocation-point indeces.
     """
 
     # File for loading collocation ponts
@@ -207,18 +207,18 @@ def get_collocation_indeces(N_coll, params):
 
         if idxc.shape[0] != N_coll:
             raise ValueError(
-                "Loaded collocation indices have a different size from Xf. "
+                "Loaded collocation indeces have a different size from Xf. "
                 f"Expected {N_coll}, got {idxc.shape[0]}."
             )
 
         if idxc.size > 0 and np.max(idxc) >= N_coll:
             raise ValueError(
-                "Loaded collocation indices are not compatible with Xf."
+                "Loaded collocation indeces are not compatible with Xf."
             )
 
         if idxc.size > 0 and np.any(idxc < 0):
             raise ValueError(
-                "Loaded collocation indices contain negative values."
+                "Loaded collocation indeces contain negative values."
             )
 
     else:
@@ -227,3 +227,174 @@ def get_collocation_indeces(N_coll, params):
         np.save(idxc_file, idxc)
 
     return idxc
+
+def prepare_data(X, U, rho, p, mut, Xf, params):
+    """
+    Prepare training, validation, test, and collocation data.
+
+    Parameters
+    ----------
+    X : np.ndarray
+        Coordinates of the data points.
+
+    U : np.ndarray
+        Velocity field.
+
+    rho : np.ndarray
+        Density field.
+
+    p : np.ndarray
+        Pressure field.
+
+    mut : np.ndarray
+        Eddy viscosity field.
+
+    Xf : np.ndarray or None
+        Collocation points.
+
+    params : dict
+        Configuration dictionary.
+
+    Returns
+    -------
+    data : dict
+        Dictionary containing all prepared arrays.
+    """
+    
+    # Note that, the number of points inside the geometry is not the same
+    # number of the points provided in the configuration file.
+    
+    # Data points
+    N = X.shape[0]
+
+    # Rearrange Data 
+    x = X[:,0]   # N 
+    y = X[:,1]   # N
+    rho = rho[:] # N
+    u = U[:,0]   # N
+    v = U[:,1]   # N
+    p = p[:]     # N
+    mut = mut[:] # N: eddy viscosity
+
+    # Get data split indeces 
+    (idx_train, idx_val, idx_test, N_train_data, N_val_data, 
+        N_test_data) = get_data_split_indeces(N, params)
+    
+    # Training data
+    xtrain = x[idx_train, None]
+    ytrain = y[idx_train, None]
+    rhotrain = rho[idx_train, None]
+    utrain = u[idx_train, None]
+    vtrain = v[idx_train, None]
+    ptrain = p[idx_train, None]
+    muttrain = mut[idx_train, None]
+
+    # Validation data
+    xval = None
+    yval = None
+    rhoval = None
+    uval = None
+    vval = None
+    pval = None
+    mutval = None
+
+    if N_val_data > 0:
+        xval = x[idx_val, None]
+        yval = y[idx_val, None]
+        rhoval = rho[idx_val, None]
+        uval = u[idx_val, None]
+        vval = v[idx_val, None]
+        pval = p[idx_val, None]
+        mutval = mut[idx_val, None]
+
+    # Test data
+    xtest = None
+    ytest = None
+    rhotest = None
+    utest = None
+    vtest = None
+    ptest = None
+    muttest = None
+
+    if N_test_data > 0:
+        xtest = x[idx_test, None]
+        ytest = y[idx_test, None]
+        rhotest = rho[idx_test, None]
+        utest = u[idx_test, None]
+        vtest = v[idx_test, None]
+        ptest = p[idx_test, None]
+        muttest = mut[idx_test, None]
+
+    # Collocation points initialisation
+    xf = None
+    yf = None
+    xftrain = None
+    yftrain = None
+
+    # Collocation points
+    if Xf is not None:  
+        # Collocation points
+        N_coll = Xf.shape[0]
+        xf = Xf[:,0]   # N 
+        yf = Xf[:,1]   # N
+
+        # Get collocation split indeces 
+        idxc = get_collocation_indeces(N_coll, params)
+
+        xftrain = xf[idxc, None]
+        yftrain = yf[idxc, None]
+
+    data = {
+        # All data points
+        "x": x,
+        "y": y,
+        "rho": rho,
+        "u": u,
+        "v": v,
+        "p": p,
+        "mut": mut,
+
+        # Training data
+        "xtrain": xtrain,
+        "ytrain": ytrain,
+        "rhotrain": rhotrain,
+        "utrain": utrain,
+        "vtrain": vtrain,
+        "ptrain": ptrain,
+        "muttrain": muttrain,
+
+        # Validation data
+        "xval": xval,
+        "yval": yval,
+        "rhoval": rhoval,
+        "uval": uval,
+        "vval": vval,
+        "pval": pval,
+        "mutval": mutval,
+
+        # Test data
+        "xtest": xtest,
+        "ytest": ytest,
+        "rhotest": rhotest,
+        "utest": utest,
+        "vtest": vtest,
+        "ptest": ptest,
+        "muttest": muttest,
+
+        # Collocation data
+        "xf": xf,
+        "yf": yf,
+        "xftrain": xftrain,
+        "yftrain": yftrain,
+    }
+
+    # Print dataset information
+    print("---------------------------------------")
+    print("Dataset information")
+    print(f"  Training data points           : {N_train_data}")
+    print(f"  Validation data points         : {N_val_data}")
+    print(f"  Test data points               : {N_test_data}")
+    if xftrain is not None:
+        print(f"  Training collocation points    : {N_coll}")
+    
+    return data
