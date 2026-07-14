@@ -177,7 +177,7 @@ physics:
 # Post processing 
 # ---------------
 post_processing:
-  error_type: abs_error_01 # Options: abs_error_01
+  error_type: "abs_error_01" # Options: abs_error_01
 
   fields: # from CFD
     - "Density"
