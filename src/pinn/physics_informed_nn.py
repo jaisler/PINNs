@@ -22,7 +22,7 @@ class PhysicsInformedNN(nn.Module):
         xdata, ydata, rhodata, udata, vdata, pdata, # data points
         xf, yf, # Collocation points (only coordinates)
         params,
-        mutdata=None, # for RANS
+        mutdata=None, # for rans
         xval=None,
         yval=None,
         rhoval=None,
@@ -72,9 +72,9 @@ class PhysicsInformedNN(nn.Module):
             raise ValueError(f"Unknown model type: {self.model}")
 
         # Check the equation
-        if self.eq == 'Euler':
+        if self.eq == 'euler':
             expected_out = 4
-        elif self.eq == 'RANS':
+        elif self.eq == 'rans':
             expected_out = 5
         else:
             raise ValueError(f"Unknown equation type: {self.eq}")
@@ -104,9 +104,9 @@ class PhysicsInformedNN(nn.Module):
         self.w_f3  = float(loss_weights['residual'].get("f3", 1.0))
         self.w_f4  = float(loss_weights['residual'].get("f4", 1.0))
         # Equation
-        if self.eq == "Euler":
+        if self.eq == "euler":
             self.w_mut = 0.0
-        elif self.eq == "RANS":
+        elif self.eq == "rans":
             self.w_mut = float(loss_weights['data'].get("mut", 1.0))
 
         # Initialisation: 
@@ -127,13 +127,13 @@ class PhysicsInformedNN(nn.Module):
         phys_cfg = params['physics']
         # Heat capacity ratio
         self.gamma = float(phys_cfg['gas']['gamma'])
-        # Reference parameters (Euler and RANS)
+        # Reference parameters (euler and rans)
         self.Lref    = float(phys_cfg['reference']['Lref'])
         self.rhoref = float(phys_cfg['reference']['rho'])
         self.Uref   = float(phys_cfg['reference']['U_0'])
         self.pref   = self.rhoref * self.Uref * self.Uref
 
-        if self.eq == 'RANS':
+        if self.eq == 'rans':
             # Universal gas constant
             self.R = float(phys_cfg['gas']['R'])
             # Prandtl number
@@ -168,8 +168,8 @@ class PhysicsInformedNN(nn.Module):
         ]
 
         # Turbulent viscosity validation data are additionally
-        # required for the RANS equations.
-        if self.eq == "RANS":
+        # required for the rans equations.
+        if self.eq == "rans":
             validation_values.append(mutval)
 
         self.has_validation = all(
@@ -381,7 +381,7 @@ class PhysicsInformedNN(nn.Module):
             print(f"    u                            : {self.w_u}")
             print(f"    v                            : {self.w_v}")
             print(f"    p                            : {self.w_p}")
-            if self.eq == 'RANS':
+            if self.eq == 'rans':
                 print(f"    mut                          : {self.w_mut}")
             print(f"    f1                           : {self.w_f1}")
             print(f"    f2                           : {self.w_f2}")
@@ -477,10 +477,10 @@ class PhysicsInformedNN(nn.Module):
         rho = torch.nn.functional.softplus(raw_rho) + 1e-8
         p   = torch.nn.functional.softplus(raw_p) + 1e-8
 
-        if self.eq == 'Euler':
+        if self.eq == 'euler':
             return rho, u, v, p
         
-        elif self.eq == 'RANS':
+        elif self.eq == 'rans':
             raw_mut = out[:,4:5]
             # Enforce positivity of muthat
             muthat = torch.nn.functional.softplus(raw_mut) + 1e-8
@@ -704,8 +704,8 @@ class PhysicsInformedNN(nn.Module):
         Returns
         -------
         tuple of numpy.ndarray
-            For `eq == 'Euler'`: `(rho, u, v, p)`.
-            For `eq == 'RANS'`: `(rho, u, v, p, mut)`.
+            For `eq == 'euler'`: `(rho, u, v, p)`.
+            For `eq == 'rans'`: `(rho, u, v, p, mut)`.
 
             All returned quantities are dimensional and have shape `(N, 1)`.
         """
@@ -721,7 +721,7 @@ class PhysicsInformedNN(nn.Module):
         x_t = torch.tensor(x, dtype=torch.float32, device=self.device)
         y_t = torch.tensor(y, dtype=torch.float32, device=self.device)
 
-        if self.eq == 'Euler':
+        if self.eq == 'euler':
             rho, u, v, p = self.net_fields(x_t, y_t, role="query")
 
             rhod, ud, vd, pd = self.get_dimensional_data(rho, u, v, p)
@@ -732,7 +732,7 @@ class PhysicsInformedNN(nn.Module):
                 pd.cpu().numpy()
             )
 
-        elif self.eq == 'RANS':
+        elif self.eq == 'rans':
             rho, u, v, p, muthat = self.net_fields(x_t, y_t, role="query")
             
             # Rescaling back to mutstar
@@ -765,9 +765,9 @@ class PhysicsInformedNN(nn.Module):
                                          pdata, mutdata)
         
         # Turbulent viscosity scaling
-        if self.eq == "RANS":
+        if self.eq == "rans":
             if mutstar is None:
-                raise ValueError("For equation='RANS', mut must be provided.")
+                raise ValueError("For equation='rans', mut must be provided.")
 
             if fit_scale:
                 self.mut_scale = float(np.percentile(mutstar, 95.0))
@@ -795,7 +795,7 @@ class PhysicsInformedNN(nn.Module):
         u = torch.tensor(ustar, dtype=torch.float32, device=self.device)
         v = torch.tensor(vstar, dtype=torch.float32, device=self.device)
         p = torch.tensor(pstar, dtype=torch.float32, device=self.device)
-        if self.eq == "RANS":
+        if self.eq == "rans":
             mut = torch.tensor(muthat, dtype=torch.float32, device=self.device)
         else:
             mut = None
@@ -812,9 +812,9 @@ class PhysicsInformedNN(nn.Module):
         vd = v * self.Uref
         pd = p * (self.rhoref * self.Uref * self.Uref)
 
-        if self.eq == 'Euler':
+        if self.eq == 'euler':
             return rhod, ud, vd, pd
-        elif self.eq == 'RANS':
+        elif self.eq == 'rans':
             mutd = mut * self.muref
             return rhod, ud, vd, pd, mutd 
 
@@ -830,11 +830,11 @@ class PhysicsInformedNN(nn.Module):
         vstar = v / self.Uref
         pstar = p / (self.rhoref * self.Uref * self.Uref)
         # Turbulent dynamic viscosity (this quatity came form CFD RANS)
-        if self.eq == 'RANS':
+        if self.eq == 'rans':
             if mut is None:
-                raise ValueError("For equation='RANS', mut must be provided.")
+                raise ValueError("For equation='rans', mut must be provided.")
             mutstar = mut / self.muref
-        elif self.eq == 'Euler':
+        elif self.eq == 'euler':
             mutstar = None
  
         return xstar, ystar, rhostar, ustar, vstar, pstar, mutstar
@@ -983,7 +983,7 @@ class PhysicsInformedNN(nn.Module):
         p_true = torch.tensor(pstar, dtype=torch.float32,
                               device=self.device,).reshape(-1, 1)
 
-        if self.eq == "RANS":
+        if self.eq == "rans":
             if mutstar is None:
                 raise ValueError("For RANS evaluation, mutdata must be provided.")
 
@@ -994,11 +994,11 @@ class PhysicsInformedNN(nn.Module):
             x_t = X[:, 0:1]
             y_t = X[:, 1:2]
 
-            if self.eq == "Euler":
+            if self.eq == "euler":
                 rho_pred, u_pred, v_pred, p_pred = \
                     self.net_fields(x_t, y_t, use_dropout=False, role="query")
 
-            elif self.eq == "RANS":
+            elif self.eq == "rans":
                 rho_pred, u_pred, v_pred, p_pred, muthat_pred = \
                     self.net_fields(x_t, y_t, use_dropout=False, role="query")
 
@@ -1012,7 +1012,7 @@ class PhysicsInformedNN(nn.Module):
         metrics["v"]   = compute_metrics(v_pred,   v_true)
         metrics["p"]   = compute_metrics(p_pred,   p_true)
 
-        if self.eq == "RANS":
+        if self.eq == "rans":
             metrics["mut"] = compute_metrics(mut_pred, mut_true)
 
         return metrics

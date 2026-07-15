@@ -68,7 +68,11 @@ class SamplingData:
 
         # Load your solution
         # .vtk, .pvtu, .vtm, ...
-        mesh = pv.read(self.params['paths']['flow']+'/'+self.params['files']['flowfield'])   
+        flowfield_path = (
+            Path(self.params["paths"]["flow"])
+            / self.params["files"]["flowfield"]
+        )
+        mesh = pv.read(flowfield_path)   
 
         # Sample points
         xmin, xmax, ymin, ymax, zmin, zmax = mesh.bounds
@@ -143,11 +147,11 @@ class SamplingData:
 
             # Depending on the equations the eddy viscosity returns
             # zero or the value from the CFD
-            if (self.params['run']['equation'] == 'RANS'):
+            if (self.params['run']['equation'] == 'rans'):
                 mut = sampled["Eddy_Viscosity"]
                 #self.mut = mut[mask] / params["mu"]
                 self.mut = mut[mask]
-            elif (self.params['run']['equation'] == 'Euler'):
+            elif (self.params['run']['equation'] == 'euler'):
                 # Otherwise return zero
                 self.mut = np.zeros((self.X.shape[0], 1), dtype=float)
 

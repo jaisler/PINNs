@@ -56,13 +56,13 @@ def data_loss_terms(pinn, x, y, rho_true, u_true, v_true, p_true,
         Individual mean-squared-error loss terms.
     """
 
-    if pinn.eq == 'Euler': 
+    if pinn.eq == 'euler': 
         rho_pred, u_pred, v_pred, p_pred = \
             pinn.net_fields(x, y, use_dropout, role=role)        
-        # is not RANS
+        # is not rans
         l_mut = zero_loss(pinn)
 
-    elif pinn.eq == 'RANS':
+    elif pinn.eq == 'rans':
         rho_pred, u_pred, v_pred, p_pred, mut_pred \
             = pinn.net_fields(x, y, use_dropout, role=role)
 
@@ -132,14 +132,14 @@ def residual_loss_terms(pinn):
         )
 
     # Residuals for each equation
-    if pinn.eq == 'Euler':
+    if pinn.eq == 'euler':
         rho_pred, u_pred, v_pred, p_pred = \
             pinn.net_fields(x, y, use_dropout=False, role=role)        
 
         f1_res, f2_res, f3_res, f4_res \
             = steady_euler_residuals(pinn, x, y, rho_pred, u_pred, v_pred, p_pred)
         
-    elif pinn.eq == 'RANS':
+    elif pinn.eq == 'rans':
         rho_pred, u_pred, v_pred, p_pred, mut_pred = \
             pinn.net_fields(x, y, use_dropout=False, role=role)                
         

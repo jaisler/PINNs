@@ -10,9 +10,15 @@ paths:
   samples: ""
   model: ""
 
+  flow: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/scramjet/afrl/2d/cases/euler/case"
+  mesh: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/scramjet/afrl/2d/meshes/mesh2"
+  results: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/results"
+  samples: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/data"
+  model: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/model"
+
 # Name
 # ----
-name: "afrl_scramjet"
+name: afrl_scramjet
 
 # Geometry
 # --------
@@ -26,22 +32,22 @@ seed: 1234
 # Files
 # -----
 files:
-  flowfield: "flow.vtu"
-  mesh: "afrl2d.geo"
-  model_name: "pinn_mlp_model"
+  flowfield: flow.vtu
+  mesh: afrl2d.geo
+  model_name: pinn_mlp_model
 
 # Run setup
 # ---------
 run:
-  model: "pinn"          # Options: supervised or pinn
-  equation: "Euler"      # Options: Euler or RANS
-  device: "cpu"          # Options: cpu or cuda
+  model: pinn          # Options: supervised or pinn
+  equation: euler      # Options: euler or rans
+  device: cpu          # Options: cpu or cuda
 
   routines:
     sampling: true
     inference: true
     identification: false
-    postprocessing: false
+    postprocessing: true
 
   checkpoint:
     load_model: false
@@ -52,11 +58,11 @@ run:
 # Neural network
 # --------------
 network:
-  architecture: "mlp"       # Options: mlp or gnn 
+  architecture: mlp       # Options: mlp or gnn 
 
   mlp:
     layers: [2, 32, 32, 32, 4] 
-    activation: "tanh" # Options: tanh, sigmoid, sin, softplus, silu/swish, gelu
+    activation: tanh # Options: tanh, sigmoid, sin, softplus, silu/swish, gelu
 
     dropout:
       probability: 0.0
@@ -64,7 +70,7 @@ network:
 
   gnn:
     latent_dim: 8
-    activation: "tanh" # Options: tanh, sigmoid, sin, softplus, silu/swish, gelu
+    activation: tanh # Options: tanh, sigmoid, sin, softplus, silu/swish, gelu
     neighbors: 6             # Used when construction
 
     attributes:
@@ -76,20 +82,20 @@ network:
 
     processor:
       message_layers: 4  
-      aggregation: "sum" # Options: sum, max, mean
+      aggregation: sum # Options: sum, max, mean
       residual: true
 
 # Sampling
 # --------
 sampling:
-  method: "lhs"       # random or lhs
+  method: lhs       # random or lhs
 
   boundaries:
     names:
-      - "inlet"
-      - "bottom"
-      - "outlet"
-      - "top"
+      - inlet
+      - bottom
+      - outlet
+      - top
 
   data_points:
     interior: 2100
@@ -102,7 +108,7 @@ sampling:
     boundary: [40, 260, 40, 160]
 
   gradient_sampling:
-    variable: "Density"
+    variable: Density
     pool_factor: 8
     alpha: 1.4
 
@@ -118,7 +124,7 @@ dataset:
 optimizer:
   adam:
     enabled: true
-    iterations: 20 
+    iterations: 10
     learning_rate: 4.0e-4
 
     scheduler:
@@ -129,7 +135,7 @@ optimizer:
   # if both are enabled.
   lbfgs:
     enabled: true
-    iterations: 20
+    iterations: 10
     learning_rate: 1.0
     max_iter_per_step: 30
 
@@ -177,30 +183,30 @@ physics:
 # Post processing 
 # ---------------
 post_processing:
-  error_type: "abs_error_01" # Options: abs_error_01
+  error_type: abs_error_01  # Options: abs_error_01
 
   fields: # from CFD
-    - "Density"
-    - "Pressure"
-    - "Velocity"
-    - "Velocity"
-    #- "Eddy_Viscosity"
+    - Density
+    - Pressure
+    - Velocity
+    - Velocity
+    #- Eddy_Viscosity
 
   latex:
-    - "$\\rho$ $[kg/m^{3}]$"
-    - "$p$ $[Pa]$"
-    - "$u$ $[m/s]$"
-    - "$v$ $[m/s]$"
+    - $\rho$ $[kg/m^{3}]$
+    - $p$ $[Pa]$
+    - $u$ $[m/s]$
+    - $v$ $[m/s]$
     #- "$\\hat{\\mu}_{t}$ $[kg/m \\cdot s]$"  
     
   components: [0, 0, 0, 1] #, 0
 
   colormaps:
-    - "bwr"
-    - "bwr"
-    - "bwr"
-    - "bwr"
-    #- "bwr"
+    - bwr
+    - bwr
+    - bwr
+    - bwr
+    #- bwr
 
   scales:
     - [0.0, 1.3]

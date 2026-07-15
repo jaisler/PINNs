@@ -497,7 +497,7 @@ def plot_field_pyvista(
     )
 
     pl.add_scalar_bar(
-        title=f"{clabel}",
+        title=clabel,
         position_x=0.87,
         position_y=0.438,
         height=0.163,
@@ -700,10 +700,10 @@ def get_flow_variables(params):
 
     equation = params["run"]["equation"]
 
-    if equation == "Euler":
+    if equation == "euler":
         return ["rho", "p", "u", "v"]
 
-    if equation == "RANS":
+    if equation == "rans":
         return ["rho", "p", "u", "v", "mut"]
 
     raise ValueError(f"Unknown equation: {equation}.")

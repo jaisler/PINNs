@@ -21,7 +21,7 @@ def print_loss(pinn, it):
     """
     if pinn.model == 'pinn':
 
-        if pinn.eq == 'Euler':
+        if pinn.eq == 'euler':
             loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
                 loss_fn(pinn, return_terms=True)
 
@@ -38,7 +38,7 @@ def print_loss(pinn, it):
                 f"f4: {l_f4.item():.3e}"
             )
 
-        elif pinn.eq == 'RANS':
+        elif pinn.eq == 'rans':
             loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
                 loss_fn(pinn, return_terms=True)
 
@@ -60,7 +60,7 @@ def print_loss(pinn, it):
         loss_val, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4 = \
             loss_fn(pinn, return_terms=True)
 
-        if pinn.eq == 'Euler':
+        if pinn.eq == 'euler':
 
             print(
                 f"It: {it:6d} | "
@@ -71,7 +71,7 @@ def print_loss(pinn, it):
                 f"p: {l_p.item():.3e} "
             )
 
-        elif pinn.eq == 'RANS':
+        elif pinn.eq == 'rans':
 
             print(
                 f"It: {it:6d} | "

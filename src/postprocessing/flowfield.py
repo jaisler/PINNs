@@ -125,7 +125,7 @@ class FlowFieldPostProcessor:
 
         equation = self.params["run"]["equation"]
 
-        if equation == "Euler":
+        if equation == "euler":
             rho_pred, u_pred, v_pred, p_pred = self.model.predict(
                 xmesh,
                 ymesh,
@@ -138,7 +138,7 @@ class FlowFieldPostProcessor:
                 "p": p_pred,
             }
 
-        elif equation == "RANS":
+        elif equation == "rans":
             rho_pred, u_pred, v_pred, p_pred, mut_pred = self.model.predict(
                 xmesh,
                 ymesh,
@@ -191,9 +191,9 @@ class FlowFieldPostProcessor:
 
         equation = self.params["run"]["equation"]
 
-        if equation == "Euler":
+        if equation == "euler":
             variables = ["rho", "p", "u", "v"]
-        elif equation == "RANS":
+        elif equation == "rans":
             variables = ["rho", "p", "u", "v", "mut"]
         else:
             raise ValueError(f"Unknown equation: {equation}.")

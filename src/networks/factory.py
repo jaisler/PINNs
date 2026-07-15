@@ -44,10 +44,10 @@ def build_network(params):
             edge_input_dim += 1
 
         # Get output dimension
-        if params['run']['equation'] == 'Euler':
+        if params['run']['equation'] == 'euler':
             output_dim = 4
 
-        elif params['run']['equation'] == 'RANS':
+        elif params['run']['equation'] == 'rans':
             output_dim = 5
 
         else:
