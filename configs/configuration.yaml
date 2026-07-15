@@ -3,18 +3,12 @@
 
 # Paths
 # -----
-paths:
-  flow: ""
-  mesh: ""
-  results: ""
-  samples: ""
-  model: ""
-
-  flow: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/scramjet/afrl/2d/cases/euler/case"
-  mesh: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/scramjet/afrl/2d/meshes/mesh2"
-  results: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/results"
-  samples: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/data"
-  model: "/Users/joaoisler/Library/CloudStorage/GoogleDrive-joao.isler@gmail.com/My Drive/bsc/pinns/PINNs/model"
+paths: 
+  flow: /path/to/flow/directory
+  mesh: /path/to/mesh/directory
+  results: /path/to/results/directory
+  samples: /path/to/samples/directory
+  model: /path/to/model/directory
 
 # Name
 # ----
