@@ -1,13 +1,10 @@
 # SPDX-License-Identifier: MIT
-import numpy as np
-import time
-
 from src.config import create_output_directories, load_config
 from src.sampling import get_data_points, get_collocation_points, prepare_data
 from src.networks import build_network
-from src.pinn import build_pinn_model, training_is_enabled, evaluate_data
+from src.pinn import build_pinn_model, train_model, evaluate_data
 from src.postprocessing import run_flowfield_postprocessing
-import src.utils.plot as pl
+from src.utils import plot_prepared_data, plot_sampling_data
 
 def run() -> None:
     
@@ -17,12 +14,14 @@ def run() -> None:
     # Create output directories
     create_output_directories(params)
 
-    # Sample or read data
+    # Sample or read data points
     data_pnts = get_data_points(params)
+
+    # Sample or read collocation points
     collocation_pnts = get_collocation_points(params)
     
     # Plot original sampling points
-    pl.plot_sampling_data(data_pnts, collocation_pnts, params)
+    plot_sampling_data(data_pnts, collocation_pnts, params)
 
     # Stop after sampling when inference is disabled
     if not params["run"]["routines"]["inference"]:
@@ -35,52 +34,27 @@ def run() -> None:
         Xf = None
         
     # Prepare training, validation, test and collocation datasets
-    data = prepare_data(data_pnts["X"], data_pnts["U"], data_pnts["rho"], 
-                        data_pnts["p"], data_pnts["mut"], Xf, 
-                        params)
+    data = prepare_data(
+        data_pnts["X"],
+        data_pnts["U"], 
+        data_pnts["rho"], 
+        data_pnts["p"], 
+        data_pnts["mut"], 
+        Xf, 
+        params
+    )
 
     # Plot prepared datasets
-    pl.plot_prepared_data(data, params)
+    plot_prepared_data(data, params)
 
-    # Build neural network: MLP or GNN
+    # Build neural network
     network = build_network(params)
 
-    # Build PINN model
+    # Build model
     model = build_pinn_model(network, data, params)
 
-    # Check if training is enabled
-    do_training = training_is_enabled(params)
-
-    # Train
-    if do_training:
-
-        start_time = time.time()                
-        model.fit()
-        elapsed = time.time() - start_time
-        print("---------------------------------------")                
-        print('Training time: %.4f' % (elapsed))
-
-        # Save model
-        if params['run']['checkpoint']['save_model']:
-            model.save_model(params['paths']['model'], 
-                             params['files']['model_name'])
-
-        # Get losses
-        l_data = model.get_data_loss()
-        l_res = model.get_residual_loss()
-        l_total = model.get_total_loss()
-        l_val = model.get_validation_data_loss()
-        n_epoch = model.get_n_epoch()
-        
-        # Plot losses
-        pl.plot_losses(l_data, l_res, l_total, n_epoch, params)
-        # Plot validation loss
-        pl.plot_validation_loss(l_data, l_val, n_epoch, params)
-
-    else:
-        print("---------------------------------------")
-        print("Skipping training. Adam and LBFGS are disabled or both have "
-                "zero iterations.")
+    # Train model
+    train_model(model, params)
  
     # Evaluate test dataset
     evaluate_data(model, data)

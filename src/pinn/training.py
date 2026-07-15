@@ -1,5 +1,8 @@
 # SPDX-License-Identifier: MIT
+import time
+
 from src.utils import print_metrics_table
+from src.utils import plot_history_training
 
 def training_is_enabled(params):
     """
@@ -37,9 +40,62 @@ def training_is_enabled(params):
         lbfgs_enabled and lbfgs_iterations > 0
     )
 
+def train_model(model, params):
+    """
+    Train model, save its checkpoints, and plot its loss history.
+
+    Parameters
+    ----------
+    model : PhysicsInformedNN
+        PhysicsInformedNN class object
+
+    params : dict
+        Configuration parameters dictionary.
+    """
+
+    # Check if training is enabled
+    do_training = training_is_enabled(params)
+
+    # Train
+    if not do_training:
+        print("---------------------------------------")
+        print("Skipping training. Adam and LBFGS are disabled or both have "
+              "zero iterations.")
+        return
+
+    start_time = time.time()                
+    model.fit()
+    elapsed = time.time() - start_time
+    print("---------------------------------------")                
+    print('Training time: %.4f' % (elapsed))
+
+    # Save model
+    if params['run']['checkpoint']['save_model']:
+        model.save_model(
+            params['paths']['model'], 
+            params['files']['model_name']
+        )
+
+    # Plot history training
+    plot_history_training(model, params)
+
+
 def evaluate_data(model, data):
-       
-    test_data_available =  (
+    """
+    Evaluate the model using test dataset.
+    
+    Parameters
+    ----------
+    model : PhysicsInformedNN
+        Initialized physics-informed neural network model. Object of the
+        PhysicsInformedNN class.
+
+    data : dict
+        Dictionary containing the prepared training, validation, and
+        collocation datasets.
+    """
+
+    test_data_available = (
         data["xtest"] is not None 
         and data["ytest"] is not None 
         and data["xtest"].shape[0] > 0
@@ -51,6 +107,7 @@ def evaluate_data(model, data):
         print("No test data were created. "
               "This usually means N_test_data = 0 after the "
               "train/validation/test split.")
+        return
 
     test_metrics = model.evaluate_data(
         data["xtest"], data["ytest"], data["rhotest"], data["utest"], 
@@ -59,4 +116,3 @@ def evaluate_data(model, data):
 
     # Print metrics of the test dataset
     print_metrics_table(test_metrics, title="Test dataset metrics")
-
