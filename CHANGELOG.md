@@ -14,15 +14,15 @@ All notable changes to this project will be documented in this file.
 - Added plots for traning, validation and test datasets (#31)
 
 ### Changed
-- Created configs directory (#19)
+- Created a dedicated configuration directory (#19)
 - Refactored the network classes using a common `BaseNetwork` (#18)
 - Improved GNN architecture (#26)
-- Refacrored the main regarding IO (#29)
-- Refactored the main regading network (#30)
-- Refactored data splitting (#33)
-- Refactored sampling data (#34)
-- Refactored main (#35)
-- Refactored training pipeline (#36)
+- Refactored input and output handling in the main workflow (#29)
+- Refactored network creation in the main workflow (#30)
+- Refactored dataset splitting (#33)
+- Refactored data sampling (#34)
+- Refactored the main workflow (#35)
+- Refactored the training pipeline (#36)
 
 ### Removed
 - Removed collocation dataset definition (#32)
