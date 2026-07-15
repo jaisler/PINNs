@@ -5,8 +5,7 @@ import time
 from src.config import create_output_directories, load_config
 from src.sampling import get_data_points, get_collocation_points, prepare_data
 from src.networks import build_network
-from src.pinn import build_pinn_model, training_is_enabled
-from src.utils import print_metrics_table
+from src.pinn import build_pinn_model, training_is_enabled, evaluate_data
 from src.postprocessing import run_flowfield_postprocessing
 import src.utils.plot as pl
 
@@ -83,25 +82,9 @@ def run() -> None:
         print("Skipping training. Adam and LBFGS are disabled or both have "
                 "zero iterations.")
  
-    # Evaluate data
-    # evaluate_data(mode, data)
-    if (data["xtest"] is not None and data["ytest"] is not None and 
-        data["xtest"].shape[0] > 0):
-        test_metrics = model.evaluate_data(
-            data["xtest"], data["ytest"], data["rhotest"], data["utest"], 
-            data["vtest"], data["ptest"], data["muttest"]
-        )
-
-        # Print metrics of the test dataset
-        print_metrics_table(test_metrics, title="Test dataset metrics")
-
-    else:
-        print("---------------------------------------")
-        print("Skipping test evaluation.")
-        print("No test data were created. "
-              "This usually means N_test_data = 0 after the "
-              "train/validation/test split.")
-
+    # Evaluate test dataset
+    evaluate_data(model, data)
+    
     # Postprocess flowfield 
     if params["run"]["routines"].get("postprocessing", False):
         run_flowfield_postprocessing(model, params)        

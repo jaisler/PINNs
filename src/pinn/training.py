@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: MIT
+from src.utils import print_metrics_table
 
 def training_is_enabled(params):
     """
@@ -36,4 +37,26 @@ def training_is_enabled(params):
         lbfgs_enabled and lbfgs_iterations > 0
     )
 
+def evaluate_data(model, data):
+       
+    test_data_available =  (
+        data["xtest"] is not None 
+        and data["ytest"] is not None 
+        and data["xtest"].shape[0] > 0
+    )
+
+    if not test_data_available:
+        print("---------------------------------------")
+        print("Skipping test evaluation.")
+        print("No test data were created. "
+              "This usually means N_test_data = 0 after the "
+              "train/validation/test split.")
+
+    test_metrics = model.evaluate_data(
+        data["xtest"], data["ytest"], data["rhotest"], data["utest"], 
+        data["vtest"], data["ptest"], data["muttest"]
+    )
+
+    # Print metrics of the test dataset
+    print_metrics_table(test_metrics, title="Test dataset metrics")
 
