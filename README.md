@@ -52,7 +52,8 @@ PINNs/
     │   ├── factory.py
     │   ├── losses.py
     │   ├── physics_informed_nn.py
-    │   └── residuals.py
+    │   ├── residuals.py
+    │   └── training.py
     ├── postprocessing/
     │   ├── __init__.py
     │   ├── flowfield.py

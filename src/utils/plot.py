@@ -253,6 +253,31 @@ def plot_sampling_points(pall, pin, pbc, pgrad, params, collpts=False):
 
     plt.close(fig)
 
+def plot_history_training(model, params):
+    """
+    Plot losses and validation loss
+
+    Parameters
+    ----------
+    model : PhysicsInformedNN
+        PhysicsInformedNN class object
+
+    params : dict
+        Configuration parameters dictionary.
+    """
+
+    # Get losses
+    l_data = model.get_data_loss()
+    l_res = model.get_residual_loss()
+    l_total = model.get_total_loss()
+    l_val = model.get_validation_data_loss()
+    n_epoch = model.get_n_epoch()
+    
+    # Plot losses
+    plot_losses(l_data, l_res, l_total, n_epoch, params)
+    # Plot validation loss
+    plot_validation_loss(l_data, l_val, n_epoch, params)
+
 def plot_losses(l_data, l_res, l_total, n_epoch, params):
     """
     Plot the training losses.
@@ -497,7 +522,7 @@ def plot_field_pyvista(
     )
 
     pl.add_scalar_bar(
-        title=f"{clabel}",
+        title=clabel,
         position_x=0.87,
         position_y=0.438,
         height=0.163,
@@ -700,10 +725,10 @@ def get_flow_variables(params):
 
     equation = params["run"]["equation"]
 
-    if equation == "Euler":
+    if equation == "euler":
         return ["rho", "p", "u", "v"]
 
-    if equation == "RANS":
+    if equation == "rans":
         return ["rho", "p", "u", "v", "mut"]
 
     raise ValueError(f"Unknown equation: {equation}.")
