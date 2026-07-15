@@ -23,6 +23,7 @@ All notable changes to this project will be documented in this file.
 - Refactored data sampling (#34)
 - Refactored the main workflow (#35)
 - Refactored the training pipeline (#36)
+- Cleaned up the main workflow (#37)
 
 ### Removed
 - Removed collocation dataset definition (#32)

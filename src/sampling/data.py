@@ -76,7 +76,15 @@ def get_collocation_points(params):
     """
 
     if params["run"]["model"] != "pinn":
-        return None
+        
+        collocation_points = {
+            "Xf": None,
+            "pts_in": None,
+            "pts_bc": None,
+            "pts_grad": None,
+        }
+
+        return collocation_points
 
     sampling_enabled = params['run']['routines']['sampling']
 

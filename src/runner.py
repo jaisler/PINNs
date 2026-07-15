@@ -26,12 +26,6 @@ def run() -> None:
     # Stop after sampling when inference is disabled
     if not params["run"]["routines"]["inference"]:
         return
-
-    # Collocation coordinates
-    if collocation_pnts is not None:
-        Xf = collocation_pnts["Xf"]
-    else:
-        Xf = None
         
     # Prepare training, validation, test and collocation datasets
     data = prepare_data(
@@ -40,7 +34,7 @@ def run() -> None:
         data_pnts["rho"], 
         data_pnts["p"], 
         data_pnts["mut"], 
-        Xf, 
+        collocation_pnts["Xf"], 
         params
     )
 
