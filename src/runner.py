@@ -5,7 +5,7 @@ import time
 from src.config import create_output_directories, load_config
 from src.sampling import get_data_points, get_collocation_points, prepare_data
 from src.networks import build_network
-from src.pinn import build_pinn_model
+from src.pinn import build_pinn_model, training_is_enabled
 from src.utils import print_metrics_table
 from src.postprocessing import run_flowfield_postprocessing
 import src.utils.plot as pl
@@ -49,18 +49,8 @@ def run() -> None:
     # Build PINN model
     model = build_pinn_model(network, data, params)
 
-    # Optimizer settings
-    adam_enabled = params["optimizer"]["adam"].get("enabled", False)
-    lbfgs_enabled = params["optimizer"]["lbfgs"].get("enabled", False)
-
-    adam_iterations = int(params["optimizer"]["adam"].get("iterations", 0))
-    lbfgs_iterations = int(params["optimizer"]["lbfgs"].get("iterations", 0))
-
-    do_training = (
-        adam_enabled and adam_iterations > 0
-    ) or (
-        lbfgs_enabled and lbfgs_iterations > 0
-    )
+    # Check if training is enabled
+    do_training = training_is_enabled(params)
 
     # Train
     if do_training:
@@ -73,7 +63,8 @@ def run() -> None:
 
         # Save model
         if params['run']['checkpoint']['save_model']:
-            model.save_model(params['paths']['model'], params['files']['model_name'])
+            model.save_model(params['paths']['model'], 
+                             params['files']['model_name'])
 
         # Get losses
         l_data = model.get_data_loss()
@@ -91,8 +82,9 @@ def run() -> None:
         print("---------------------------------------")
         print("Skipping training. Adam and LBFGS are disabled or both have "
                 "zero iterations.")
-
+ 
     # Evaluate data
+    # evaluate_data(mode, data)
     if (data["xtest"] is not None and data["ytest"] is not None and 
         data["xtest"].shape[0] > 0):
         test_metrics = model.evaluate_data(
@@ -107,9 +99,9 @@ def run() -> None:
         print("---------------------------------------")
         print("Skipping test evaluation.")
         print("No test data were created. "
-            "This usually means N_test_data = 0 after the "
-            "train/validation/test split.") 
+              "This usually means N_test_data = 0 after the "
+              "train/validation/test split.")
 
-
+    # Postprocess flowfield 
     if params["run"]["routines"].get("postprocessing", False):
         run_flowfield_postprocessing(model, params)        
