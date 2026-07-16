@@ -29,3 +29,4 @@ All notable changes to this project will be documented in this file.
 - Removed collocation dataset definition (#32)
 
 ### Fixed
+- Fixed plot scale for the scaled absolute error plot (#38)
