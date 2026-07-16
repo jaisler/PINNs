@@ -694,7 +694,7 @@ def plot_error_flow_pyvista(
         clabel = error_labels[variable]
 
         if error_type == "abs_error_01":
-            clim = (0.0, 1.0e-2) # graph scale
+            clim = (0.0, 1.0) # graph scale
         else:
             clim = None
 
