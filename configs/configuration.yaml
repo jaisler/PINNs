@@ -33,9 +33,9 @@ files:
 # Run setup
 # ---------
 run:
-  model: pinn          # Options: supervised or pinn
-  equation: euler      # Options: euler or rans
-  device: cpu          # Options: cpu or cuda
+  model: pinn                # Options: supervised or pinn
+  equation: euler            # Options: euler or rans
+  device: cpu                # Options: cpu or cuda
 
   routines:
     sampling: true
@@ -52,11 +52,11 @@ run:
 # Neural network
 # --------------
 network:
-  architecture: mlp       # Options: mlp or gnn 
+  architecture: mlp          # Options: mlp or gnn 
 
   mlp:
     layers: [2, 32, 32, 32, 4] 
-    activation: tanh # Options: tanh, sigmoid, sin, softplus, silu/swish, gelu
+    activation: tanh         # Options: tanh, sigmoid, sin, softplus, silu/swish or gelu
 
     dropout:
       probability: 0.0
@@ -64,8 +64,8 @@ network:
 
   gnn:
     latent_dim: 8
-    activation: tanh # Options: tanh, sigmoid, sin, softplus, silu/swish, gelu
-    neighbors: 6             # Used when construction
+    activation: tanh         # Options: tanh, sigmoid, sin, softplus, silu/swish or gelu
+    neighbors: 4             
 
     attributes:
       node:
@@ -76,13 +76,13 @@ network:
 
     processor:
       message_layers: 4  
-      aggregation: sum # Options: sum, max, mean
+      aggregation: sum       # Options: sum, max or mean
       residual: true
 
 # Sampling
 # --------
 sampling:
-  method: lhs       # random or lhs
+  method: lhs                # Options: random or lhs
 
   boundaries:
     names:
@@ -191,8 +191,8 @@ post_processing:
     - $p$ $[Pa]$
     - $u$ $[m/s]$
     - $v$ $[m/s]$
-    #- "$\\hat{\\mu}_{t}$ $[kg/m \\cdot s]$"  
-    
+    #- $\hat{\mu}_{t}$ $[kg/m \cdot s]$ 
+
   components: [0, 0, 0, 1] #, 0
 
   colormaps:

@@ -186,7 +186,7 @@ def plot_sampling_data(data_points, collocation_points, params):
         False,
     )
 
-    if collocation_points is not None:
+    if collocation_points["Xf"] is not None:
         plot_sampling_points(
             collocation_points["Xf"],
             collocation_points["pts_in"],
