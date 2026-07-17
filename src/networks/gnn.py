@@ -26,8 +26,8 @@ class GNN(BaseNetwork):
         message_layers=4,
         aggregation="sum",
         residual=True,
-        boundary_marker=None, 
-        use_edge_distance=False,
+        boundary_marker=False, 
+        use_edge_sdistance=False,
     ):
         super().__init__(
             # Base class initialisation
@@ -41,8 +41,8 @@ class GNN(BaseNetwork):
         else:
             self.boundary_marker = None
         
-        # Use edge distance - edge attributes
-        self.use_edge_distance = use_edge_distance
+        # Use edge squared distance - edge attributes
+        self.use_edge_sdistance = use_edge_sdistance
 
         # Number of neighbors of each node
         if neighbors < 3:
@@ -172,7 +172,7 @@ class GNN(BaseNetwork):
         edge_attr : torch.Tensor
             Edge feature tensor with shape (E, edge_input_dim). It contains
             the relative position for each edge, and optionally the edge
-            distance if `self.use_edge_distance` is enabled.
+            distance if `self.use_edge_sdistance` is enabled.
         """
 
         receivers = edge_index[0]
@@ -188,10 +188,18 @@ class GNN(BaseNetwork):
         # Edge features 
         edge_features = [relative_position]
 
+        if self.use_edge_sdistance:
+            squared_distance = torch.sum(
+                relative_position.square(),
+                dim=1,
+                keepdim=True,
+            )
+            edge_features.append(squared_distance)
+
         # Distance between node i and j
-        if self.use_edge_distance:
-            distance = torch.norm(relative_position, dim=1, keepdim=True)
-            edge_features.append(distance)
+        #if self.use_edge_distance:
+        #    distance = torch.norm(relative_position, dim=1, keepdim=True)
+        #    edge_features.append(distance)
 
         # Concatenate relative position with the distance vector
         edge_attr = torch.cat(edge_features, dim=1)

@@ -40,7 +40,7 @@ def build_network(params):
         if gnn_cfg['attributes']['node']['boundary_marker']:
             node_input_dim += 1
 
-        if gnn_cfg['attributes']['edge']['distance']:
+        if gnn_cfg['attributes']['edge']['squared_distance']:
             edge_input_dim += 1
 
         # Get output dimension
@@ -71,7 +71,7 @@ def build_network(params):
             aggregation=gnn_cfg['processor']['aggregation'],
             residual=gnn_cfg['processor']['residual'],
             boundary_marker=boundary_marker,
-            use_edge_distance=gnn_cfg['attributes']['edge']['distance'],
+            use_edge_sdistance=gnn_cfg['attributes']['edge']['squared_distance'],
         )
 
     else:

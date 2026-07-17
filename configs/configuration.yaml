@@ -52,7 +52,7 @@ run:
 # Neural network
 # --------------
 network:
-  architecture: mlp          # Options: mlp or gnn 
+  architecture: gnn          # Options: mlp or gnn 
 
   mlp:
     layers: [2, 32, 32, 32, 4] 
@@ -72,10 +72,10 @@ network:
         boundary_marker: false # TODO 
         
       edge:
-        distance: true                
+        squared_distance: true                
 
     processor:
-      message_layers: 4  
+      message_layers: 2  
       aggregation: sum       # Options: sum, max or mean
       residual: true
 
@@ -129,14 +129,14 @@ optimizer:
   # if both are enabled.
   lbfgs:
     enabled: true
-    iterations: 10
+    iterations: 4
     learning_rate: 1.0
     max_iter_per_step: 30
 
 # Loss
 # ----
 loss:
-  print_frequency: 10
+  print_frequency: 1
 
   weights:
     data:

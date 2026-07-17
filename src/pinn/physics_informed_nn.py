@@ -355,7 +355,7 @@ class PhysicsInformedNN(nn.Module):
                 print(f"    Graph neighbors per node     : {network.neighbors}")
                 message_cfg = params['network']['gnn']['attributes']
                 print(f"    Node boundary marker         : {message_cfg['node']['boundary_marker']}")
-                print(f"    Edge distance feature        : {message_cfg['edge']['distance']}")
+                print(f"    Edge squared distance        : {message_cfg['edge']['squared_distance']}")
                 processor_cfg = params['network']['gnn']['processor']
                 print(f"    Message-passing layers       : {processor_cfg['message_layers']}")
                 print(f"    Message aggregation          : {processor_cfg['aggregation']}")
