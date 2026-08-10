@@ -1,30 +1,21 @@
-# PIRFlow: Physics-Informed Reconstruction of Flow Field
+# PIRFlow
 
 ## Overview
-This repository provides a PyTorch framework for the physics-informed reconstruction of compressible flow fields from sparse and heterogeneous observations. It combines Physics-Informed Neural Networks (PINNs) with Graph Neural Network (GNN) architectures, enabling the governing Euler or Reynolds-averaged Navier–Stokes (RANS) equations to be imposed directly on irregular computational meshes.
 
-The primary objective is to solve an inverse problem for scramjet flows: reconstruct the complete flow field—including density, velocity, pressure, and relevant turbulence quantities—from limited measurements such as schlieren-derived density gradients, particle image velocimetry (PIV) data within the cavity, and discrete wall-pressure measurements. The framework aims to recover both the global shock-wave system and the local cavity dynamics, including the shear layer and recirculation region.
+This repository provides a PyTorch framework for reconstructing compressible flow fields from sparse and heterogeneous observations. It combines physics-informed learning with Graph Neural Network (GNN) architectures, incorporating governing equations such as the Euler and Reynolds-averaged Navier–Stokes (RANS) equations directly into the learning process on irregular computational meshes.
 
-The Euler formulation provides a controlled numerical benchmark for evaluating the reconstruction methodology, while the RANS formulation addresses a more experimentally representative problem. Ultimately, the project investigates how physical constraints and complementary measurement types can enable accurate and robust flow-field reconstruction when only sparse, incomplete, or noisy data are available.
+The framework addresses inverse problems in which complete flow fields—including density, velocity, pressure, and turbulence quantities—are inferred from limited measurements or numerical data. Its objective is to recover complex global and local flow features, such as shock waves, boundary layers, shear layers, and recirculation regions, while remaining applicable to a broad range of compressible-flow configurations.
 
 ## Features
 
-- PyTorch-based implementation
-- Support for steady compressible Euler equations and RANS-type formulations with effective viscosity
-- Support for MLP and GNN architectures
-- Supervised and physics-informed training modes
-- Sparse data reconstruction from CFD samples
-- Collocation-point residual minimization
-- Input normalization and non-dimensionalization
-- Positive constraints for density, pressure, and turbulent viscosity
-- Adam and L-BFGS optimization
-- Validation and test error metrics
-- Sampling utilities for CFD data and geometry-based points
-- Full-mesh prediction on CFD meshes
-- VTK export of predicted flow fields and error fields
-- Scaled absolute error post-processing
-- PyVista-based plotting of simulation, prediction, and error fields
-- Modular structure for networks, losses, residuals, sampling, metrics, plotting, and post-processing
+- PyTorch framework supporting MLP and GNN architectures
+- Steady compressible Euler and RANS formulations
+- Supervised and physics-informed training with sparse CFD data and collocation points
+- Non-dimensionalization, input normalization, and positivity constraints
+- Adam and L-BFGS optimization with validation and test metrics
+- Flexible sampling utilities for flow data and computational geometries
+- Full-mesh prediction, VTK export, and PyVista visualization of predicted fields and errors
+- Modular design for networks, physical residuals, losses, sampling, evaluation, and post-processing
 
 ## Project Structure
 
