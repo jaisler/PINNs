@@ -1,10 +1,11 @@
-# Physics-Informed Graph Neural Networks for Compressible Flows
+# PIRFlow: Physics-Informed Reconstruction of Flow Field
 
-This repository contains a PyTorch implementation of physics-informed neural networks and graph neural networks for reconstructing compressible flow fields from sparse CFD data.
+## Overview
+This repository provides a PyTorch framework for the physics-informed reconstruction of compressible flow fields from sparse and heterogeneous observations. It combines Physics-Informed Neural Networks (PINNs) with Graph Neural Network (GNN) architectures, enabling the governing Euler or Reynolds-averaged Navier–Stokes (RANS) equations to be imposed directly on irregular computational meshes.
 
-The project focuses on steady compressible Euler and RANS-type formulations, with applications to high-speed internal flows such as scramjet-like configurations. The model can be trained using sparse supervised data and, when enabled, physics-informed residual losses from the governing equations.
+The primary objective is to solve an inverse problem for scramjet flows: reconstruct the complete flow field—including density, velocity, pressure, and relevant turbulence quantities—from limited measurements such as schlieren-derived density gradients, particle image velocimetry (PIV) data within the cavity, and discrete wall-pressure measurements. The framework aims to recover both the global shock-wave system and the local cavity dynamics, including the shear layer and recirculation region.
 
-The neural network predicts flow variables such as density, velocity components, pressure, and, for RANS-type cases, turbulent viscosity.
+The Euler formulation provides a controlled numerical benchmark for evaluating the reconstruction methodology, while the RANS formulation addresses a more experimentally representative problem. Ultimately, the project investigates how physical constraints and complementary measurement types can enable accurate and robust flow-field reconstruction when only sparse, incomplete, or noisy data are available.
 
 ## Features
 
