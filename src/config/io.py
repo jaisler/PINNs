@@ -46,14 +46,15 @@ def create_output_directories(params):
     - params["paths"]["results"]
     - params["paths"]["samples"]
     - params["paths"]["model"]
-
+    - params["path"]["observations"]
+    
     Parameters
     ----------
     params : dict
         Configuration dictionary.
     """
 
-    required_paths = ('results', 'samples', 'model')
+    required_paths = ('results', 'samples', 'model', 'observations')
 
     try:
         paths = params["paths"]
