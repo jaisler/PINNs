@@ -20,6 +20,7 @@ class MLP(BaseNetwork):
         dropout_p=0.0,
         dropout_indices=None,
     ):
+        """Build an MLP from layer widths and activation settings."""
         super().__init__(
             # Base class initialisation
             input_dim=layers[0],

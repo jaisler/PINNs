@@ -15,6 +15,8 @@ if torch.cuda.is_available():
     torch.cuda.manual_seed_all(1234)
 
 class PhysicsInformedNN(nn.Module):
+    """Combine a neural network with flow data and physical constraints."""
+
     # Initialize the class (Constructor)
     def __init__(
         self,
@@ -31,6 +33,7 @@ class PhysicsInformedNN(nn.Module):
         pval=None,
         mutval=None,
     ):
+        """Initialize datasets, physical scales, graphs, and optimizers."""
         super().__init__()
 
         # Device selection
@@ -658,6 +661,7 @@ class PhysicsInformedNN(nn.Module):
 
             for it in range(1, self.n_lbfgs_iter + 1):
                 def closure():
+                    """Recompute the differentiable loss for one L-BFGS step."""
                     self.optimizer_lbfgs.zero_grad()
                     loss, _, _ = loss_fn(self)
                     loss.backward()
@@ -850,6 +854,7 @@ class PhysicsInformedNN(nn.Module):
         return xstar, ystar
 
     def save_model(self, filepath, filename):
+        """Save model, optimizer, scheduler, bounds, and loss state."""
 
         # Save adam optimzer
         optimizer_adam_state = (
@@ -895,6 +900,7 @@ class PhysicsInformedNN(nn.Module):
         print(f"Model saved to: {fullpath}")
 
     def load_model(self, filepath, filename):
+        """Restore model and available training state from a checkpoint."""
         
         # Path
         fullpath = os.path.join(filepath, filename)
@@ -1018,19 +1024,25 @@ class PhysicsInformedNN(nn.Module):
         return metrics
     
     def get_data_loss(self):
+        """Return the recorded supervised data-loss history."""
         return self.ldata
 
     def get_residual_loss(self):
+        """Return the recorded physical-residual loss history."""
         return self.lres
 
     def get_total_loss(self):
+        """Return the recorded total-loss history."""
         return self.loss
     
     def get_validation_data_loss(self):
+        """Return the recorded validation-loss history."""
         return self.lval
     
     def get_n_epoch(self):
+        """Return the number of completed optimizer iterations."""
         return self.n_epoch
     
     def callback(self, it, loss_value):
+        """Print a compact iteration and loss update."""
         print(f"It: {it}, Loss: {loss_value:.3e}")

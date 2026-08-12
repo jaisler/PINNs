@@ -29,6 +29,7 @@ class GNN(BaseNetwork):
         boundary_marker=False, 
         use_edge_sdistance=False,
     ):
+        """Build the GNN encoder, processor, and decoder components."""
         super().__init__(
             # Base class initialisation
             input_dim=node_input_dim,

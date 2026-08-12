@@ -18,6 +18,7 @@ class MessagePassingLayer(nn.Module):
         aggregation="sum",
         residual=True
     ):
+        """Configure latent edge and node updates for message passing."""
         super().__init__()
 
         self.latent_dim = latent_dim
@@ -47,6 +48,7 @@ class MessagePassingLayer(nn.Module):
         )
 
     def forward(self, h, g, edge_index, use_dropout=False):
+        """Apply the configured message-passing iterations to a graph."""
 
         receivers = edge_index[0]
         senders = edge_index[1]
@@ -83,6 +85,7 @@ class MessagePassingLayer(nn.Module):
         return h
 
     def message_aggregation(self, mij, receivers, n_nodes):
+        """Aggregate incoming edge messages for each receiver node."""
 
         if self.aggregation == 'sum':
             # aggr_mi = (N, latent_dim)
@@ -142,4 +145,3 @@ class MessagePassingLayer(nn.Module):
 
         return aggr_mi
         
-

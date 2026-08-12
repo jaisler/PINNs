@@ -12,6 +12,7 @@ class BaseNetwork(nn.Module, ABC):
     """
 
     def __init__(self, input_dim, output_dim):
+        """Store the input and output feature dimensions."""
         super().__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
@@ -37,6 +38,7 @@ class BaseNetwork(nn.Module, ABC):
         pass
 
     def _get_activation(self, activation):
+        """Return the PyTorch activation module selected by name."""
 
         if activation == "tanh":
             return nn.Tanh()

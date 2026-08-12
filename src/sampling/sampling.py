@@ -8,6 +8,8 @@ from pathlib import Path
 
 
 class SamplingData:
+    """Sample, persist, and expose CFD data or collocation points."""
+
     # Initialize the class
     def __init__(self, params, collpts=False):
         """
@@ -156,6 +158,7 @@ class SamplingData:
                 self.mut = np.zeros((self.X.shape[0], 1), dtype=float)
 
     def get_base_sampler(self, sampling_type: str):
+        """Return the point-sampling function selected by name."""
         if sampling_type == "random":
             return self.sample_random_points
         elif sampling_type == "lhs":
@@ -164,6 +167,7 @@ class SamplingData:
             raise ValueError("sampling type must be 'random' or 'lhs'")
 
     def sample_random_points(self, npoin, xmin, xmax, ymin, ymax):
+        """Draw uniformly distributed points inside a rectangular box."""
         pts = np.column_stack([
             np.random.uniform(xmin, xmax, npoin),
             np.random.uniform(ymin, ymax, npoin),
@@ -171,6 +175,7 @@ class SamplingData:
         return pts 
     
     def sample_latin_hypercube(self, npoin, xmin, xmax, ymin, ymax):
+        """Draw Latin-hypercube points inside a rectangular box."""
         try:
             from scipy.stats import qmc
             sampler = qmc.LatinHypercube(d=self.dims)   # use d=2 for 2D
@@ -277,6 +282,7 @@ class SamplingData:
         pool_factor=8,
         alpha=1.5,
         eps=1e-12):
+        """Sample valid mesh points with preference for large gradients."""
 
         rng = np.random.default_rng(self.params.get('seed', 1234))
 
@@ -348,6 +354,7 @@ class SamplingData:
         return pts_grad
         
     def nudge_bc_points(self, pts_bc, name, xmin, xmax, ymin, ymax):
+        """Move axis-aligned boundary points slightly into the domain."""
         pts = pts_bc.copy()
 
         # scale-aware eps (tiny fraction of domain size)
@@ -455,28 +462,37 @@ class SamplingData:
         return X, pts_in, pts_bc, pts_grad, U, rho, p, mut
 
     def get_boundary_marker(self):
+        """Return the boundary-marker array, when one is available."""
         return self.boundary_marker
 
     def get_pts_in(self):       
+        """Return sampled interior points."""
         return self.pts_in
     
     def get_pts_bc(self):       
+        """Return sampled boundary points."""
         return self.pts_bc
 
     def get_pts_grad(self):       
+        """Return sampled gradient-focused points."""
         return self.pts_grad
 
     def get_x(self):       
+        """Return all valid sampled coordinates."""
         return self.X
 
     def get_rho(self):
+        """Return sampled density values."""
         return self.rho
 
     def get_u(self):       
+        """Return sampled velocity vectors."""
         return self.U
 
     def get_p(self):
+        """Return sampled pressure values."""
         return self.p
     
     def get_mut(self):
+        """Return sampled turbulent-viscosity values."""
         return self.mut
