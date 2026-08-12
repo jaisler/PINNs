@@ -30,12 +30,6 @@ python -m pip install -r requirements.txt
 Copy or edit `configs/configuration.yaml` for your local CFD flowfield, mesh,
 sample, model, and result paths. Keep personal paths out of commits.
 
-Run PIRFlow from the repository root:
-
-```bash
-python main.py
-```
-
 ## Making Changes
 
 - Keep each contribution focused on one problem.
