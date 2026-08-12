@@ -6,18 +6,17 @@ from typing import Any
 import yaml
 
 def load_config(config_path='configs/configuration.yaml'):
-    """
-    Load a YAML configuration file.
+    """Load a PIRFlow YAML configuration.
 
     Parameters
     ----------
     config_path : str
-        Path to the YAML configuration file.
+        Path to the YAML file.
 
     Returns
     -------
-    params : dict
-        Parsed configuration dictionary.
+    dict
+        Parsed configuration.
     """
 
     config_path = Path(config_path)
@@ -38,20 +37,17 @@ def load_config(config_path='configs/configuration.yaml'):
     return params
 
 def create_output_directories(params):
-    """
-    Create output directories defined in the configuration file.
-
-    The expected entries are:
-
-    - params["paths"]["results"]
-    - params["paths"]["samples"]
-    - params["paths"]["model"]
-    - params["path"]["observations"]
+    """Create the configured output directories.
     
     Parameters
     ----------
     params : dict
-        Configuration dictionary.
+        PIRFlow configuration.
+
+    Returns
+    -------
+    None
+        Missing output directories are created.
     """
 
     required_paths = ('results', 'samples', 'model', 'observations')

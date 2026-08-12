@@ -5,13 +5,12 @@ from .residuals import steady_euler_residuals
 from .residuals import steady_compressible_rans_residuals
 
 def zero_loss(pinn):
-    """
-    Create a scalar zero tensor on the same device as the PINN model.
+    """Create a scalar zero on the model device.
 
     Parameters
     ----------
     pinn : PhysicsInformedNN
-        Physics-informed neural network object.
+        Model providing the target device.
 
     Returns
     -------
@@ -23,37 +22,27 @@ def zero_loss(pinn):
 
 def data_loss_terms(pinn, x, y, rho_true, u_true, v_true, p_true,
                     mut_true=None, use_dropout=False, role="data"):
-    """
-    Compute supervised data loss terms.
+    """Compute mean-squared errors for the supervised flow fields.
 
     Parameters
     ----------
     pinn : PhysicsInformedNN
-        Physics-informed neural network object. It must provide the method
-        `net_fields`.
-
+        Model used to predict the fields.
     x, y : torch.Tensor
         Coordinate tensors.
-
     rho_true, u_true, v_true, p_true : torch.Tensor
-        Reference non-dimensional density, velocity components and pressure.
-
+        Reference nondimensional flow fields.
     mut_true : torch.Tensor or None, optional
         Reference scaled turbulent viscosity. Required only for RANS.
-
     use_dropout : bool, optional
-        If True, data predictions are computed with dropout activated in the
-        selected layers.
-
+        Whether to enable data dropout.
     role : {"data", "validation", "query"} or None
-        Specifies which graph the GNN should evaluate.
-
-        This argument is ignored by the MLP.
+        GNN graph role; ignored by the MLP.
 
     Returns
     -------
-    l_rho, l_u, l_v, l_p, l_mut : torch.Tensor
-        Individual mean-squared-error loss terms.
+    tuple of torch.Tensor
+        Density, velocity, pressure, and viscosity loss terms.
     """
 
     if pinn.eq == 'euler': 
@@ -83,24 +72,18 @@ def data_loss_terms(pinn, x, y, rho_true, u_true, v_true, p_true,
     return l_rho, l_u, l_v, l_p, l_mut
 
 def residual_loss_terms(pinn):
-    """
-    Compute PDE residual loss terms.
+    """Compute mean-squared PDE residual terms.
 
     Parameters
     ----------
     pinn : PhysicsInformedNN
-        Physics-informed neural network object. It must provide the model type,
-        equation type, collocation tensors, and the physical parameters needed
-        by the residual functions.
+        Model containing collocation points and physical parameters.
 
     Returns
     -------
-    l_f1, l_f2, l_f3, l_f4 : torch.Tensor
-        Individual PDE residual mean-squared-error loss terms.
-
-    Notes
-    -----
-    If `pinn.model == "supervised"`, all PDE residual losses are zero.
+    tuple of torch.Tensor
+        Mass, momentum, and energy residual losses. All values are zero for a
+        supervised model.
     """
 
     if pinn.model == 'supervised':
@@ -159,28 +142,20 @@ def residual_loss_terms(pinn):
     return l_f1, l_f2, l_f3, l_f4
 
 def loss_fn(pinn, return_terms=False):
-    """
-    Compute the full training loss.
+    """Compute the weighted data and physics training objective.
 
     Parameters
     ----------
     pinn : PhysicsInformedNN
-        Physics-informed neural network object.
-
+        Model containing predictions, data, and loss weights.
     return_terms : bool, optional
-        If True, return the total loss and all individual loss terms.
-        If False, return the total loss, data loss and residual loss.
+        Whether to return every unweighted component.
 
     Returns
     -------
-    If return_terms is False:
-        loss, data_loss, res_loss : torch.Tensor
-            Total loss, weighted supervised data loss, and weighted PDE
-            residual loss.
-
-    If return_terms is True:
-        loss, l_rho, l_u, l_v, l_p, l_mut, l_f1, l_f2, l_f3, l_f4
-            Total loss and individual unweighted loss terms.
+    tuple of torch.Tensor
+        Total, data, and residual losses, or the total followed by every
+        component when ``return_terms`` is true.
     """
     
     # Define dropout
@@ -220,17 +195,17 @@ def loss_fn(pinn, return_terms=False):
     return loss, data_loss, res_loss
 
 def validation_loss_fn(pinn):
-    """
-    Validation data loss function based only on supervised data.
-
-    The validation set should not be used to update the weights.
-    It is only used to decide when to stop training.
+    """Compute the weighted supervised validation loss.
    
     Parameters
     ----------
     pinn : PhysicsInformedNN
-        Physics-informed neural network object.
+        Model containing validation data and loss weights.
 
+    Returns
+    -------
+    torch.Tensor or None
+        Validation loss, or ``None`` when validation data are unavailable.
     """
 
     if not pinn.has_validation:

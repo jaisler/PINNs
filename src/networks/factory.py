@@ -1,17 +1,22 @@
 # SPDX-License-Identifier: MIT
 """
-Factory functions for creating neural network architectures.
+Factory function for creating neural network architectures.
 """
 
 from src.networks import MLP, GNN
 
 def build_network(params):
-    """
-    Create the neural network from the configuration file.
+    """Create the configured MLP or GNN architecture.
 
-    The selected architecture can be:
-    - MLP
-    - GNN
+    Parameters
+    ----------
+    params : dict
+        PIRFlow configuration.
+
+    Returns
+    -------
+    BaseNetwork
+        Configured neural network.
     """
 
     architecture = params['network']['architecture']

@@ -7,7 +7,13 @@ from src.postprocessing import run_flowfield_postprocessing
 from src.utils import plot_prepared_data, plot_sampling_data
 
 def run() -> None:
-    """Execute the configured PIRFlow reconstruction workflow."""
+    """Execute the configured PIRFlow reconstruction workflow.
+
+    Returns
+    -------
+    None
+        Results are written to the configured output directories.
+    """
     
     # Configuration file
     params = load_config()

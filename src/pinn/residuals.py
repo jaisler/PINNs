@@ -2,26 +2,19 @@
 import torch
 
 def grad(y, x):
-    """
-    Compute dy/dx using PyTorch automatic differentiation.
+    """Differentiate a tensor with respect to an input tensor.
 
     Parameters
     ----------
     y : torch.Tensor
-        Dependent variable or flux term. It must depend on `x`.
-
+        Dependent variable or flux term.
     x : torch.Tensor
-        Independent variable. It must have `requires_grad=True`.
+        Independent variable with gradients enabled.
 
     Returns
     -------
     torch.Tensor
-        Derivative of `y` with respect to `x`.
-
-    Notes
-    -----
-    The computational graph is retained to allow multiple derivative
-    evaluations and possible higher-order derivatives.
+        Derivative of ``y`` with respect to ``x`` with its graph retained.
     """
 
     return torch.autograd.grad(
@@ -35,21 +28,21 @@ def grad(y, x):
 
 
 def steady_euler_residuals(pinn, x, y, rho, u, v, p):
-    """
-    Steady compressible Euler residuals.
+    """Compute nondimensional steady Euler residuals.
 
     Parameters
     ----------
-    pinn :
-        PhysicsInformedNN object.
-    x, y :
+    pinn : PhysicsInformedNN
+        Model providing the heat-capacity ratio.
+    x, y : torch.Tensor
         Collocation coordinates.
-    rho, u, v, p :
+    rho, u, v, p : torch.Tensor
         Predicted flow fields.
         
     Returns
     -------
-    f1, f2, f3, f4
+    tuple of torch.Tensor
+        Mass, x-momentum, y-momentum, and energy residuals.
     """
 
     # Heat capacity ratio
@@ -81,22 +74,21 @@ def steady_euler_residuals(pinn, x, y, rho, u, v, p):
     return f1, f2, f3, f4
 
 def steady_compressible_rans_residuals(pinn, x, y, rho, u, v, p, muthat):
-    """
-    Steady compressible RANS residuals. 
-    Equations in non-dimensional formulation.
+    """Compute nondimensional steady compressible RANS residuals.
 
     Parameters
     ----------
-    pinn :
-        PhysicsInformedNN object.
-    x, y :
+    pinn : PhysicsInformedNN
+        Model providing physical constants and viscosity scaling.
+    x, y : torch.Tensor
         Collocation coordinates.
-    rho, u, v, p, muhat :
-        Predicted flow field.
+    rho, u, v, p, muthat : torch.Tensor
+        Predicted flow fields.
 
     Returns
     -------
-    f1, f2, f3, f4
+    tuple of torch.Tensor
+        Mass, x-momentum, y-momentum, and energy residuals.
     """
 
     # Recover physical nondimensional eddy viscosity

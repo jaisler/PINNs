@@ -2,24 +2,21 @@
 import torch
 
 def compute_metrics(y_pred, y_true, eps=1.0e-12):
-    """
-    Compute MSE, RMSE, relative L2 error, and R2 score.
+    """Compute MSE, RMSE, relative L2 error, and R2.
 
     Parameters
     ----------
     y_pred : torch.Tensor
         Predicted values.
-
     y_true : torch.Tensor
         Reference values.
-
     eps : float, optional
-        Small value to avoid division by zero.
+        Small denominator safeguard.
 
     Returns
     -------
     dict
-        Dictionary with mse, rmse, rel_l2, and r2.
+        Scalar metrics keyed by name.
     """
 
     error = y_pred - y_true
@@ -46,19 +43,21 @@ def compute_metrics(y_pred, y_true, eps=1.0e-12):
     }
 
 def print_metrics_table(metrics, title="Metrics", rel_l2_percent=True):
-    """
-    Print a formatted table with the metrics for each variable.
+    """Print a formatted metric table for each flow variable.
 
     Parameters
     ----------
     metrics : dict
-        Dictionary containing the metrics for each variable.
-
+        Metrics keyed by flow variable.
     title : str, optional
-        Title of the printed table.
-
+        Table title.
     rel_l2_percent : bool, optional
-        If True, print the relative L2 error as a percentage.
+        Whether to display relative L2 error as a percentage.
+
+    Returns
+    -------
+    None
+        The table is written to standard output.
     """
 
     rel_l2_name = "Rel. L2 (%)" if rel_l2_percent else "Rel. L2"

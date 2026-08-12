@@ -2,8 +2,7 @@
 from .sampling import SamplingData
 
 def get_data_points(params):
-    """
-    Sample new data points or read existing data points from file.
+    """Sample CFD observations or load a saved observation set.
 
     Parameters
     ----------
@@ -12,8 +11,8 @@ def get_data_points(params):
 
     Returns
     -------
-    data_points : dict
-        Data points and flow variables
+    dict
+        Coordinates, flow variables, and sampling groups.
     """
 
     sampling_enabled = params['run']['routines']['sampling']
@@ -59,10 +58,7 @@ def get_data_points(params):
     return data_points
 
 def get_collocation_points(params):
-    """
-    Sample new collocation points or read existing points from file.
-
-    Collocation points are only required for a physics-informed model.
+    """Sample or load collocation points for physics-informed training.
    
     Parameters
     ----------
@@ -71,8 +67,9 @@ def get_collocation_points(params):
 
     Returns
     -------
-    collocation_points : dict
-        Collocation points    
+    dict
+        Collocation coordinates and sampling groups, or ``None`` values for
+        a supervised model.
     """
 
     if params["run"]["model"] != "pinn":

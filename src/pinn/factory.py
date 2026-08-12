@@ -1,29 +1,25 @@
 # SPDX-License-Identifier: MIT
 from .physics_informed_nn import PhysicsInformedNN
+"""
+Factory function for creating physics-informed neural network model.
+"""
 
 def build_pinn_model(network, data, params):
-    """
-    Build the physics-informed neural network model.
+    """Build a configured physics-informed model wrapper.
 
     Parameters
     ----------
     network : torch.nn.Module
-        Neural network architecture used by the model, such as an MLP
-        or GNN. Object from a class.
-
+        MLP or GNN used for field prediction.
     data : dict
-        Dictionary containing the prepared training, validation, and
-        collocation datasets. 
-
+        Prepared training, validation, and collocation arrays.
     params : dict
-        Dictionary containing the model, physics, optimizer, and runtime
-        configuration parameters.
+        PIRFlow configuration.
 
     Returns
     -------
-    model : PhysicsInformedNN
-        Initialized physics-informed neural network model. Object of the
-        PhysicsInformedNN class.
+    PhysicsInformedNN
+        Initialized model wrapper.
     """
 
     model = PhysicsInformedNN(

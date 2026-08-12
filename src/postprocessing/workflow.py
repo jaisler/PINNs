@@ -2,14 +2,22 @@
 
 import os
 import pyvista as pv
- 
+
 import src.utils.plot as pl
 from src.postprocessing import FlowFieldPostProcessor
 
 def load_flowfield(params):
-    """
-    Load the CFD mesh/flowfield used for full-field prediction,
-    VTK writing, and PyVista plotting.
+    """Load the configured CFD mesh and reference flowfield.
+
+    Parameters
+    ----------
+    params : dict
+        PIRFlow configuration.
+
+    Returns
+    -------
+    pyvista.DataSet
+        Loaded CFD dataset.
     """
 
     flowfield_path = os.path.join(
@@ -21,30 +29,19 @@ def load_flowfield(params):
 
 
 def run_flowfield_postprocessing(model, params):
-    """
-    Run the complete post-processing workflow on the full CFD mesh.
-
-    This includes:
-      1. loading the CFD flowfield,
-      2. predicting the PINN/GNN solution on the full mesh,
-      3. writing predicted and error fields,
-      4. plotting simulation, prediction, and error fields.
+    """Run full-mesh prediction, comparison, export, and plotting.
 
     Parameters
     ----------
     model : PhysicsInformedNN
-        Trained PINN/GNN model.
-
+        Trained flow model.
     params : dict
-        Configuration dictionary.
+        PIRFlow configuration.
 
     Returns
     -------
-    postprocessor : FlowFieldPostProcessor
-        Postprocessor object containing predicted and error fields.
-
-    flowfield : pyvista.DataSet
-        Loaded CFD mesh/flowfield.
+    None
+        Output fields and plots are written to disk.
     """
 
     if not params["run"]["routines"].get("inference", False): 
@@ -109,5 +106,3 @@ def run_flowfield_postprocessing(model, params):
             "running in cpu device and "
             "params['post_processing']['plot'] is True."
         )
-
- 

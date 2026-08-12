@@ -5,22 +5,17 @@ from src.utils import print_metrics_table
 from src.utils import plot_history_training
 
 def training_is_enabled(params):
-    """
-    Determine whether training is enabled for at least one optimizer.
-
-    Training is considered enabled when either Adam or L-BFGS is enabled
-    and its configured number of iterations is greater than zero.
+    """Check whether an optimizer has a positive training budget.
 
     Parameters
     ----------
     params : dict
-        Configuration parameters containing the optimizer settings.
+        PIRFlow configuration.
 
     Returns
     -------
     bool
-        ``True`` if Adam or L-BFGS training is enabled with a positive
-        number of iterations; otherwise, ``False``.
+        Whether Adam or L-BFGS is enabled with positive iterations.
     """
 
     adam_enabled = params["optimizer"]["adam"].get("enabled", False)
@@ -41,16 +36,19 @@ def training_is_enabled(params):
     )
 
 def train_model(model, params):
-    """
-    Train model, save its checkpoints, and plot its loss history.
+    """Train a model and optionally save its checkpoint.
 
     Parameters
     ----------
     model : PhysicsInformedNN
-        PhysicsInformedNN class object
-
+        Model to train.
     params : dict
-        Configuration parameters dictionary.
+        PIRFlow configuration.
+
+    Returns
+    -------
+    None
+        Training state and output files are updated in place.
     """
 
     # Check if training is enabled
@@ -81,18 +79,19 @@ def train_model(model, params):
 
 
 def evaluate_data(model, data):
-    """
-    Evaluate the model using test dataset.
+    """Evaluate a model on the prepared test dataset.
     
     Parameters
     ----------
     model : PhysicsInformedNN
-        Initialized physics-informed neural network model. Object of the
-        PhysicsInformedNN class.
-
+        Model to evaluate.
     data : dict
-        Dictionary containing the prepared training, validation, and
-        collocation datasets.
+        Prepared dataset mapping.
+
+    Returns
+    -------
+    None
+        Metrics are printed to standard output.
     """
 
     test_data_available = (

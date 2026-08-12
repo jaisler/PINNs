@@ -2,22 +2,19 @@
 from ..pinn.losses import loss_fn
 
 def print_loss(pinn, it):
-    """
-    Print the current training loss terms.
+    """Print the current training-loss components.
 
     Parameters
     ----------
     pinn : PhysicsInformedNN
-        PINN object containing the model type, equation type, loss weights,
-        data tensors, and residual tensors needed by `loss_fn`.
-
+        Model containing data and physical loss terms.
     it : int
-        Current training iteration.
+        Training iteration.
 
     Returns
     -------
     None
-        This function only prints the loss values.
+        Losses are written to standard output.
     """
     if pinn.model == 'pinn':
 

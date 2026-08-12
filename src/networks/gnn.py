@@ -8,12 +8,7 @@ from .mlp import MLP
 from .message_passing import MessagePassingLayer
 
 class GNN(BaseNetwork):
-    """
-    Graph neural network
-    
-    The input coordinates are assumed to be already normalized before
-    being passed to this network.
-    """
+    """Predict flow variables with an encode-process-decode graph network."""
 
     def __init__(
         self,
@@ -29,7 +24,33 @@ class GNN(BaseNetwork):
         boundary_marker=False, 
         use_edge_sdistance=False,
     ):
-        """Build the GNN encoder, processor, and decoder components."""
+        """Build the GNN encoder, processor, and decoder.
+
+        Parameters
+        ----------
+        node_input_dim : int
+            Number of node input features.
+        edge_input_dim : int
+            Number of geometric edge features.
+        output_dim : int
+            Number of predicted flow variables.
+        latent_dim : int, optional
+            Width of latent features.
+        activation : str, optional
+            Activation used by the internal MLPs.
+        neighbors : int, optional
+            Number of nearest neighbors per node.
+        message_layers : int, optional
+            Number of processor iterations.
+        aggregation : str, optional
+            Incoming-message reduction.
+        residual : bool, optional
+            Whether processor updates are residual.
+        boundary_marker : array_like or None, optional
+            Optional node boundary markers.
+        use_edge_sdistance : bool, optional
+            Whether edges include squared distance.
+        """
         super().__init__(
             # Base class initialisation
             input_dim=node_input_dim,
@@ -94,29 +115,23 @@ class GNN(BaseNetwork):
         )    
 
     def forward(self, X, edge_index, edge_attr, use_dropout=False):
-        """
-        Forward pass of the GNN.
-
-        The method builds a k-nearest-neighbor graph from the input nodes,
-        computes edge attributes, encodes node and edge features, applies
-        message passing, and decodes the final node features into the output
-        variables.
+        """Evaluate node features on an existing graph.
 
         Parameters
         ----------
         X : torch.Tensor
-            Input node features with shape (N, node_input_dim), where N is the
-            number of nodes. Usually this contains the node coordinates, such as
-            [x, y].
-
+            Node features with shape ``(N, node_input_dim)``.
+        edge_index : torch.Tensor
+            Receiver and sender indices with shape ``(2, E)``.
+        edge_attr : torch.Tensor
+            Edge features with shape ``(E, edge_input_dim)``.
         use_dropout : bool, optional
-            Whether to use dropout. Default is False.
+            Reserved dropout flag.
 
         Returns
         -------
-        Y : torch.Tensor
-            Output predictions at the nodes, with shape (N, output_dim).
-            For example, this may contain [rho, u, v, p].
+        torch.Tensor
+            Raw node predictions with shape ``(N, output_dim)``.
         """
  
         # Node attributes
@@ -137,11 +152,18 @@ class GNN(BaseNetwork):
         return Y
 
     def build_graph(self, X):
-        """
-        Build graph connectivity and edge attributes.
+        """Build connectivity and geometric edge attributes.
 
-        The topology edge_index is built using detached coordinates because
-        nearest-neighbor selection is not differentiable.
+        Parameters
+        ----------
+        X : torch.Tensor
+            Normalized node coordinates.
+
+        Returns
+        -------
+        tuple of torch.Tensor
+            Edge indices and edge attributes. Neighbor selection uses detached
+            coordinates.
         """
 
         edge_index = self.build_knn_graph(X.detach())
@@ -150,30 +172,19 @@ class GNN(BaseNetwork):
         return edge_index, edge_attr
 
     def build_edge_attr(self, X, edge_index):
-        """
-        Build edge features from node coordinates.
-
-        For each edge j -> i, this method computes the relative position
-        between the receiver node i and the sender node j. Optionally, it
-        also appends the Euclidean distance between the two nodes.
+        """Build geometric features for each directed edge.
 
         Parameters
         ----------
         X : torch.Tensor
-            Node coordinates with shape (N, node_input_dim), where N is the
-            number of nodes.
-
+            Node coordinates with shape ``(N, node_input_dim)``.
         edge_index : torch.Tensor
-            Edge connectivity with shape (2, E), where E is the number of
-            edges. The first row contains receiver node indices and the second
-            row contains sender node indices.
+            Receiver and sender indices with shape ``(2, E)``.
 
         Returns
         -------
-        edge_attr : torch.Tensor
-            Edge feature tensor with shape (E, edge_input_dim). It contains
-            the relative position for each edge, and optionally the edge
-            distance if `self.use_edge_sdistance` is enabled.
+        torch.Tensor
+            Relative positions and optional squared distances.
         """
 
         receivers = edge_index[0]
@@ -208,8 +219,7 @@ class GNN(BaseNetwork):
         return edge_attr
 
     def build_knn_graph(self, X):
-        """
-        Build a k-nearest-neighbor graph from point coordinates.
+        """Build a directed k-nearest-neighbor graph.
 
         Parameters
         ----------
@@ -218,10 +228,8 @@ class GNN(BaseNetwork):
 
         Returns
         -------
-        edge_index : torch.Tensor
-            Edge list with shape (2, N * neighbors).
-            edge_index[0] contains receiver nodes i.
-            edge_index[1] contains sender nodes j.
+        torch.Tensor
+            Receiver and sender indices with shape ``(2, N * neighbors)``.
         """
 
         if self.neighbors >= X.shape[0]:
