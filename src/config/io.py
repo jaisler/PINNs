@@ -50,7 +50,7 @@ def create_output_directories(params):
         Missing output directories are created.
     """
 
-    required_paths = ('results', 'samples', 'model', 'observations')
+    required_paths = ('results', 'samples', 'model')
 
     try:
         paths = params["paths"]

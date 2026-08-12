@@ -31,7 +31,8 @@ def run() -> None:
     plot_sampling_data(data_pnts, collocation_pnts, params)
 
     # Stop after sampling when inference is disabled
-    if not params["run"]["routines"]["inference"]:
+    if not params["run"]["routines"]["inference"] or \
+       not params["run"]["routines"]["identification"]:
         return
         
     # Prepare training, validation, test and collocation datasets
