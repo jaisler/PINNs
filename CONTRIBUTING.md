@@ -78,7 +78,6 @@ When adding a configuration option:
 2. Validate unsupported or inconsistent values near the point of use.
 3. Use `.get(...)` only when a genuine backward-compatible default exists.
 4. Update the README or relevant docstrings when users need to know about it.
-5. Never add local absolute paths, secrets, or private dataset locations.
 
 ## Validation
 
