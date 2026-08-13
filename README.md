@@ -2,9 +2,9 @@
 
 ## Overview
 
-This repository provides a PyTorch framework for reconstructing compressible flow fields from sparse and heterogeneous observations. It combines physics-informed learning with Graph Neural Network (GNN) architectures, incorporating governing equations such as the Euler and Reynolds-averaged Navier–Stokes (RANS) equations directly into the learning process on irregular computational meshes.
+This repository provides a PyTorch framework for reconstructing compressible flow fields from sparse, heterogeneous observations. It combines physics-informed learning with Graph Neural Networks (GNNs), embedding governing equations, including the Euler and Reynolds-averaged Navier–Stokes (RANS) equations, directly into the learning process on irregular computational meshes.
 
-The framework addresses inverse problems in which complete flow fields—including density, velocity, pressure, and turbulence quantities—are inferred from limited measurements or numerical data. Its objective is to recover complex global and local flow features, such as shock waves, boundary layers, shear layers, and recirculation regions, while remaining applicable to a broad range of compressible-flow configurations.
+The framework targets inverse problems in which complete flow fields—such as density, velocity, pressure, and turbulence quantities—are inferred from limited experimental or numerical data. It is designed to recover both global and local flow structures, including shock waves, boundary layers, shear layers, and recirculation regions, while remaining adaptable to a broad range of compressible-flow configurations.
 
 ## Features
 
@@ -17,50 +17,12 @@ The framework addresses inverse problems in which complete flow fields—includi
 - Full-mesh prediction, VTK export, and PyVista visualization of predicted fields and errors
 - Modular design for networks, physical residuals, losses, sampling, evaluation, and post-processing
 
-## Project Structure
+## Documentation
 
-```text
-PINNs/
-├── LICENSE
-├── main.py
-├── README.md
-├── configs/
-│   └── configuration.yaml/
-└── src/
-    ├── __init__.py
-    ├── runner.py
-    ├── config/
-    │   ├── __init__.py
-    │   └── io.py
-    ├── networks/
-    │   ├── __init__.py
-    │   ├── base.py
-    │   ├── factory.py
-    │   ├── gnn.py
-    │   ├── message_passing.py
-    │   └── mlp.py
-    ├── pinn/
-    │   ├── __init__.py
-    │   ├── factory.py
-    │   ├── losses.py
-    │   ├── physics_informed_nn.py
-    │   ├── residuals.py
-    │   └── training.py
-    ├── postprocessing/
-    │   ├── __init__.py
-    │   ├── flowfield.py
-    │   └── workflow.py
-    ├── sampling/
-    │   ├── __init__.py
-    │   ├── data.py
-    │   ├── sampling.py
-    │   └── splitting.py
-    └── utils/
-        ├── __init__.py
-        ├── metrics.py
-        ├── ploy.py
-        └── print_loss.py
-```
+See the [PIRFlow documentation](docs/README.md) for the user guide,
+configuration reference, architecture overview, module reference, and current
+identification-module status. Code contribution standards are documented in
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
