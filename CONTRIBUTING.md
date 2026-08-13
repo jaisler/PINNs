@@ -13,7 +13,8 @@ documentation corrections can be submitted directly.
 
 Do not commit CFD datasets, generated samples, trained models, result files,
 credentials, or machine-specific paths. The `samples/`, `model/`, and
-`results/` directories are intentionally ignored by Git.
+`results/` directories are intentionally ignored by Git, since these 
+repositories are reserved for the code output.
 
 ## Development Setup
 
