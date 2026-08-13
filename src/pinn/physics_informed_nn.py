@@ -15,6 +15,8 @@ if torch.cuda.is_available():
     torch.cuda.manual_seed_all(1234)
 
 class PhysicsInformedNN(nn.Module):
+    """Combine a flow network with supervised and physical constraints."""
+
     # Initialize the class (Constructor)
     def __init__(
         self,
@@ -31,6 +33,27 @@ class PhysicsInformedNN(nn.Module):
         pval=None,
         mutval=None,
     ):
+        """Initialize model data, physical scales, graphs, and optimizers.
+
+        Parameters
+        ----------
+        network : BaseNetwork
+            MLP or GNN used to predict flow variables.
+        xdata, ydata : numpy.ndarray
+            Training coordinates.
+        rhodata, udata, vdata, pdata : numpy.ndarray
+            Training flow variables.
+        xf, yf : numpy.ndarray or None
+            Collocation coordinates for physics-informed training.
+        params : dict
+            PIRFlow configuration.
+        mutdata : numpy.ndarray or None, optional
+            Training turbulent viscosity for RANS.
+        xval, yval : numpy.ndarray or None, optional
+            Validation coordinates.
+        rhoval, uval, vval, pval, mutval : numpy.ndarray or None, optional
+            Validation flow variables.
+        """
         super().__init__()
 
         # Device selection
@@ -392,26 +415,18 @@ class PhysicsInformedNN(nn.Module):
             print(f"    Save                         : {params['run']['checkpoint']['save_model']}")
             
     def forward(self, X, use_dropout=False, edge_index=None, edge_attr=None):
-        """
-        Evaluate the neural network inside the PINN.
-
-        The input coordinates are first normalized using the bounds stored in
-        the PINN class. The normalized coordinates are then passed to the
-        selected network, for example an MLP or GNN.
+        """Normalize coordinates and evaluate the selected network.
 
         Parameters
         ----------
         X : torch.Tensor
-            Input coordinates with shape (N, input_dim).
-
+            Input coordinates with shape ``(N, input_dim)``.
         use_dropout : bool, optional
-            If True, enables dropout inside the network.
-
+            Whether to enable MLP dropout.
         edge_index : torch.Tensor or None, optional
-            GNN graph connectivity
-
+            GNN receiver and sender indices.
         edge_attr : torch.Tensor or None, optional
-            GNN edge attributes
+            GNN edge attributes.
 
         Returns
         -------
@@ -438,13 +453,17 @@ class PhysicsInformedNN(nn.Module):
         raise ValueError(f"Unknown network architecture: {self.net_arch}")
 
     def normalize_input(self, X):
-        """
-        Input normalisation between [-1,1]
+        """Normalize each coordinate to the interval ``[-1, 1]``.
 
         Parameters
         ----------
         X : torch.Tensor
             Input coordinates.
+
+        Returns
+        -------
+        torch.Tensor
+            Normalized coordinates.
         """
 
         coordinate_range = self.ub - self.lb
@@ -458,13 +477,18 @@ class PhysicsInformedNN(nn.Module):
         return 2.0 * (X - self.lb) / (self.ub - self.lb + eps) - 1.0
 
     def output_to_fields(self, out):
-        """
-        Convert raw network output into physical flow variables.
+        """Convert raw outputs into constrained nondimensional fields.
 
-        Note that, this method can be used to:
-        rho_data, u_data, v_data, p_data = self.output_to_fields(out_data)
-        rho_f, u_f, v_f, p_f = self.output_to_fields(out_res)
-        for GNN.
+        Parameters
+        ----------
+        out : torch.Tensor
+            Raw network outputs.
+
+        Returns
+        -------
+        tuple of torch.Tensor
+            Density, velocity components, pressure, and optional RANS
+            turbulent viscosity.
         """
 
         # Common variables
@@ -488,21 +512,21 @@ class PhysicsInformedNN(nn.Module):
 
 
     def net_fields(self, x, y, use_dropout=False, role=None):
-        """
-        Predict physical flow variables.
+        """Predict nondimensional flow fields for the requested graph role.
 
         Parameters
         ----------
         x, y : torch.Tensor
             Coordinates.
-
         use_dropout : bool, optional
             Whether dropout is enabled.
-
         role : {"data", "residual", "validation", "query"} or None
-            Specifies which graph the GNN should evaluate.
+            GNN evaluation graph; ignored by the MLP.
 
-            This argument is ignored by the MLP.
+        Returns
+        -------
+        tuple of torch.Tensor
+            Predicted fields for the configured equation.
         """
         
         X = torch.cat([x, y], dim=1)
@@ -598,16 +622,12 @@ class PhysicsInformedNN(nn.Module):
             raise ValueError(f"Unknown network architecture: {self.net_arch}")
         
     def fit(self):
-        """
-        Train the Physics-Informed Neural Network (PINN) parameters using Adam,
-        with L-BFGS refinement stage.
+        """Train with Adam followed by optional L-BFGS refinement.
 
         Returns
         -------
         None
-            The function updates model parameters in-place. If L-BFGS is enabled, 
-            it prints
-            the final L-BFGS loss.            
+            Model parameters and loss histories are updated in place.
         """
 
         # Training=True
@@ -658,6 +678,7 @@ class PhysicsInformedNN(nn.Module):
 
             for it in range(1, self.n_lbfgs_iter + 1):
                 def closure():
+                    """Recompute the differentiable loss for one L-BFGS step."""
                     self.optimizer_lbfgs.zero_grad()
                     loss, _, _ = loss_fn(self)
                     loss.backward()
@@ -688,26 +709,18 @@ class PhysicsInformedNN(nn.Module):
     
     @torch.no_grad()
     def predict(self, x, y):
-        """
-        Predict dimensional flow variables at given physical coordinates.
-
-        The input coordinates are non-dimensionalized using `self.Lref`, converted
-        to tensors on `self.device`, and evaluated with the network in inference
-        mode.
+        """Predict dimensional flow variables at physical coordinates.
 
         Parameters
         ----------
         x, y : array_like
-            Physical x- and y-coordinates of the query points. Accepted shapes are
-            `(N,)` or `(N, 1)`.
+            Query coordinates with shape ``(N,)`` or ``(N, 1)``.
 
         Returns
         -------
         tuple of numpy.ndarray
-            For `eq == 'euler'`: `(rho, u, v, p)`.
-            For `eq == 'rans'`: `(rho, u, v, p, mut)`.
-
-            All returned quantities are dimensional and have shape `(N, 1)`.
+            Dimensional Euler fields ``(rho, u, v, p)`` or RANS fields with
+            turbulent viscosity appended.
         """
 
         # Training=False
@@ -751,12 +764,23 @@ class PhysicsInformedNN(nn.Module):
     def prepare_torch_supervised_data(self, xdata, ydata, rhodata, udata,
                                       vdata, pdata, mutdata=None, 
                                       fit_scale=False):
-        """
-        Non-dimensionalise physical data, scale mut if needed,
-        and convert data to PyTorch tensors.
+        """Nondimensionalize supervised arrays and convert them to tensors.
 
-        If fit_scale=True, compute self.mut_scale from this dataset.
-        If fit_scale=False, reuse the existing self.mut_scale.
+        Parameters
+        ----------
+        xdata, ydata : numpy.ndarray
+            Physical coordinates.
+        rhodata, udata, vdata, pdata : numpy.ndarray
+            Physical flow variables.
+        mutdata : numpy.ndarray or None, optional
+            Physical turbulent viscosity for RANS.
+        fit_scale : bool, optional
+            Whether to fit the RANS viscosity scale from these data.
+
+        Returns
+        -------
+        tuple
+            Coordinate matrix, coordinate columns, and field tensors.
         """
 
         # Non-dimensional data
@@ -803,8 +827,19 @@ class PhysicsInformedNN(nn.Module):
         return Xdata, x, y, rho, u, v, p, mut
     
     def get_dimensional_data(self, rho, u, v, p, mut=None):
-        """
-        Make the data dimensional
+        """Restore dimensional units to nondimensional flow fields.
+
+        Parameters
+        ----------
+        rho, u, v, p : torch.Tensor
+            Nondimensional density, velocity, and pressure.
+        mut : torch.Tensor or None, optional
+            Nondimensional turbulent viscosity.
+
+        Returns
+        -------
+        tuple of torch.Tensor
+            Dimensional fields for the configured equation.
         """
         
         rhod = rho * self.rhoref
@@ -819,8 +854,22 @@ class PhysicsInformedNN(nn.Module):
             return rhod, ud, vd, pd, mutd 
 
     def get_nondimensional_data(self, x, y, rho, u, v, p, mut=None):
-        """
-        Generate non-dimensional data (data points)
+        """Nondimensionalize coordinates and physical flow fields.
+
+        Parameters
+        ----------
+        x, y : numpy.ndarray
+            Physical coordinates.
+        rho, u, v, p : numpy.ndarray
+            Physical density, velocity, and pressure.
+        mut : numpy.ndarray or None, optional
+            Physical turbulent viscosity.
+
+        Returns
+        -------
+        tuple of numpy.ndarray
+            Nondimensional coordinates and fields; viscosity is ``None`` for
+            Euler.
         """
 
         xstar = x / self.Lref
@@ -840,8 +889,17 @@ class PhysicsInformedNN(nn.Module):
         return xstar, ystar, rhostar, ustar, vstar, pstar, mutstar
 
     def get_nondimensional_coord(self, x, y):
-        """
-        Generate non-dimensional coordinates (collocation points)
+        """Nondimensionalize physical coordinates.
+
+        Parameters
+        ----------
+        x, y : numpy.ndarray
+            Physical coordinates.
+
+        Returns
+        -------
+        tuple of numpy.ndarray
+            Nondimensional x and y coordinates.
         """
 
         xstar = x / self.Lref
@@ -850,6 +908,20 @@ class PhysicsInformedNN(nn.Module):
         return xstar, ystar
 
     def save_model(self, filepath, filename):
+        """Save model and training state to a checkpoint.
+
+        Parameters
+        ----------
+        filepath : str or path-like
+            Checkpoint directory.
+        filename : str
+            Checkpoint name without the ``.pth`` extension.
+
+        Returns
+        -------
+        None
+            State is written to disk.
+        """
 
         # Save adam optimzer
         optimizer_adam_state = (
@@ -895,6 +967,20 @@ class PhysicsInformedNN(nn.Module):
         print(f"Model saved to: {fullpath}")
 
     def load_model(self, filepath, filename):
+        """Restore model and available training state from a checkpoint.
+
+        Parameters
+        ----------
+        filepath : str or path-like
+            Checkpoint directory.
+        filename : str
+            Checkpoint name without the ``.pth`` extension.
+
+        Returns
+        -------
+        None
+            State is restored in place.
+        """
         
         # Path
         fullpath = os.path.join(filepath, filename)
@@ -933,29 +1019,20 @@ class PhysicsInformedNN(nn.Module):
 
     def evaluate_data(self, xdata, ydata, rhodata,
                       udata, vdata, pdata, mutdata=None):
-        """
-        Evaluate the trained model on the held-out test dataset.
-
-        Computes model predictions and error metrics without updating the
-        network parameters.
+        """Compute error metrics on held-out physical data.
             
         Parameters
         ----------
-        x, y : torch.Tensor
+        xdata, ydata : numpy.ndarray
             Test-point coordinates.
-
-        rho, u, v, p : torch.Tensor
+        rhodata, udata, vdata, pdata : numpy.ndarray
             Reference test values for density, velocity, and pressure.
-
-        mut : torch.Tensor, optional
+        mutdata : numpy.ndarray or None, optional
             Reference eddy viscosity for RANS cases.
 
         Returns
         -------
-        predictions : dict
-            Predicted physical fields.
-
-        metrics : dict
+        dict
             Error metrics for the test dataset.
         """
 
@@ -1018,19 +1095,68 @@ class PhysicsInformedNN(nn.Module):
         return metrics
     
     def get_data_loss(self):
+        """Return the supervised data-loss history.
+
+        Returns
+        -------
+        list of float
+            Data loss recorded after each optimizer step.
+        """
         return self.ldata
 
     def get_residual_loss(self):
+        """Return the physical-residual loss history.
+
+        Returns
+        -------
+        list of float
+            Residual loss recorded after each optimizer step.
+        """
         return self.lres
 
     def get_total_loss(self):
+        """Return the total-loss history.
+
+        Returns
+        -------
+        list of float
+            Total loss recorded after each optimizer step.
+        """
         return self.loss
     
     def get_validation_data_loss(self):
+        """Return the validation-loss history.
+
+        Returns
+        -------
+        list of float
+            Validation loss recorded after each optimizer step.
+        """
         return self.lval
     
     def get_n_epoch(self):
+        """Return the number of completed optimizer iterations.
+
+        Returns
+        -------
+        int
+            Number of recorded training steps.
+        """
         return self.n_epoch
     
     def callback(self, it, loss_value):
+        """Print a compact iteration and loss update.
+
+        Parameters
+        ----------
+        it : int
+            Iteration number.
+        loss_value : float
+            Current loss value.
+
+        Returns
+        -------
+        None
+            The update is written to standard output.
+        """
         print(f"It: {it}, Loss: {loss_value:.3e}")

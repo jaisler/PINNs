@@ -11,16 +11,19 @@ import numpy as np
 rc('text', usetex=False)
 
 def plot_prepared_data(data, params):
-    """
-    Plot the training, validation, test, and collocation datasets.
+    """Plot prepared data splits and collocation points.
 
     Parameters
     ----------
     data : dict
-        Dictionary returned by prepare_data.
-
+        Prepared dataset mapping.
     params : dict
-        Configuration dictionary.
+        PIRFlow configuration.
+
+    Returns
+    -------
+    None
+        PDF files are written to the result directory.
     """
 
     # Plot training dataset points
@@ -69,27 +72,21 @@ def plot_prepared_data(data, params):
     )
 
 def plot_dataset(x, y, params, dataset):
-    """
-    Plot the points in a dataset.
+    """Plot one prepared dataset split.
 
     Parameters
     ----------
-    x : array_like
-        Point x-coordinates.
-
-    y : array_like
-        Point y-coordinates.
-
+    x, y : array_like
+        Point coordinates.
     params : dict
-        Configuration dictionary.
-
+        PIRFlow configuration.
     dataset : {"training", "validation", "test"}
-        Dataset to plot.
+        Split name and output filename selector.
 
-    Raises
-    ------
-    ValueError
-        If ``dataset`` is not a supported dataset.
+    Returns
+    -------
+    None
+        A PDF file is written to the result directory.
     """
 
     fig, ax = plt.subplots(1, 1, num=1, figsize=(12, 4), sharey=True)
@@ -119,28 +116,23 @@ def plot_dataset(x, y, params, dataset):
     plt.close(fig)
 
 def plot_target_points(x, y, xf, yf, params, training=False):
-    """
-    Plot data and collocation points.
+    """Plot observation and collocation coordinates together.
 
     Parameters
     ----------
-    x : array_like
-        Data-point x-coordinates.
-
-    y : array_like
-        Data-point y-coordinates.
-
-    xf : array_like or None
-        Collocation-point x-coordinates.
-
-    yf : array_like or None
-        Collocation-point y-coordinates.
-
+    x, y : array_like
+        Observation coordinates.
+    xf, yf : array_like or None
+        Collocation coordinates.
     params : dict
-        Configuration dictionary.
-
+        PIRFlow configuration.
     training : bool, optional
-        Whether the points belong to the training dataset.
+        Whether to use the training-only output filename.
+
+    Returns
+    -------
+    None
+        A PDF file is written to the result directory.
     """
 
     fig, ax = plt.subplots(1, 1, num=1, figsize=(12, 4), sharey=True)
@@ -173,8 +165,21 @@ def plot_target_points(x, y, xf, yf, params, training=False):
     plt.close(fig)
 
 def plot_sampling_data(data_points, collocation_points, params):
-    """
-    Plot data and collocation sampling points.
+    """Plot observation and collocation sampling groups.
+
+    Parameters
+    ----------
+    data_points : dict
+        Observation coordinates and point groups.
+    collocation_points : dict
+        Collocation coordinates and point groups.
+    params : dict
+        PIRFlow configuration.
+
+    Returns
+    -------
+    None
+        PDF files are written to the result directory.
     """
 
     plot_sampling_points(
@@ -197,28 +202,27 @@ def plot_sampling_data(data_points, collocation_points, params):
         )
 
 def plot_sampling_points(pall, pin, pbc, pgrad, params, collpts=False):
-    """
-    Plot the different groups of sampled points.
+    """Plot interior, boundary, and gradient-focused samples.
 
     Parameters
     ----------
     pall : array_like
-        All sampled points. Currently not plotted.
-
+        All sampled points; reserved for future plotting.
     pin : array_like
         Interior points.
-
     pbc : array_like
         Boundary points.
-
     pgrad : array_like
         Gradient-based points.
-
     params : dict
-        Configuration dictionary.
-
+        PIRFlow configuration.
     collpts : bool, optional
-        Whether the points are collocation points.
+        Whether to use the collocation output filename.
+
+    Returns
+    -------
+    None
+        A PDF file is written to the result directory.
     """
 
     fig, ax = plt.subplots(1, 1, num=1, figsize=(12, 4), sharey=True)
@@ -254,16 +258,19 @@ def plot_sampling_points(pall, pin, pbc, pgrad, params, collpts=False):
     plt.close(fig)
 
 def plot_history_training(model, params):
-    """
-    Plot losses and validation loss
+    """Plot training and validation loss histories.
 
     Parameters
     ----------
     model : PhysicsInformedNN
-        PhysicsInformedNN class object
-
+        Trained model containing loss histories.
     params : dict
-        Configuration parameters dictionary.
+        PIRFlow configuration.
+
+    Returns
+    -------
+    None
+        PDF files are written to the result directory.
     """
 
     # Get losses
@@ -279,25 +286,25 @@ def plot_history_training(model, params):
     plot_validation_loss(l_data, l_val, n_epoch, params)
 
 def plot_losses(l_data, l_res, l_total, n_epoch, params):
-    """
-    Plot the training losses.
+    """Plot data, residual, and total training losses.
 
     Parameters
     ----------
     l_data : array_like
         Data-loss history.
-
     l_res : array_like
         Residual-loss history.
-
     l_total : array_like
         Total-loss history.
-
     n_epoch : int
-        Number of epochs.
-
+        Number of recorded optimizer steps.
     params : dict
-        Configuration dictionary.
+        PIRFlow configuration.
+
+    Returns
+    -------
+    None
+        A PDF file is written to the result directory.
     """
 
     fig = plt.figure()
@@ -326,22 +333,23 @@ def plot_losses(l_data, l_res, l_total, n_epoch, params):
     plt.close()
 
 def plot_validation_loss(l_train, l_val, n_epoch, params):
-    """
-    Plot the training and validation losses.
+    """Plot training-data and validation losses.
 
     Parameters
     ----------
     l_train : array_like
         Training-loss history.
-
     l_val : array_like
         Validation-loss history.
-
     n_epoch : int
-        Number of epochs.
-
+        Number of recorded optimizer steps.
     params : dict
-        Configuration dictionary.
+        PIRFlow configuration.
+
+    Returns
+    -------
+    None
+        A PDF file is written to the result directory.
     """
     
     fig = plt.figure()
@@ -375,35 +383,31 @@ def plot_field_pyvista(
     clim=None,
     cmap=None,
 ):
-    """
-    Unified PyVista plotting function for simulation, prediction and error.
+    """Render one simulation, prediction, or error field with PyVista.
 
     Parameters
     ----------
     mesh : pyvista.DataSet
-        Mesh to plot on.
-
+        Mesh used for rendering.
     ifield : int
-        Index of the field in params["post_processing"].
-
+        Field index in the post-processing configuration.
     params : dict
-        Configuration dictionary.
-
+        PIRFlow configuration.
     values : array_like or None
-        If None, plot the field already stored in the mesh.
-        If given, attach these values to a copy of the mesh and plot them.
-
+        Optional values to attach instead of using an existing mesh field.
     suffix : str
-        Extra suffix for file naming, e.g. "sim", "pred" or "error".
-
+        Output filename suffix.
     clabel : str or None
-        Optional custom colorbar label. If None, use params["post_processing"]["latex"].
-
+        Optional colorbar label override.
     clim : tuple or None
-        Optional color limits. If None, use params["post_processing"]["scales"].
-
+        Optional color-limit override.
     cmap : str or None
-        Optional colormap. If None, use params["post_processing"]["colormaps"].
+        Optional colormap override.
+
+    Returns
+    -------
+    None
+        An off-screen PDF rendering is written to disk.
     """
 
     pf = params["post_processing"]
@@ -546,8 +550,19 @@ def plot_field_pyvista(
     pl.close()
 
 def plot_simulation_flow_pyvista(mesh, params):
-    """
-    Plot all simulation fields defined in params["post_processing"].
+    """Plot all configured reference simulation fields.
+
+    Parameters
+    ----------
+    mesh : pyvista.DataSet
+        CFD mesh containing reference fields.
+    params : dict
+        PIRFlow configuration.
+
+    Returns
+    -------
+    None
+        PDF renderings are written to disk.
     """
 
     nfields = len(params["post_processing"]["fields"])
@@ -561,25 +576,21 @@ def plot_simulation_flow_pyvista(mesh, params):
         )
 
 def plot_predicted_flow_pyvista(mesh, predicted_fields, params):
-    """
-    Plot predicted fields on the provided mesh.
+    """Plot all configured predicted fields.
 
     Parameters
     ----------
     mesh : pyvista.DataSet
-        Mesh on which the prediction is defined.
-
+        Mesh on which predictions are defined.
     predicted_fields : dict
-        Dictionary containing predicted fields.
-
-        Expected keys for Euler:
-            rho, p, u, v
-
-        Expected keys for RANS:
-            rho, p, u, v, mut
-
+        Predicted arrays keyed by flow variable.
     params : dict
-        Configuration dictionary.
+        PIRFlow configuration.
+
+    Returns
+    -------
+    None
+        PDF renderings are written to disk.
     """
 
     variables = get_flow_variables(params)
@@ -617,25 +628,23 @@ def plot_error_flow_pyvista(
     params,
     error_type="abs_error_01",
 ):
-    """
-    Plot error fields on the provided mesh.
+    """Plot all configured pointwise error fields.
 
     Parameters
     ----------
     mesh : pyvista.DataSet
-        Mesh on which the error is defined.
-
+        Mesh on which errors are defined.
     error_fields : dict
-        Dictionary containing the error fields.
-
+        Error arrays keyed by variable and error type.
     params : dict
-        Configuration dictionary.
+        PIRFlow configuration.
+    error_type : str, optional
+        Error representation to plot; currently ``"abs_error_01"``.
 
-    error_type : str
-        Error type to plot.
-
-        Options:
-            "abs_error_01"
+    Returns
+    -------
+    None
+        PDF renderings are written to disk.
     """
 
     valid_error_types = [
@@ -713,14 +722,17 @@ def plot_error_flow_pyvista(
         )
         
 def get_flow_variables(params):
-    """
-    Return the flow variables in the same order as params["post_processing"].
+    """Return flow-variable names in post-processing order.
 
-    Euler:
-        rho, p, u, v
+    Parameters
+    ----------
+    params : dict
+        PIRFlow configuration.
 
-    RANS:
-        rho, p, u, v, mut
+    Returns
+    -------
+    list of str
+        Euler or RANS variable names.
     """
 
     equation = params["run"]["equation"]

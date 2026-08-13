@@ -8,19 +8,7 @@ from src.utils import compute_metrics as compute_scalar_metrics
 from src.utils import print_metrics_table
 
 class FlowFieldPostProcessor:
-    """
-    Post-process predicted and reference CFD flow fields on the same mesh.
-
-    The class:
-        1. predicts the flow variables on the CFD mesh points,
-        2. extracts the reference CFD fields from flowfield.point_data,
-        3. computes error fields,
-        4. scales absolute errors from 0 to 1,
-        5. writes VTK files,
-        6. computes mesh-based metrics.
-
-    The CFD/reference solution is assumed to already be stored in `flowfield`.
-    """
+    """Compare predicted and reference flow fields on a CFD mesh."""
 
     def __init__(
         self,
@@ -29,20 +17,18 @@ class FlowFieldPostProcessor:
         params,
         eps=1.0e-12,
     ):
-        """
+        """Initialize mesh-based post-processing.
+
         Parameters
         ----------
         model : PhysicsInformedNN
-            Trained PINN/GNN/MLP model. It must provide model.predict(x, y).
-
+            Trained flow model.
         flowfield : pyvista.DataSet
-            Original CFD mesh/flowfield.
-
+            CFD mesh containing reference point fields.
         params : dict
-            Configuration dictionary.
-
-        eps : float
-            Small value used to avoid division by zero.
+            PIRFlow configuration.
+        eps : float, optional
+            Small denominator safeguard.
         """
 
         if flowfield is None:
@@ -70,27 +56,17 @@ class FlowFieldPostProcessor:
         print("Postprocessing flowfields ...")
 
     def run(self, prefix="flowfield"):
-        """
-        Run the complete mesh-based post-processing workflow.
-
-        Steps
-        -----
-        1. Predict on all CFD mesh points.
-        2. Extract reference CFD fields.
-        3. Compute pointwise errors.
-        4. Compute scalar metrics.
-        5. Write predicted flowfield to VTK.
-        6. Write reference/prediction/error fields to VTK.
+        """Run prediction, comparison, metrics, and VTK export.
 
         Parameters
         ----------
         prefix : str
-            Prefix used for output VTK files.
+            Output filename prefix.
 
         Returns
         -------
-        dict
-            Dictionary containing the written VTK file paths.
+        None
+            Results are stored on this object and written to disk.
         """
 
         # Get the predict flow field on the mesh points
@@ -110,14 +86,12 @@ class FlowFieldPostProcessor:
         self.print_metrics()
 
     def predict_on_mesh(self):
-        """
-        Evaluate the trained model at all CFD mesh points.
+        """Evaluate the trained model at every CFD mesh point.
 
-        The prediction is performed on:
-            xmesh = flowfield.points[:, 0]
-            ymesh = flowfield.points[:, 1]
-
-        The resulting fields are stored in self.predicted_fields.
+        Returns
+        -------
+        None
+            Predictions are stored in ``predicted_fields``.
         """
 
         xmesh = self.flowfield.points[:, 0]
@@ -162,31 +136,12 @@ class FlowFieldPostProcessor:
             self.predicted_fields[name] = value
     
     def extract_reference_fields(self):
-        """
-        Extract the reference CFD fields from flowfield.point_data.
+        """Extract configured reference fields from mesh point data.
 
-        The field names and components are read from:
-
-            params["post_processing"]["fields"]
-            params["post_processing"]["components"]
-
-        Example for Euler:
-
-            post_processing:
-              fields:
-                - "Density"
-                - "Pressure"
-                - "Velocity"
-                - "Velocity"
-
-              components: [0, 0, 0, 1]
-
-        This means:
-
-            rho -> Density,  component 0
-            p   -> Pressure, component 0
-            u   -> Velocity, component 0
-            v   -> Velocity, component 1
+        Returns
+        -------
+        None
+            Reference arrays are stored in ``reference_fields``.
         """
 
         equation = self.params["run"]["equation"]
@@ -264,8 +219,12 @@ class FlowFieldPostProcessor:
             self.reference_fields[variable] = reference_value
 
     def compute_error_fields(self):
-        """
-        Compute pointwise error fields.
+        """Compute pointwise raw, absolute, relative, and scaled errors.
+
+        Returns
+        -------
+        dict
+            Error arrays keyed by variable and error type.
         """
 
         for name in self.predicted_fields:
@@ -293,12 +252,12 @@ class FlowFieldPostProcessor:
         return self.error_fields
     
     def compute_metrics(self):
-        """
-        Compute mesh-based scalar metrics using src.utils.compute_metrics.
+        """Compute scalar metrics for every predicted mesh field.
 
-        The fields are stored as NumPy arrays in the postprocessor, because
-        PyVista uses NumPy arrays. The utility function expects torch.Tensor,
-        so each field is converted before calling compute_scalar_metrics.
+        Returns
+        -------
+        None
+            Results are stored in ``metrics``.
         """
 
         for name in self.predicted_fields:
@@ -322,8 +281,12 @@ class FlowFieldPostProcessor:
             )
 
     def print_metrics(self):
-        """
-        Print mesh-based metrics using the existing utility table printer.
+        """Print the mesh-based metric table.
+
+        Returns
+        -------
+        None
+            Metrics are written to standard output.
         """
 
         print_metrics_table(
@@ -333,8 +296,17 @@ class FlowFieldPostProcessor:
         )
 
     def write_comparison_vtk(self, prefix):
-        """
-        Write reference, prediction, and error fields to one VTK file.
+        """Write reference, prediction, and error fields to one VTK file.
+
+        Parameters
+        ----------
+        prefix : str
+            Output filename prefix.
+
+        Returns
+        -------
+        pathlib.Path
+            Path of the written VTK file.
         """
 
         mesh = self.flowfield.copy(deep=True)
@@ -356,8 +328,17 @@ class FlowFieldPostProcessor:
     
     @staticmethod
     def to_numpy_1d(value):
-        """
-        Convert a tensor/list/array to a 1D NumPy array.
+        """Convert an array-like value to one-dimensional NumPy data.
+
+        Parameters
+        ----------
+        value : array_like or torch.Tensor
+            Value to convert.
+
+        Returns
+        -------
+        numpy.ndarray
+            Flattened array.
         """
 
         if hasattr(value, "detach"):
@@ -369,10 +350,17 @@ class FlowFieldPostProcessor:
 
     @staticmethod
     def scale_01(value):
-        """
-        Min-max scale a field from 0 to 1.
+        """Min-max scale an array to ``[0, 1]``.
 
-        If the field is constant, return zeros.
+        Parameters
+        ----------
+        value : array_like
+            Values to scale.
+
+        Returns
+        -------
+        numpy.ndarray
+            Scaled values, or zeros for a constant field.
         """
 
         value = np.asarray(value)
@@ -388,19 +376,31 @@ class FlowFieldPostProcessor:
         return (value - value_min) / denominator
     
     def get_predicted_fields(self):
-        """
-        Return predicted fields as a dictionary.
+        """Return predicted mesh fields.
+
+        Returns
+        -------
+        dict
+            Predicted arrays keyed by variable.
         """
         return self.predicted_fields
 
     def get_reference_fields(self):
-        """
-        Return reference CFD fields as a dictionary.
+        """Return reference CFD fields.
+
+        Returns
+        -------
+        dict
+            Reference arrays keyed by variable.
         """
         return self.reference_fields
 
     def get_error_fields(self):
-        """
-        Return error fields as a dictionary.
+        """Return pointwise error fields.
+
+        Returns
+        -------
+        dict
+            Error arrays keyed by variable and error type.
         """
         return self.error_fields

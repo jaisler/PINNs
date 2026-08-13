@@ -8,10 +8,18 @@ from pathlib import Path
 
 
 class SamplingData:
+    """Sample, persist, and expose CFD data or collocation points."""
+
     # Initialize the class
     def __init__(self, params, collpts=False):
-        """
-        Initialize the SamplingData object without performing sampling.
+        """Initialize an empty sampling-data container.
+
+        Parameters
+        ----------
+        params : dict
+            PIRFlow configuration.
+        collpts : bool, optional
+            Whether this container represents collocation points.
         """
 
         self.collpts = collpts
@@ -44,11 +52,12 @@ class SamplingData:
                 print("Loading data points ...")
 
     def sample(self):
-        """
-        Perform the sampling procedure.
+        """Sample points and interpolate the configured CFD flowfield.
 
-        This method reads the CFD solution, generates points,
-        interpolates the solution, and stores the sampled arrays.
+        Returns
+        -------
+        None
+            Sampled coordinates and fields are stored on this object.
         """
 
         # Reset arrays before sampling
@@ -156,6 +165,18 @@ class SamplingData:
                 self.mut = np.zeros((self.X.shape[0], 1), dtype=float)
 
     def get_base_sampler(self, sampling_type: str):
+        """Return the point-sampling function selected by name.
+
+        Parameters
+        ----------
+        sampling_type : str
+            Sampling method, either ``"random"`` or ``"lhs"``.
+
+        Returns
+        -------
+        callable
+            Bound method that generates points.
+        """
         if sampling_type == "random":
             return self.sample_random_points
         elif sampling_type == "lhs":
@@ -164,6 +185,20 @@ class SamplingData:
             raise ValueError("sampling type must be 'random' or 'lhs'")
 
     def sample_random_points(self, npoin, xmin, xmax, ymin, ymax):
+        """Draw uniformly distributed points in a rectangular domain.
+
+        Parameters
+        ----------
+        npoin : int
+            Number of points.
+        xmin, xmax, ymin, ymax : float
+            Coordinate bounds.
+
+        Returns
+        -------
+        numpy.ndarray
+            Sample coordinates with shape ``(npoin, 2)``.
+        """
         pts = np.column_stack([
             np.random.uniform(xmin, xmax, npoin),
             np.random.uniform(ymin, ymax, npoin),
@@ -171,6 +206,20 @@ class SamplingData:
         return pts 
     
     def sample_latin_hypercube(self, npoin, xmin, xmax, ymin, ymax):
+        """Draw Latin-hypercube points in a rectangular domain.
+
+        Parameters
+        ----------
+        npoin : int
+            Number of points.
+        xmin, xmax, ymin, ymax : float
+            Coordinate bounds.
+
+        Returns
+        -------
+        numpy.ndarray
+            Sample coordinates with shape ``(npoin, 2)``.
+        """
         try:
             from scipy.stats import qmc
             sampler = qmc.LatinHypercube(d=self.dims)   # use d=2 for 2D
@@ -190,11 +239,19 @@ class SamplingData:
         return pts
     
     def sample_boundary_condition(self, phys_name, npoin_bc):
-        """
-        Sample boundary points from a Physical Group in a .geo file.
-        phys_name: physical group name in the .geo, e.g. "inlet", "outlet", 
-        "wall"
-        Returns: 
+        """Sample nodes from a physical group in the Gmsh geometry.
+
+        Parameters
+        ----------
+        phys_name : str
+            Name of the physical boundary group.
+        npoin_bc : int
+            Number of boundary points to draw.
+
+        Returns
+        -------
+        numpy.ndarray
+            Boundary coordinates with shape ``(npoin_bc, 3)``.
         """
 
         rng = np.random.default_rng(1234)
@@ -277,6 +334,32 @@ class SamplingData:
         pool_factor=8,
         alpha=1.5,
         eps=1e-12):
+        """Sample mesh points with preference for large field gradients.
+
+        Parameters
+        ----------
+        mesh : pyvista.DataSet
+            CFD mesh containing the selected field.
+        npoin_grad : int
+            Requested number of points.
+        xmin, xmax, ymin, ymax, zmin, zmax : float
+            Mesh bounds.
+        base_sampler : callable
+            Function used to create candidate points.
+        var_name : str, optional
+            Field whose gradient controls sampling.
+        pool_factor : int, optional
+            Candidate count multiplier.
+        alpha : float, optional
+            Gradient-weight exponent.
+        eps : float, optional
+            Small value used in gradient weights.
+
+        Returns
+        -------
+        numpy.ndarray
+            Selected coordinates with three components per point.
+        """
 
         rng = np.random.default_rng(self.params.get('seed', 1234))
 
@@ -348,6 +431,22 @@ class SamplingData:
         return pts_grad
         
     def nudge_bc_points(self, pts_bc, name, xmin, xmax, ymin, ymax):
+        """Move axis-aligned boundary points slightly into the domain.
+
+        Parameters
+        ----------
+        pts_bc : numpy.ndarray
+            Boundary coordinates.
+        name : str
+            Boundary name.
+        xmin, xmax, ymin, ymax : float
+            Domain bounds used to scale the displacement.
+
+        Returns
+        -------
+        numpy.ndarray
+            Nudged copy of the boundary coordinates.
+        """
         pts = pts_bc.copy()
 
         # scale-aware eps (tiny fraction of domain size)
@@ -367,8 +466,12 @@ class SamplingData:
         return pts
 
     def write_data_to_npz(self):
-        """
-        Save sampling data to a compressed NumPy .npz file.
+        """Save the sampled arrays to the configured sample directory.
+
+        Returns
+        -------
+        None
+            Data are written to a compressed NumPy file.
         """
 
         path_data = Path(self.params['paths']['samples'])
@@ -406,8 +509,12 @@ class SamplingData:
         print(f"Saved data points to: {filename}")
 
     def read_data_from_npz(self):
-        """
-        Load sampling data from a compressed NumPy .npz file.
+        """Load sampled arrays from the configured sample directory.
+
+        Returns
+        -------
+        tuple
+            Coordinates, point groups, and optional flow variables.
         """
 
         path_data = Path(self.params['paths']['samples'])
@@ -455,28 +562,91 @@ class SamplingData:
         return X, pts_in, pts_bc, pts_grad, U, rho, p, mut
 
     def get_boundary_marker(self):
+        """Return the boundary-marker array, when available.
+
+        Returns
+        -------
+        numpy.ndarray or None
+            Boundary markers associated with sampled points.
+        """
         return self.boundary_marker
 
     def get_pts_in(self):       
+        """Return sampled interior points.
+
+        Returns
+        -------
+        numpy.ndarray
+            Interior coordinates.
+        """
         return self.pts_in
     
     def get_pts_bc(self):       
+        """Return sampled boundary points.
+
+        Returns
+        -------
+        numpy.ndarray
+            Boundary coordinates.
+        """
         return self.pts_bc
 
     def get_pts_grad(self):       
+        """Return sampled gradient-focused points.
+
+        Returns
+        -------
+        numpy.ndarray
+            Gradient-focused coordinates.
+        """
         return self.pts_grad
 
     def get_x(self):       
+        """Return all valid sampled coordinates.
+
+        Returns
+        -------
+        numpy.ndarray
+            Coordinates retained after mesh masking.
+        """
         return self.X
 
     def get_rho(self):
+        """Return sampled density values.
+
+        Returns
+        -------
+        numpy.ndarray or None
+            Density observations, or ``None`` for loaded collocation data.
+        """
         return self.rho
 
     def get_u(self):       
+        """Return sampled velocity vectors.
+
+        Returns
+        -------
+        numpy.ndarray or None
+            Velocity observations, or ``None`` for loaded collocation data.
+        """
         return self.U
 
     def get_p(self):
+        """Return sampled pressure values.
+
+        Returns
+        -------
+        numpy.ndarray or None
+            Pressure observations, or ``None`` for loaded collocation data.
+        """
         return self.p
     
     def get_mut(self):
+        """Return sampled turbulent-viscosity values.
+
+        Returns
+        -------
+        numpy.ndarray or None
+            Turbulent viscosity values, or ``None`` when unavailable.
+        """
         return self.mut

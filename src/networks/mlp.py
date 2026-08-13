@@ -6,12 +6,7 @@ import torch.nn.functional as F
 from .base import BaseNetwork
 
 class MLP(BaseNetwork):
-    """
-    Fully connect neural network.
-
-    The input coordinates are assumed to be already normalized before
-    being passed to this network.
-    """
+    """Map normalized coordinates to flow variables with dense layers."""
 
     def __init__(
         self,
@@ -20,6 +15,19 @@ class MLP(BaseNetwork):
         dropout_p=0.0,
         dropout_indices=None,
     ):
+        """Build an MLP from layer and dropout settings.
+
+        Parameters
+        ----------
+        layers : sequence of int
+            Width of each network layer.
+        activation : str, optional
+            Hidden-layer activation name.
+        dropout_p : float, optional
+            Dropout probability.
+        dropout_indices : sequence of int or None, optional
+            Hidden-layer indices where dropout is allowed.
+        """
         super().__init__(
             # Base class initialisation
             input_dim=layers[0],
@@ -46,8 +54,12 @@ class MLP(BaseNetwork):
         self.initialise_nn()
 
     def initialise_nn(self):
-        """
-        Build the fully connected layers.
+        """Create and initialize the fully connected layers.
+
+        Returns
+        -------
+        None
+            Layers are stored on this module.
         """
 
         # Fully connected layers
@@ -59,8 +71,12 @@ class MLP(BaseNetwork):
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
-        """
-        Initialize linear-layer weights and biases.
+        """Initialize a linear layer with Xavier weights and zero bias.
+
+        Parameters
+        ----------
+        m : torch.nn.Module
+            Module visited by :meth:`torch.nn.Module.apply`.
         """
        
         if isinstance(m, nn.Linear):
@@ -71,29 +87,20 @@ class MLP(BaseNetwork):
     
 
     def forward(self, X, use_dropout=False):
-        """
-        Forward pass.
-
-        The input X is assumed to be already normalized.
-                    
-        Dropout:
-            If use_dropout=True, dropout is applied to hidden-layer activations.
-            If use_dropout=False, dropout is disabled.
-
-        Dropout is not applied to the output layer.
+        """Evaluate normalized coordinates with optional hidden dropout.
 
         Parameters
         ----------
         X : torch.Tensor
             Normalized input coordinates.
 
-        use_dropout : bool
-            If True, apply dropout to selected hidden layers.
+        use_dropout : bool, optional
+            Whether to apply configured dropout.
 
         Returns
         -------
         torch.Tensor
-            Raw network output.
+            Raw outputs with one row per input point.
         """
 
         # Scale inputs to [-1, 1]

@@ -5,9 +5,7 @@ import torch.nn as nn
 from .mlp import MLP
 
 class MessagePassingLayer(nn.Module):
-    """
-    Message passing: processor stage of the graph neural network algorithm.
-    """
+    """Update latent edge and node states through message passing."""
 
     def __init__(
         self,
@@ -18,6 +16,23 @@ class MessagePassingLayer(nn.Module):
         aggregation="sum",
         residual=True
     ):
+        """Configure the message-passing processor.
+
+        Parameters
+        ----------
+        latent_dim : int
+            Width of latent node and edge features.
+        neighbors : int
+            Configured number of neighbors per node.
+        activation : str, optional
+            Activation used by update MLPs.
+        message_layers : int, optional
+            Number of message-passing iterations.
+        aggregation : str, optional
+            Incoming-message reduction: ``"sum"``, ``"max"``, or ``"mean"``.
+        residual : bool, optional
+            Whether to use residual state updates.
+        """
         super().__init__()
 
         self.latent_dim = latent_dim
@@ -47,6 +62,24 @@ class MessagePassingLayer(nn.Module):
         )
 
     def forward(self, h, g, edge_index, use_dropout=False):
+        """Apply the configured updates to latent graph features.
+
+        Parameters
+        ----------
+        h : torch.Tensor
+            Node features with shape ``(N, latent_dim)``.
+        g : torch.Tensor
+            Edge features with shape ``(E, latent_dim)``.
+        edge_index : torch.Tensor
+            Receiver and sender indices with shape ``(2, E)``.
+        use_dropout : bool, optional
+            Reserved dropout flag.
+
+        Returns
+        -------
+        torch.Tensor
+            Updated node features.
+        """
 
         receivers = edge_index[0]
         senders = edge_index[1]
@@ -83,6 +116,22 @@ class MessagePassingLayer(nn.Module):
         return h
 
     def message_aggregation(self, mij, receivers, n_nodes):
+        """Aggregate incoming edge messages for each receiver node.
+
+        Parameters
+        ----------
+        mij : torch.Tensor
+            Edge messages.
+        receivers : torch.Tensor
+            Receiver index for each edge.
+        n_nodes : int
+            Number of graph nodes.
+
+        Returns
+        -------
+        torch.Tensor
+            Aggregated message for every node.
+        """
 
         if self.aggregation == 'sum':
             # aggr_mi = (N, latent_dim)
@@ -142,4 +191,3 @@ class MessagePassingLayer(nn.Module):
 
         return aggr_mi
         
-

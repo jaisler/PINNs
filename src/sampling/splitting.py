@@ -3,29 +3,21 @@ import numpy as np
 from pathlib import Path
 
 def valid_indeces(indeces, expected_size, number_of_points):
-    """
-    Check that an index array has the expected size and contains
-    valid indeces.
-
-    Check if an array contains valid indeces.
-
-    Empty arrays are valid when expected_size == 0.
+    """Check the size and bounds of a one-dimensional index array.
 
     Parameters
     ----------
-    indeces : array-like
-        indeces to check.
+    indeces : array_like
+        Indices to validate.
     expected_size : int
-        Expected number of indeces.
+        Required number of indices.
     number_of_points : int
         Total number of available points.
 
     Returns
     -------
     bool
-        True if the indeces have the correct size and are within the
-        valid range.
-    
+        Whether the indices have the expected size and valid bounds.
     """
 
     indeces = np.asarray(indeces)
@@ -45,11 +37,7 @@ def valid_indeces(indeces, expected_size, number_of_points):
     )
 
 def get_data_split_indeces(N, params):
-    """
-    Create or load train/validation/test indeces for the data points.
-
-    If a valid saved split exists, it is loaded. Otherwise, a new random
-    split is generated and saved.
+    """Load a compatible data split or generate and save a new one.
 
     Parameters
     ----------
@@ -60,18 +48,8 @@ def get_data_split_indeces(N, params):
 
     Returns
     -------
-    idx_train : numpy.ndarray
-        Training indeces.
-    idx_val : numpy.ndarray
-        Validation indeces.
-    idx_test : numpy.ndarray
-        Test indeces.
-    N_train_data : int
-        Number of training points.
-    N_val_data : int
-        Number of validation points.
-    N_test_data : int
-        Number of test points.
+    tuple
+        Training, validation, and test indices followed by their sizes.
     """    
 
     # Data points
@@ -183,8 +161,7 @@ def get_data_split_indeces(N, params):
     )
     
 def get_collocation_indeces(N_coll, params):
-    """
-    Create or load collocation indeces for the training collocation points.
+    """Create or load indices for training collocation points.
 
     Parameters
     ----------
@@ -195,8 +172,8 @@ def get_collocation_indeces(N_coll, params):
 
     Returns
     -------
-    idxc : numpy.ndarray
-        Collocation-point indeces.
+    numpy.ndarray
+        Collocation-point indices.
     """
 
     # File for loading collocation ponts
@@ -229,36 +206,29 @@ def get_collocation_indeces(N_coll, params):
     return idxc
 
 def prepare_data(X, U, rho, p, mut, Xf, params):
-    """
-    Prepare training, validation, test, and collocation data.
+    """Prepare field arrays for training, validation, test, and physics.
 
     Parameters
     ----------
     X : np.ndarray
         Coordinates of the data points.
-
     U : np.ndarray
         Velocity field.
-
     rho : np.ndarray
         Density field.
-
     p : np.ndarray
         Pressure field.
-
     mut : np.ndarray
         Eddy viscosity field.
-
     Xf : np.ndarray or None
         Collocation points.
-
     params : dict
         Configuration dictionary.
 
     Returns
     -------
-    data : dict
-        Dictionary containing all prepared arrays.
+    dict
+        Prepared data and collocation arrays.
     """
     
     # Note that, the number of points inside the geometry is not the same

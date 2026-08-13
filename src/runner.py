@@ -7,6 +7,13 @@ from src.postprocessing import run_flowfield_postprocessing
 from src.utils import plot_prepared_data, plot_sampling_data
 
 def run() -> None:
+    """Execute the configured PIRFlow reconstruction workflow.
+
+    Returns
+    -------
+    None
+        Results are written to the configured output directories.
+    """
     
     # Configuration file
     params = load_config()
@@ -24,7 +31,8 @@ def run() -> None:
     plot_sampling_data(data_pnts, collocation_pnts, params)
 
     # Stop after sampling when inference is disabled
-    if not params["run"]["routines"]["inference"]:
+    if not params["run"]["routines"]["inference"] or \
+       not params["run"]["routines"]["identification"]:
         return
         
     # Prepare training, validation, test and collocation datasets
