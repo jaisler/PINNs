@@ -1,20 +1,23 @@
 # SPDX-License-Identifier: MIT
 from pathlib import Path
-
 import pandas as pd
 
+from .schlieren import generate_synthetic_schlieren
+from .noise import add_noise
+
 class ObservationData:
-    """
-    Defines and loads measurement data.
-    """
+    """ Defines and loads measurement data."""
     def __init__(self, params):
         """Initialize an empty observation-data container."""
 
         # Observation config
         self.config = params["identification"]["observations"]
         self.data_directory = Path(params["paths"]["observations"])
-        self.dims = params["geometry"]["dimension"]
         self.data = {}
+
+        self.dims = params["geometry"]["dimension"]
+        if self.dims not in (1, 2, 3):
+            raise ValueError(f"Invalid problem dimension: {self.dims}")
 
         # CFD flow field
         self.cfd_directory = Path(params["flow"])
@@ -101,8 +104,16 @@ def _load_schlieren(self):
 
     file_path = self.cfd_directory / f"{self.cfd_filename}.csv"
 
-    return generate_synthetic_schlieren(
+    schlieren = generate_synthetic_schlieren(
         file_path=file_path,
-        gradient_type=config["grad_type"]
+        density_name=config["density_name"],
+        gradient_type=config["grad_type"],
         dims=self.dims,
     )
+
+    if not config["noise"]: 
+        return add_noise(schlieren)
+    else:
+        return schlieren
+
+    
