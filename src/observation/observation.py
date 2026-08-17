@@ -18,13 +18,16 @@ class ObservationData:
 
         # CFD flow field
         self.cfd_directory = Path(params["flow"])
+        self.cfd_filename = params["files"]["flowfield"]
 
     def load_observation_data(self):
 
         self.observations = {}
 
-        #if self.config["schlieren"]["enabled"]:
-        #    observations["schlieren"] = schlieren_data
+        if self.config["schlieren"]["enabled"]:
+            self.observations["schlieren"] = (
+                self._load_schlieren()
+            )
 
         if self.config["velocity_profiles"]["enabled"]:
             self.observations["velocity_profiles"] = (
@@ -96,10 +99,10 @@ def _load_schlieren(self):
 
     config = self.config["schlieren"]
 
-    file_path = self.data_directory / config["filename"]
+    file_path = self.cfd_directory / f"{self.cfd_filename}.csv"
 
     return generate_synthetic_schlieren(
         file_path=file_path,
-        density_variable=config["density_variable"],
+        gradient_type=config["grad_type"]
         dims=self.dims,
     )
