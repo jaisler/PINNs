@@ -34,10 +34,8 @@ evaluation, and post-processing
 
 ## Documentation
 
-See the [PIRFlow documentation](docs/README.md) for the user guide,
-configuration reference, architecture overview, module reference, and current
-identification-module status. Code contribution standards are documented in
-[CONTRIBUTING.md](CONTRIBUTING.md).
+ Code contribution standards are documented in 
+ [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
