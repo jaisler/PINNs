@@ -30,11 +30,14 @@ def run() -> None:
     # Plot original sampling points
     plot_sampling_data(data_pnts, collocation_pnts, params)
 
-    # Stop after sampling when inference is disabled
-    if not params["run"]["routines"]["inference"] or \
-       not params["run"]["routines"]["identification"]:
-        return
-        
+    # Validate the selected problem mode.
+    problem = params["run"].get("problem", "forward").lower()
+    if problem not in {"forward", "inverse"}:
+        raise ValueError(
+            "Unsupported run.problem value. "
+            "Expected 'forward' or 'inverse'."
+        )
+
     # Prepare training, validation, test and collocation datasets
     data = prepare_data(
         data_pnts["X"],

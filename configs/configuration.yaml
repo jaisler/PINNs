@@ -39,12 +39,10 @@ run:
   model: pinn                # Options: supervised or pinn
   equation: euler            # Options: euler or rans
   device: cpu                # Options: cpu or cuda
-  problem: forward           # Options: forward (inference) or inverse (identification)
+  problem: forward           # Options: forward or inverse
 
   routines:
     sampling: true
-    inference: false         # TODO: Remove
-    identification: true     # TODO: Remove
     postprocessing: true
 
   checkpoint:
