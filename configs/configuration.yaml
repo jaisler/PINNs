@@ -4,12 +4,15 @@
 # Paths
 # -----
 paths: 
+  # In:
   flow: /path/to/flow/directory
   mesh: /path/to/mesh/directory
+  observations: /path/to/observations/directory 
+  # Out:
   results: /path/to/results/directory
   samples: /path/to/samples/directory
   model: /path/to/model/directory
-
+    
 # Name
 # ----
 name: afrl_scramjet
@@ -26,9 +29,9 @@ seed: 1234
 # Files
 # -----
 files:
-  flowfield: flow.vtu
-  mesh: afrl2d.geo
-  model_name: pinn_mlp_model
+  flowfield: flow.vtu        # Must be a vtk file
+  mesh: afrl2d.geo           # Must be a gmsh file
+  model_name: my_model
 
 # Run setup
 # ---------
@@ -36,11 +39,12 @@ run:
   model: pinn                # Options: supervised or pinn
   equation: euler            # Options: euler or rans
   device: cpu                # Options: cpu or cuda
+  problem: forward           # Options: forward (inference) or inverse (identification)
 
   routines:
     sampling: true
-    inference: true
-    identification: false
+    inference: false         # TODO: Remove
+    identification: true     # TODO: Remove
     postprocessing: true
 
   checkpoint:
@@ -48,6 +52,28 @@ run:
     save_model: false
 
   verbose: true
+
+# Identification problem
+# ----------------------
+identification:
+
+  observations:
+    schlieren: 
+      enabled: true
+      grad_type: magnitude   # Options: grad_x, grad_y, magnitude
+      density_name: Density  # Density name form CFD framework             
+      noise:
+        type: gaussian       # Options: none, gaussian
+        level: 0.01          # 0.01 means 1% noise
+    
+    velocity_profiles:
+      enabled: true
+      filename: velocity_profile   # Must be a csv file. velocity_profile_u_3.csv
+      n_files: 8
+
+    pressure_taps:
+      enabled: true
+      filename: pressure_taps      # Must be a csv file.
 
 # Neural network
 # --------------

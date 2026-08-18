@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 - Added postprocessing tool (#28)
 - Added plots for traning, validation and test datasets (#31)
 - Added docstrings and CONTRIBUTING.md (#40)
+- Added observation data treatment for the inverse problem (#41)
 
 ### Changed
 - Created a dedicated configuration directory (#19)
