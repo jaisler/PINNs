@@ -6,14 +6,29 @@ from .schlieren import generate_synthetic_schlieren
 from .noise import add_noise
 
 class ObservationData:
-    """ Defines and loads measurement data."""
+    """
+    Load and organize observation data for the inverse problem.
+
+    The class loads the enabled observations specified in the
+    configuration. Supported observations include synthetic schlieren
+    fields, velocity profiles, and pressure-tap measurements.
+    """
+
     def __init__(self, params):
-        """Initialize an empty observation-data container."""
+        """
+        Initialize the observation-data loader.
+
+        Parameters
+        ----------
+        params : dict
+            Project configuration dictionary.
+
+        """
 
         # Observation config
         self.config = params["identification"]["observations"]
-        self.data_directory = Path(params["paths"]["observations"])
-        self.data = {}
+        self.observations_directory = Path(params["paths"]["observations"])
+        self.observations = {}
 
         self.dims = params["geometry"]["dimension"]
         if self.dims not in (1, 2, 3):
@@ -23,9 +38,18 @@ class ObservationData:
         self.cfd_directory = Path(params["flow"])
         self.cfd_filename = params["files"]["flowfield"]
 
-    def load_observation_data(self):
+        # Seed (noise generation)
+        self.seed = params["seed"]
 
-        self.observations = {}
+    def load_observation_data(self):
+        """
+        Load all enabled observation datasets.
+
+        Returns
+        -------
+        self.observations : dict
+            Observation data organized by observation type.
+        """
 
         if self.config["schlieren"]["enabled"]:
             self.observations["schlieren"] = (
@@ -45,7 +69,15 @@ class ObservationData:
         return self.observations
 
     def _load_velocity_profiles(self):
-        """Load the velocity-profile measurements."""
+        """Load the velocity-profile measurements.
+        
+        Returns
+        -------
+        velocity_profiles : list of dict
+            Velocity profiles. Each dictionary contains coordinate
+            arrays and one velocity-component array.
+        """
+        self.observations = {}
 
         config = self.config["velocity_profiles"]
         n_files = config["n_files"]
@@ -58,7 +90,7 @@ class ObservationData:
 
         for component in components:
             for index in range(n_files):
-                file_path = (self.data_directory
+                file_path = (self.observations_directory
                              / f"{filename}_{component}_{index}.csv")
 
                 data = pd.read_csv(file_path)
@@ -78,12 +110,18 @@ class ObservationData:
         return velocity_profiles       
 
     def _load_pressure_taps(self):
-        """Load the pressure taps measurements."""
+        """Load the pressure taps measurements.
+        
+        Returns
+        -------
+        pressure_taps : dict
+            Pressure-tap coordinates and pressure values.
+        """
 
         config = self.config["pressure_taps"]
         filename = config["filename"]
 
-        file_path = self.data_directory / f"{filename}.csv"
+        file_path = self.observations_directory / f"{filename}.csv"
         data = pd.read_csv(file_path)
 
         coordinates = ["x", "y", "z"][:self.dims]
@@ -97,23 +135,35 @@ class ObservationData:
 
         return pressure_taps
         
-def _load_schlieren(self):
-    """Generate schlieren observations from a CFD density field."""
+    def _load_schlieren(self):
+        """ Generate noisy synthetic schlieren observations.
 
-    config = self.config["schlieren"]
+        Returns
+        -------
+        schlieren : dict
+            Spatial coordinates and the selected synthetic schlieren
+            field after applying the configured noise.
+        """
 
-    file_path = self.cfd_directory / f"{self.cfd_filename}.csv"
+        schlieren_config = self.config["schlieren"]
+        file_path = self.cfd_directory / self.cfd_filename
 
-    schlieren = generate_synthetic_schlieren(
-        file_path=file_path,
-        density_name=config["density_name"],
-        gradient_type=config["grad_type"],
-        dims=self.dims,
-    )
+        schlieren = generate_synthetic_schlieren(
+            file_path=file_path,
+            density_name=schlieren_config["density_name"],
+            grad_type=schlieren_config["grad_type"],
+            dims=self.dims,
+        )
 
-    if not config["noise"]: 
-        return add_noise(schlieren)
-    else:
+        noise_config = schlieren_config["noise"]
+        schlieren[schlieren_config["grad_type"]] = add_noise(
+            values=schlieren[schlieren_config["grad_type"]],
+            noise_type=noise_config["type"],
+            level=float(noise_config["level"]),
+            seed=self.seed,
+            nonnegative=(schlieren_config["grad_type"] == "magnitude")
+        )
+
         return schlieren
 
     
