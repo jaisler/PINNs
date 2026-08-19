@@ -50,6 +50,7 @@ class ObservationData:
         self.observations : dict
             Observation data organized by observation type.
         """
+        self.observations = {}
 
         if self.config["schlieren"]["enabled"]:
             self.observations["schlieren"] = (
@@ -77,7 +78,6 @@ class ObservationData:
             Velocity profiles. Each dictionary contains coordinate
             arrays and one velocity-component array.
         """
-        self.observations = {}
 
         config = self.config["velocity_profiles"]
         n_files = config["n_files"]
