@@ -15,6 +15,30 @@ def get_data_points(params):
         Coordinates, flow variables, and sampling groups.
     """
 
+    # Validate the selected problem mode.
+    problem = params["run"].get("problem", "forward").lower()
+
+    if problem not in {"forward", "inverse"}:
+        raise ValueError(
+            "Unsupported run.problem value. "
+            "Expected 'forward' or 'inverse'."
+        )
+
+    if problem == "inverse":
+        
+        data_points = {
+            "X": None,
+            "U": None,
+            "rho": None,
+            "p": None,
+            "mut": None,
+            "pts_in": None,
+            "pts_bc": None,
+            "pts_grad": None,
+        }
+
+        return data_points
+
     sampling_enabled = params['run']['routines']['sampling']
        
     # False indicates data points
@@ -71,8 +95,16 @@ def get_collocation_points(params):
         Collocation coordinates and sampling groups, or ``None`` values for
         a supervised model.
     """
+    # Validate the selected model.
+    model = params["run"].get("model", "supervised").lower()
 
-    if params["run"]["model"] != "pinn":
+    if model not in {"supervised", "pinn"}:
+        raise ValueError(
+            "Unsupported run.model value. "
+            "Expected 'supervised' or 'pinn'."
+        )
+
+    if model == "supervised":
         
         collocation_points = {
             "Xf": None,

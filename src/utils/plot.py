@@ -28,46 +28,46 @@ def plot_prepared_data(data, params):
 
     # Plot training dataset points
     plot_dataset(
-        data["xtrain"],
-        data["ytrain"],
+        data["training"]["xtrain"],
+        data["training"]["ytrain"],
         params,
         dataset='training',
     )
 
     # Plot validation dataset points
-    if data["xval"] is not None:
+    if data["validation"]["xval"] is not None:
         plot_dataset(
-            data["xval"],
-            data["yval"],
+            data["validation"]["xval"],
+            data["validation"]["yval"],
             params,
             dataset='validation',
         )
 
     # Plot test dataset points
-    if data["xtest"] is not None:
+    if data["test"]["xtest"] is not None:
         plot_dataset(
-            data["xtest"],
-            data["ytest"],
+            data["test"]["xtest"],
+            data["test"]["ytest"],
             params,
             dataset='test',
         )
 
     # Plot training data and training collocation points
     plot_target_points(
-        data["xtrain"],
-        data["ytrain"],
-        data["xftrain"],
-        data["yftrain"],
+        data["training"]["xtrain"],
+        data["training"]["ytrain"],
+        data["training"]["xftrain"],
+        data["training"]["yftrain"],
         params,
         True,
     )
 
     # Plot all data and all collocation points
     plot_target_points(
-        data["x"],
-        data["y"],
-        data["xf"],
-        data["yf"],
+        data["all"]["x"],
+        data["all"]["y"],
+        data["all"]["xf"],
+        data["all"]["yf"],
         params,
     )
 
@@ -182,14 +182,15 @@ def plot_sampling_data(data_points, collocation_points, params):
         PDF files are written to the result directory.
     """
 
-    plot_sampling_points(
-        data_points["X"],
-        data_points["pts_in"],
-        data_points["pts_bc"],
-        data_points["pts_grad"],
-        params,
-        False,
-    )
+    if data_points["X"] is None:
+        plot_sampling_points(
+            data_points["X"],
+            data_points["pts_in"],
+            data_points["pts_bc"],
+            data_points["pts_grad"],
+            params,
+            False,
+        )
 
     if collocation_points["Xf"] is not None:
         plot_sampling_points(

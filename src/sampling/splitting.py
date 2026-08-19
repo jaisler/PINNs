@@ -314,8 +314,8 @@ def prepare_data(X, U, rho, p, mut, Xf, params):
         xftrain = xf[idxc, None]
         yftrain = yf[idxc, None]
 
-    data = {
-        # All data points
+    # All data points
+    all = {
         "x": x,
         "y": y,
         "rho": rho,
@@ -323,8 +323,9 @@ def prepare_data(X, U, rho, p, mut, Xf, params):
         "v": v,
         "p": p,
         "mut": mut,
+    }
 
-        # Training data
+    training_data = {
         "xtrain": xtrain,
         "ytrain": ytrain,
         "rhotrain": rhotrain,
@@ -332,8 +333,9 @@ def prepare_data(X, U, rho, p, mut, Xf, params):
         "vtrain": vtrain,
         "ptrain": ptrain,
         "muttrain": muttrain,
+    }
 
-        # Validation data
+    validation_data = {
         "xval": xval,
         "yval": yval,
         "rhoval": rhoval,
@@ -341,8 +343,11 @@ def prepare_data(X, U, rho, p, mut, Xf, params):
         "vval": vval,
         "pval": pval,
         "mutval": mutval,
+    }
+
 
         # Test data
+    test_data = {
         "xtest": xtest,
         "ytest": ytest,
         "rhotest": rhotest,
@@ -350,8 +355,9 @@ def prepare_data(X, U, rho, p, mut, Xf, params):
         "vtest": vtest,
         "ptest": ptest,
         "muttest": muttest,
+    }
 
-        # Collocation data
+    collocation_data = {
         "xf": xf,
         "yf": yf,
         "xftrain": xftrain,
@@ -367,4 +373,9 @@ def prepare_data(X, U, rho, p, mut, Xf, params):
     if xftrain is not None:
         print(f"  Training collocation points    : {N_coll}")
     
-    return data
+    return {
+        "training": training_data,
+        "validation": validation_data,
+        "test": test_data,
+        "collocation": collocation_data,
+    }
