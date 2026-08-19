@@ -182,7 +182,7 @@ def plot_sampling_data(data_points, collocation_points, params):
         PDF files are written to the result directory.
     """
 
-    if data_points["X"] is None:
+    if data_points["X"] is not None:
         plot_sampling_points(
             data_points["X"],
             data_points["pts_in"],
