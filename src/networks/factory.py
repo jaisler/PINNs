@@ -19,7 +19,14 @@ def build_network(params):
         Configured neural network.
     """
 
-    architecture = params['network']['architecture']
+    # Validate the selected architecture.
+    architecture = params["network"].get("architecture", "mlp").lower()
+
+    if architecture not in {"mlp", "gnn"}:
+        raise ValueError(
+            "Unsupported network.architecture value. "
+            "Expected 'mlp' or 'gnn'."
+        )
 
     # Multilayer Perceptron
     if architecture == 'mlp':
