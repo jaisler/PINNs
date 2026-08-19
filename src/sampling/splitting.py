@@ -374,6 +374,7 @@ def prepare_data(X, U, rho, p, mut, Xf, params):
         print(f"  Training collocation points    : {N_coll}")
     
     return {
+        "all": all,
         "training": training_data,
         "validation": validation_data,
         "test": test_data,

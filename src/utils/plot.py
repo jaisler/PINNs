@@ -56,8 +56,8 @@ def plot_prepared_data(data, params):
     plot_target_points(
         data["training"]["xtrain"],
         data["training"]["ytrain"],
-        data["training"]["xftrain"],
-        data["training"]["yftrain"],
+        data["collocation"]["xftrain"],
+        data["collocation"]["yftrain"],
         params,
         True,
     )
@@ -66,8 +66,8 @@ def plot_prepared_data(data, params):
     plot_target_points(
         data["all"]["x"],
         data["all"]["y"],
-        data["all"]["xf"],
-        data["all"]["yf"],
+        data["collocation"]["xf"],
+        data["collocation"]["yf"],
         params,
     )
 

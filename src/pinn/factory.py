@@ -24,14 +24,15 @@ def build_pinn_model(network, data, params):
 
     model = PhysicsInformedNN(
         network, # MLP or GNN 
-        data["xtrain"], data["ytrain"], # training data
-        data["rhotrain"], data["utrain"], data["vtrain"], 
-        data["ptrain"], # training data
-        data["xftrain"], data["yftrain"], # collocation data
+        data["training"]["xtrain"], data["training"]["ytrain"], # training data
+        data["training"]["rhotrain"], data["training"]["utrain"], data["training"]["vtrain"], 
+        data["training"]["ptrain"], # training data
+        data["collocation"]["xftrain"], data["collocation"]["yftrain"], # collocation data
         params, # general parameters
-        data["muttrain"], # RANS eq.
-        data["xval"], data["yval"], data["rhoval"], data["uval"], 
-        data["vval"], data["pval"], data["mutval"] # validation data
+        data["training"]["muttrain"], # RANS eq.
+        data["validation"]["xval"], data["validation"]["yval"], data["validation"]["rhoval"], 
+        data["validation"]["uval"], data["validation"]["vval"], data["validation"]["pval"], 
+        data["validation"]["mutval"] # validation data
     )
 
     return model
