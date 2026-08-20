@@ -35,7 +35,7 @@ class ObservationData:
             raise ValueError(f"Invalid problem dimension: {self.dims}")
 
         # CFD flow field
-        self.cfd_directory = Path(params["flow"])
+        self.cfd_directory = Path(params["paths"]["flow"])
         self.cfd_filename = params["files"]["flowfield"]
 
         # Seed (noise generation)
