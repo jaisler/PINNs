@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 import numpy as np
 
-def create_split_indices(number_of_points,params):
+def create_split_indices(number_of_points, params):
     """Create shuffled training, validation, and test indices.
 
     Parameters

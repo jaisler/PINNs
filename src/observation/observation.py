@@ -25,14 +25,12 @@ class ObservationData:
 
         """
 
+        self.dims = params["geometry"]["dimension"]
+
         # Observation config
         self.config = params["identification"]["observations"]
         self.observations_directory = Path(params["paths"]["observations"])
         self.observations = {}
-
-        self.dims = params["geometry"]["dimension"]
-        if self.dims not in (1, 2, 3):
-            raise ValueError(f"Invalid problem dimension: {self.dims}")
 
         # CFD flow field
         self.cfd_directory = Path(params["paths"]["flow"])
