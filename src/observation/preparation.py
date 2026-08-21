@@ -151,10 +151,98 @@ def _prepare_velocity_profiles(velocity_profiles, params):
         velocity profiles.
     """
 
+    dims = params["geometry"]["dimension"]
+    
+    # Coordinates
+    coordinate_names = ("x", "y", "z")[:dims]
+    # Velocity profiles
+    velocity_names = ("u", "v", "w")[:dims]
+
+    velocity_config = (
+        params["identification"]["observations"]["velocity_profiles"]
+    )
+    # Number of velocity profile files
+    n_files = velocity_config["n_files"]
+
+    if n_files <= 0:
+        raise ValueError(
+            "Number of velocity-profile files must be positive"
+        )
+
+    expected_profiles = dims * n_files
+
+    if len(velocity_profiles) != expected_profiles:
+        raise ValueError(
+            f"Expected {expected_profiles} velocity profiles, "
+            f"received {len(velocity_profiles)}"
+        )
 
 
-    return {}
+    components = {}
+    for component_index, component_name in enumerate(velocity_names):
+        component_coordinates = []
+        component_velocities = []
 
+        for file_index in range(n_files):
+            profile_index = (
+                component_index * n_files + file_index
+            )
+
+            profile = velocity_profiles[profile_index]
+
+
+            component_coordinates.append(
+                np.column_stack([
+                    np.asarray(profile[name], dtype=float).reshape(-1)
+                    for name in coordinate_names
+                ])
+            )
+
+            component_velocities.append(
+                np.asarray(profile[component_name], dtype=float).reshape(-1, 1)
+            )
+
+            number_of_points = component_coordinates[file_index].shape[0]
+
+            if number_of_points == 0:
+                raise ValueError("Velocity observations cannot be empty")
+
+            if component_velocities[file_index].shape[0] != number_of_points:
+                raise ValueError(
+                    "Velocity profile coordinates and values must contain the same "
+                    "number of points"
+                )
+
+            if not np.all(np.isfinite(component_coordinates[file_index])):
+                raise ValueError(
+                    "Velocity profiles coordinates contain non-finite values"
+                )
+
+            if not np.all(np.isfinite(component_velocities[file_index])):
+                raise ValueError(
+                    "Velocity profiles values contain non-finite values"
+                )
+
+        coordinates = np.vstack(component_coordinates)
+        velocities = np.vstack(component_velocities)
+
+        # Get split indices
+        split_indices = create_split_indices(
+            coordinates.shape[0],
+            params,
+        )
+
+        components[component_name] = {
+            component_name: {
+                subset: {
+                    "X": coordinates[indices],
+                    "value": velocities[indices],
+                }
+                for subset, indices in split_indices.items()
+            }
+        }
+
+    return components
 
 def _prepare_pressure_taps(pressure_taps, params):
     """Split pressure taps coordinates and measurements into data subsets.
@@ -212,7 +300,7 @@ def _prepare_pressure_taps(pressure_taps, params):
     return {
         subset: {
             "X": coordinates[indices],
-            "p": pressure[indices],
+            "value": pressure[indices],
         }
         for subset, indices in split_indices.items()
     }
