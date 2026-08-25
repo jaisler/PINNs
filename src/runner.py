@@ -4,7 +4,7 @@ from src.sampling import get_data_points, get_collocation_points, prepare_data
 from src.networks import build_network
 from src.pinn import build_pinn_model, train_model, evaluate_data
 from src.postprocessing import run_flowfield_postprocessing
-from src.utils import plot_prepared_data, plot_sampling_data
+from src.utils import plot_prepared_data, plot_sampling_data, plot_observation_data
 from src.observation import ObservationData, prepare_observation_data
 
 def run() -> None:
@@ -40,15 +40,21 @@ def run() -> None:
         # Load and organize observation data for the inverse problem
         observation_loader = ObservationData(params)
 
-        raw_observations = observation_loader.load_observation_data()
+        # Raw observation dataset
+        observations = observation_loader.load_observation_data()
 
+        # Split observation dataset
         prepared_observations = prepare_observation_data(
-                raw_observations,
+                observations,
                 params,
         )
 
-        # Plot observation points: Training, validation, test
-    
+        # Plot all observation points
+        plot_observation_data(observations, params)
+
+        # Plot observation datasets: training, validation, test
+        #plot_prepared_observation_data(prepared_observations, params)
+
     if problem == "forward":
         # Prepare training, validation, test and collocation datasets
         datasets = prepare_data(
@@ -62,7 +68,7 @@ def run() -> None:
             params
         )
 
-        # Plot prepared datasets
+        # Plot prepared datasets from sampling
         plot_prepared_data(datasets, params)
 
         # Build neural network
