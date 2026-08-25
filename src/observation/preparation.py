@@ -233,13 +233,11 @@ def _prepare_velocity_profiles(velocity_profiles, params):
         )
 
         components[component_name] = {
-            component_name: {
-                subset: {
-                    "X": coordinates[indices],
-                    "value": velocities[indices],
-                }
-                for subset, indices in split_indices.items()
+            subset: {
+                "X": coordinates[indices],
+                "value": velocities[indices],
             }
+            for subset, indices in split_indices.items()
         }
 
     return components
