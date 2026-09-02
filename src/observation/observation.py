@@ -148,13 +148,17 @@ class ObservationData:
 
         schlieren = generate_synthetic_schlieren(
             file_path=file_path,
+            image=schlieren_config["image"],
+            rendering=schlieren_config["rendering"],
             density_name=schlieren_config["density_name"],
             grad_type=schlieren_config["grad_type"],
             dims=self.dims,
         )
 
         noise_config = schlieren_config["noise"]
-        schlieren[schlieren_config["grad_type"]] = add_noise(
+        gradient_type = schlieren_config["grad_type"]
+
+        schlieren[gradient_type] = add_noise(
             values=schlieren[schlieren_config["grad_type"]],
             noise_type=noise_config["type"],
             level=float(noise_config["level"]),
