@@ -50,6 +50,20 @@ def create_split_indices(number_of_points, params):
     # Assign rounding remainder to training.
     subset_sizes[0] += number_of_points - subset_sizes.sum()
 
+    if number_of_points < 3:
+        raise ValueError(
+            "At least 3 points are required for non-empty " \
+            "training, validation and test datasets."
+        )
+
+    if (subset_sizes[1] == 0):
+        subset_sizes[0] -= 1
+        subset_sizes[1] += 1 
+
+    if (subset_sizes[2] == 0):
+        subset_sizes[0] -= 1
+        subset_sizes[2] += 1 
+
     # Get shuffled indices
     rng = np.random.default_rng(seed)
     shuffled_indices = rng.permutation(number_of_points)
