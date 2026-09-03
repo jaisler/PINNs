@@ -73,7 +73,12 @@ identification:
       noise:
         type: gaussian       # Options: none, gaussian
         level: 0.01          # 0.01 means 1% noise
-    
+
+      sampling:
+        points: 4096
+        uniform_fraction: 0.70
+        alpha: 1.0
+
     velocity_profiles:
       enabled: true
       filename: velocity_profile   # Must be a csv file. velocity_profile_u_3.csv
@@ -134,14 +139,6 @@ sampling:
     interior: 1700
     gradient: 1700
     boundary: [40, 260, 40, 160]
-
-  schlieren_points:
-    total: 4096
-    uniform_fraction: 0.70
-    importance: absolute_signal
-    alpha: 1.0
-    pool_factor: 8
-    resample_each_epoch: false
 
   gradient_sampling:
     variable: Density

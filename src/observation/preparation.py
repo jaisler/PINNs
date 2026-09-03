@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: MIT
 import numpy as np
+
+from .schlieren_sampling import sample_schlieren_observations
 from ..datasets import create_split_indices
 
 def prepare_observation_data(raw_observation, params):
@@ -53,7 +55,8 @@ def _prepare_schlieren(schlieren, params):
     Parameters
     ----------
     schlieren : dict
-        Coordinate arrays and the configured density-gradient observable.
+        Coordinate arrays and the configured density-gradient observable
+        on a camera grid.
     params : dict
         Project configuration dictionary.
 
@@ -72,10 +75,7 @@ def _prepare_schlieren(schlieren, params):
 
     # Get density-gradient type
     gradient_type = (
-        params["identification"]
-        ["observations"]
-        ["schlieren"]
-        ["grad_type"]
+        params["identification"]["observations"]["schlieren"]["grad_type"]
     )
 
     required_fields = (*coordinate_names, gradient_type)
@@ -96,10 +96,7 @@ def _prepare_schlieren(schlieren, params):
         for name in coordinate_names
     ])
 
-    values = np.asarray(
-        schlieren[gradient_type],
-        dtype=float,
-    ).reshape(-1, 1)
+    values = np.asarray(schlieren[gradient_type], dtype=float).reshape(-1, 1)
 
     number_of_points = coordinates.shape[0]
 
@@ -118,16 +115,35 @@ def _prepare_schlieren(schlieren, params):
     if not np.all(np.isfinite(values)):
         raise ValueError("Schlieren values contain non-finite values")
 
+
+    # from the beginning to here, it only initialized the coordinates
+    # and values as arrays.
+    # I will not send the number of points, since when sampling, it
+    # will set the number of points defined by the user.
+    # I will sample the points with the information from the session file.
+
+    sampling_config = (
+        params["identification"]["observation"]["schlieren"]["sampling"]
+    )
+    sampled_coords, sampled_values = sample_schlieren_observations(
+        coordinates, 
+        values, 
+        sampling_config, 
+        params["seed"]
+    )
+
+    number_of_samples = sampled_coords.shape[0]
+
     # Get split indices
     split_indices = create_split_indices(
-        number_of_points,
+        number_of_samples,
         params,
     )
 
     return {
         subset: {
-            "X": coordinates[indices],
-            "value": values[indices],
+            "X": sampled_coords[indices],
+            "value": sampled_values[indices],
         }
         for subset, indices in split_indices.items()
     }
