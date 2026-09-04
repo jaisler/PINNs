@@ -94,12 +94,48 @@ def sample_schlieren_observations(
     else:
         uniform_indices = np.empty(0, dtype=int)
 
+    # Remove uniform samples from available points.
+    remaining_mask = np.ones(
+        number_of_available_points,
+        dtype=bool,
+    )
+    remaining_mask[uniform_indices] = False
+    remaining_indices = available_indices[remaining_mask]
 
-    # TODO:
-    # 1. Sample uniformly (randomlly LHS)
-    # 2. Sample using gradient-based
-    # 3. Put them together in arrays like: sampled_coordinates and
-    # sampled_values.
-    # 4. Return arrays
- 
-    return coordinates, values
+    if number_of_remaining_points > 0:
+
+        signal_strength = np.abs(
+            values[remaining_indices, 0]
+        )
+
+        # The small epsilon also produces uniform probabilities when
+        # every remaining signal value is zero.
+        weights = (
+            signal_strength**alpha
+            + np.finfo(float).eps
+        )
+
+        probabilities = weights / weights.sum()
+
+        importance_indices = rng.choice(
+            remaining_indices,
+            size=number_of_remaining_points,
+            replace=False,
+            p=probabilities,
+        )
+    else:
+        importance_indices = np.empty(0, dtype=int)
+
+    # Concatenate uniform and importance indices
+    selected_indices = np.concatenate([
+        uniform_indices,
+        importance_indices,
+    ])
+
+    # Mix uniform and importance-selected observations.
+    rng.shuffle(selected_indices)
+
+    return (
+        coordinates[selected_indices],
+        values[selected_indices],
+    )

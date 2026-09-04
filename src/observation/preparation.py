@@ -115,15 +115,8 @@ def _prepare_schlieren(schlieren, params):
     if not np.all(np.isfinite(values)):
         raise ValueError("Schlieren values contain non-finite values")
 
-
-    # from the beginning to here, it only initialized the coordinates
-    # and values as arrays.
-    # I will not send the number of points, since when sampling, it
-    # will set the number of points defined by the user.
-    # I will sample the points with the information from the session file.
-
     sampling_config = (
-        params["identification"]["observation"]["schlieren"]["sampling"]
+        params["identification"]["observations"]["schlieren"]["sampling"]
     )
     sampled_coords, sampled_values = sample_schlieren_observations(
         coordinates, 
