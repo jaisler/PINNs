@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: MIT
+"""Load configured measurements and generate synthetic observations."""
+
 from pathlib import Path
 import pandas as pd
 
@@ -6,50 +8,45 @@ from .schlieren import generate_synthetic_schlieren
 from .noise import add_noise
 
 class ObservationData:
-    """
-    Load and organize observation data for the inverse problem.
+    """Load and organize observation data for an inverse problem.
 
-    The class loads the enabled observations specified in the
-    configuration. Supported observations include synthetic schlieren
-    fields, velocity profiles, and pressure-tap measurements.
+    Enabled modalities are read from the project configuration. Supported
+    observations are synthetic Schlieren fields, velocity profiles, and
+    pressure-tap measurements.
     """
 
     def __init__(self, params):
-        """
-        Initialize the observation-data loader.
+        """Initialize the observation-data loader.
 
         Parameters
         ----------
         params : dict
-            Project configuration dictionary.
-
+            PIRFlow configuration.
         """
+
+        self.dims = params["geometry"]["dimension"]
 
         # Observation config
         self.config = params["identification"]["observations"]
         self.observations_directory = Path(params["paths"]["observations"])
         self.observations = {}
 
-        self.dims = params["geometry"]["dimension"]
-        if self.dims not in (1, 2, 3):
-            raise ValueError(f"Invalid problem dimension: {self.dims}")
-
         # CFD flow field
-        self.cfd_directory = Path(params["flow"])
+        self.cfd_directory = Path(params["paths"]["flow"])
         self.cfd_filename = params["files"]["flowfield"]
 
         # Seed (noise generation)
         self.seed = params["seed"]
 
     def load_observation_data(self):
-        """
-        Load all enabled observation datasets.
+        """Load all enabled observation datasets.
 
         Returns
         -------
-        self.observations : dict
-            Observation data organized by observation type.
+        dict
+            Raw observation data organized by modality.
         """
+        self.observations = {}
 
         if self.config["schlieren"]["enabled"]:
             self.observations["schlieren"] = (
@@ -69,15 +66,14 @@ class ObservationData:
         return self.observations
 
     def _load_velocity_profiles(self):
-        """Load the velocity-profile measurements.
+        """Load the configured velocity-profile CSV files.
         
         Returns
         -------
-        velocity_profiles : list of dict
-            Velocity profiles. Each dictionary contains coordinate
-            arrays and one velocity-component array.
+        list of dict
+            Velocity profiles in component-major order. Each dictionary
+            contains spatial coordinates and one velocity component.
         """
-        self.observations = {}
 
         config = self.config["velocity_profiles"]
         n_files = config["n_files"]
@@ -110,12 +106,12 @@ class ObservationData:
         return velocity_profiles       
 
     def _load_pressure_taps(self):
-        """Load the pressure taps measurements.
+        """Load the configured pressure-tap CSV file.
         
         Returns
         -------
-        pressure_taps : dict
-            Pressure-tap coordinates and pressure values.
+        dict
+            Pressure-tap coordinates and measured pressures under ``"p"``.
         """
 
         config = self.config["pressure_taps"]
@@ -136,13 +132,13 @@ class ObservationData:
         return pressure_taps
         
     def _load_schlieren(self):
-        """ Generate noisy synthetic schlieren observations.
+        """Generate a noisy synthetic Schlieren observation.
 
         Returns
         -------
-        schlieren : dict
-            Spatial coordinates and the selected synthetic schlieren
-            field after applying the configured noise.
+        dict
+            Valid camera-pixel coordinates and the configured density-gradient
+            signal after applying observation noise.
         """
 
         schlieren_config = self.config["schlieren"]
@@ -150,13 +146,17 @@ class ObservationData:
 
         schlieren = generate_synthetic_schlieren(
             file_path=file_path,
+            image=schlieren_config["image"],
+            rendering=schlieren_config["rendering"],
             density_name=schlieren_config["density_name"],
             grad_type=schlieren_config["grad_type"],
             dims=self.dims,
         )
 
         noise_config = schlieren_config["noise"]
-        schlieren[schlieren_config["grad_type"]] = add_noise(
+        gradient_type = schlieren_config["grad_type"]
+
+        schlieren[gradient_type] = add_noise(
             values=schlieren[schlieren_config["grad_type"]],
             noise_type=noise_config["type"],
             level=float(noise_config["level"]),
@@ -165,5 +165,3 @@ class ObservationData:
         )
 
         return schlieren
-
-    

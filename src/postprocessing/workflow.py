@@ -44,10 +44,10 @@ def run_flowfield_postprocessing(model, params):
         Output fields and plots are written to disk.
     """
 
-    if not params["run"]["routines"].get("inference", False): 
+    if params["run"].get("problem", "forward").lower() != "forward":
         print("---------------------------------------")
         print("Skipping flowfield post-processing.")
-        print("Inference routine is disabled.")
+        print("Post-processing is only enabled for the forward problem.")
         return None
 
     # Load CFD mesh/flowfield once

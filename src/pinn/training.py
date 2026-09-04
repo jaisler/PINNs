@@ -95,9 +95,9 @@ def evaluate_data(model, data):
     """
 
     test_data_available = (
-        data["xtest"] is not None 
-        and data["ytest"] is not None 
-        and data["xtest"].shape[0] > 0
+        data["test"]["xtest"] is not None 
+        and data["test"]["ytest"] is not None 
+        and data["test"]["xtest"].shape[0] > 0
     )
 
     if not test_data_available:
@@ -109,8 +109,9 @@ def evaluate_data(model, data):
         return
 
     test_metrics = model.evaluate_data(
-        data["xtest"], data["ytest"], data["rhotest"], data["utest"], 
-        data["vtest"], data["ptest"], data["muttest"]
+        data["test"]["xtest"], data["test"]["ytest"], data["test"]["rhotest"], 
+        data["test"]["utest"], data["test"]["vtest"], data["test"]["ptest"], 
+        data["test"]["muttest"]
     )
 
     # Print metrics of the test dataset

@@ -12,7 +12,7 @@ paths:
   results: /path/to/results/directory
   samples: /path/to/samples/directory
   model: /path/to/model/directory
-    
+
 # Name
 # ----
 name: afrl_scramjet
@@ -39,12 +39,10 @@ run:
   model: pinn                # Options: supervised or pinn
   equation: euler            # Options: euler or rans
   device: cpu                # Options: cpu or cuda
-  problem: forward           # Options: forward (inference) or inverse (identification)
+  problem: inverse           # Options: forward or inverse
 
   routines:
     sampling: true
-    inference: false         # TODO: Remove
-    identification: true     # TODO: Remove
     postprocessing: true
 
   checkpoint:
@@ -58,14 +56,29 @@ run:
 identification:
 
   observations:
+    
     schlieren: 
       enabled: true
-      grad_type: magnitude   # Options: grad_x, grad_y, magnitude
-      density_name: Density  # Density name form CFD framework             
+      grad_type: grad_x      # Options: grad_x, grad_y, magnitude
+      density_name: Density  # Density name form CFD framework
+      
+      image:
+        resolution: [512, 128]        # width, height
+        supersampling: 2
+
+      rendering:
+        blur_sigma_pixels: 0.8
+        normalization_percentile: 99.0
+
       noise:
         type: gaussian       # Options: none, gaussian
         level: 0.01          # 0.01 means 1% noise
-    
+
+      sampling:
+        points: 4096
+        uniform_fraction: 0.70
+        alpha: 1.0
+
     velocity_profiles:
       enabled: true
       filename: velocity_profile   # Must be a csv file. velocity_profile_u_3.csv
@@ -144,7 +157,7 @@ dataset:
 optimizer:
   adam:
     enabled: true
-    iterations: 10
+    iterations: 8
     learning_rate: 4.0e-4
 
     scheduler:
