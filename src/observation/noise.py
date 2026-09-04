@@ -1,32 +1,29 @@
 # SPDX-License-Identifier: MIT
+"""Noise models for synthetic observation data."""
+
 import numpy as np
 
 def add_noise(values, noise_type, level, seed=None, nonnegative=False):
-    """
-    Add noise to an observation field.
+    """Add configured random noise to an observation field.
 
     Parameters
     ----------
     values : numpy.ndarray
         Clean observation values.
-
-    noise_type : str
-        Noise type: "none" or "gaussian".
-
+    noise_type : {"none", "gaussian"}
+        Noise model to apply.
     level : float
         Noise standard deviation relative to the standard deviation
         of the clean values. For example, 0.05 represents 5% noise.
-
     seed : int, optional
         Random seed for reproducibility.
-
-    nonnegative : bool, default=False
-        Whether negative noisy values should be clipped to zero.
+    nonnegative : bool, optional
+        Whether to clip noisy values at zero.
 
     Returns
     -------
     numpy.ndarray
-        Noisy observation values.
+        Observation values with the requested noise applied.
     """
 
     if (level < 0.0 or level > 1.0):

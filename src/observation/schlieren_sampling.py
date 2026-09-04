@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: MIT
+"""Select camera pixels from synthetic Schlieren observations."""
+
 import numpy as np
 
 def sample_schlieren_observations(
@@ -7,37 +9,30 @@ def sample_schlieren_observations(
         sampling_config,
         seed,
 ):
-    """Sample pixels from a generated Schlieren observation.
+    """Select Schlieren observations using uniform and signal-based sampling.
 
-    A fraction of the requested pixels is selected uniformly. The
-    remainder is selected with probabilities proportional to
-
-        abs(signal) ** alpha
-
-    Sampling is performed without replacement.
+    The configured fraction is selected uniformly without replacement. The
+    remaining points are selected from unused pixels with probabilities
+    proportional to ``abs(values) ** alpha``.
 
     Parameters
     ----------
     coordinates : numpy.ndarray
-        Observation coordinates with shape ``(N, dimension)``.
-
+        Valid camera-pixel coordinates with shape ``(N, dimension)``.
     values : numpy.ndarray
-        Schlieren values with shape ``(N,)`` or ``(N, 1)``.
-
+        Schlieren values with shape ``(N, 1)``.
     sampling_config : dict
-        Configuration containing ``points``, ``uniform_fraction``,
-        and ``alpha``.
-
+        Sampling settings containing ``points``, ``uniform_fraction``, and
+        ``alpha``.
     seed : int
         Random seed used for reproducible sampling.
 
     Returns
     -------
     sampled_coordinates : numpy.ndarray
-        Sampled coordinates with shape ``(number_of_points, dimension)``.
-
+        Selected coordinates with shape ``(points, dimension)``.
     sampled_values : numpy.ndarray
-        Sampled Schlieren values with shape ``(number_of_points, 1)``.
+        Selected Schlieren values with shape ``(points, 1)``.
     """
     
     # Camera pixels

@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: MIT
+"""Validate, sample, and split raw observation modalities."""
+
 import numpy as np
 
 from .schlieren_sampling import sample_schlieren_observations
 from ..datasets import create_split_indices
 
 def prepare_observation_data(raw_observation, params):
-    """Prepare all loaded observation modalities.
+    """Prepare all loaded observation modalities for model use.
 
     Parameters
     ----------
@@ -14,13 +16,12 @@ def prepare_observation_data(raw_observation, params):
         ``"schlieren"``, ``"velocity_profiles"``, and
         ``"pressure_taps"``.
     params : dict
-        Project configuration dictionary.
+        PIRFlow configuration.
 
     Returns
     -------
     dict
-        Enabled observation modalities containing prepared training,
-        validation, and test subsets.
+        Prepared observations organized by modality and dataset subset.
     """
 
     prepared = {}
@@ -50,22 +51,21 @@ def prepare_observation_data(raw_observation, params):
 
 
 def _prepare_schlieren(schlieren, params):
-    """Split Schlieren coordinates and measurements into data subsets.
+    """Sample and split a raw Schlieren observation.
 
     Parameters
     ----------
     schlieren : dict
-        Coordinate arrays and the configured density-gradient observable
-        on a camera grid.
+        Valid camera-pixel coordinates and the configured density-gradient
+        observable.
     params : dict
-        Project configuration dictionary.
+        PIRFlow configuration.
 
     Returns
     -------
     dict
-        Training, validation, and test subsets. Each subset contains
-        ``"X"`` with shape ``(N, dimension)`` and ``"value"`` with
-        shape ``(N, 1)``.
+        Training, validation, and test mappings. Each subset contains ``"X"``
+        with shape ``(N, dimension)`` and ``"value"`` with shape ``(N, 1)``.
     """
 
     dims = params["geometry"]["dimension"]
@@ -142,22 +142,22 @@ def _prepare_schlieren(schlieren, params):
     }
 
 def _prepare_velocity_profiles(velocity_profiles, params):
-    """Split velocity profiles coordinates and measurements 
-    into data subsets.
+    """Combine and split velocity-profile observations by component.
 
     Parameters
     ----------
     velocity_profiles : list of dict
-        Velocity profiles. Each dictionary contains coordinate arrays
-        and one measured velocity-component array.
+        Raw profiles in component-major order. Each dictionary contains
+        spatial coordinates and one measured velocity component.
     params : dict
-        Project configuration dictionary.
+        PIRFlow configuration.
 
     Returns
     -------
     dict
-        Training, validation, and test subsets. List of prepared 
-        velocity profiles.
+        Velocity components mapped to training, validation, and test subsets.
+        Each subset contains coordinate and value arrays under ``"X"`` and
+        ``"value"``.
     """
 
     dims = params["geometry"]["dimension"]
@@ -252,21 +252,20 @@ def _prepare_velocity_profiles(velocity_profiles, params):
     return components
 
 def _prepare_pressure_taps(pressure_taps, params):
-    """Split pressure taps coordinates and measurements into data subsets.
+    """Split pressure-tap coordinates and measurements into data subsets.
 
     Parameters
     ----------
     pressure_taps : dict
         Coordinate arrays and the measured pressure array ``"p"``.
     params : dict
-        Project configuration dictionary.
+        PIRFlow configuration.
 
     Returns
     -------
     dict
-        Training, validation, and test subsets. Each subset contains
-        ``"X"`` with shape ``(N, dimension)`` and ``"p"`` with shape
-        ``(N, 1)``.
+        Training, validation, and test mappings. Each subset contains ``"X"``
+        with shape ``(N, dimension)`` and ``"value"`` with shape ``(N, 1)``.
     """
 
     dims = params["geometry"]["dimension"]

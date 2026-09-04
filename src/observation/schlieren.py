@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: MIT
+"""Render synthetic Schlieren observations from CFD flowfields."""
+
 from pathlib import Path
 
 import numpy as np
@@ -6,7 +8,22 @@ import pyvista as pv
 from scipy.ndimage import gaussian_filter
 
 def _masked_gaussian_filter(values, valid, sigma):
-    """Blur valid pixels without using invalid pixels as zeros."""
+    """Apply a normalized Gaussian blur over valid image pixels.
+
+    Parameters
+    ----------
+    values : numpy.ndarray
+        Image values with shape ``(height, width)``.
+    valid : numpy.ndarray
+        Boolean mask with the same shape as ``values``.
+    sigma : float
+        Gaussian standard deviation in pixels.
+
+    Returns
+    -------
+    numpy.ndarray
+        Filtered image with the same shape as ``values``.
+    """
 
     if sigma <= 0.0:
         return values.copy()
@@ -41,7 +58,29 @@ def _downsample_valid_pixels(
     width,
     supersampling,
 ):
-    """Average supersampled values into final camera pixels."""
+    """Average valid subpixels into the final camera resolution.
+
+    Parameters
+    ----------
+    values : numpy.ndarray
+        Supersampled image with shape ``(height * supersampling, width *
+        supersampling)``.
+    valid : numpy.ndarray
+        Boolean validity mask with the same shape as ``values``.
+    height : int
+        Final image height in pixels.
+    width : int
+        Final image width in pixels.
+    supersampling : int
+        Number of subpixels per final-pixel axis.
+
+    Returns
+    -------
+    final_values : numpy.ndarray
+        Downsampled values with shape ``(height, width)``.
+    final_valid : numpy.ndarray
+        Boolean mask identifying final pixels whose subpixels are all valid.
+    """
 
     if supersampling == 1:
         return values.copy(), valid.copy()
@@ -97,28 +136,25 @@ def generate_synthetic_schlieren(
     ----------
     file_path : str or pathlib.Path
         Path to the CFD VTK file.
-
     image : dict
         Image settings containing ``resolution`` and optionally
         ``supersampling``.
-
     rendering : dict
         Rendering settings containing ``blur_sigma_pixels`` and
         ``normalization_percentile``.
-
-    density_name : str, default="rho"
+    density_name : str, optional
         Name of the CFD density field.
-
     grad_type : {"grad_x", "grad_y", "magnitude"}
         Density-gradient quantity used as the Schlieren signal.
-
-    dims : int, default=2
-        Spatial dimension.
+    dims : int, optional
+        Spatial dimension. Synthetic camera rendering currently supports only
+        two-dimensional flowfields.
 
     Returns
     -------
     dict
-        Valid camera coordinates and corresponding Schlieren values.
+        Valid final-pixel coordinates under ``"x"`` and ``"y"``, together
+        with the selected density-gradient signal under ``grad_type``.
     """
 
     if dims != 2:
